@@ -24,8 +24,6 @@ file_size_limit = "50MiB"
 site_url = "http://localhost:3000"
 additional_redirect_urls = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
 jwt_expiry = 3600
-refresh_token_rotation_enabled = true
-security_captcha_enabled = false
 
 [functions]
-verify_jwt = false
+# verify_jwt = true

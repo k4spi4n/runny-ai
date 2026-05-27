@@ -78,55 +78,42 @@ Các bảng cốt lõi bao gồm:
 
 ---
 
-## 🚀 Hướng dẫn Cài đặt (Môi trường Local)
+## 🚀 Hướng dẫn Cài đặt & Chạy thử (Local)
 
-1. Clone repository về máy:
+### 1. Chuẩn bị Môi trường
+- **Flutter SDK:** [Cài đặt Flutter](https://docs.flutter.dev/get-started/install) (Yêu cầu channel stable).
+- **Docker Desktop:** Bắt buộc để chạy Supabase local.
+- **Supabase CLI:** `npm install -g supabase`.
 
+### 2. Thiết lập Backend (Supabase)
+Mở terminal tại thư mục gốc của dự án:
 ```bash
-   git clone [https://github.com/](https://github.com/)[Tên_Tài_Khoản]/runny-ai.git
+# Khởi chạy Supabase (Yêu cầu Docker đang chạy)
+supabase start
+
+# Reset database và áp dụng migrations
+supabase db reset
+```
+Sau khi chạy xong, dùng lệnh `supabase status` để lấy `API URL` và `anon key`.
+
+### 3. Cấu hình & Chạy Flutter App
+Di chuyển vào thư mục ứng dụng:
+```bash
+cd apps/runny_app
+
+# Tạo file .env từ template
+cp .env.example .env
+```
+Mở tệp `.env` vừa tạo và điền các giá trị lấy được từ `supabase status`:
+- `SUPABASE_URL=...`
+- `SUPABASE_ANON_KEY=...`
+
+Tiến hành cài đặt thư viện và chạy ứng dụng:
+```bash
+# Cài đặt dependencies
+flutter pub get
+
+# Chạy trên trình duyệt Chrome
+flutter run -d chrome
 ```
 
-2. Cài đặt Docker Desktop (bắt buộc để chạy Supabase local).
-
-3. Cài đặt Supabase CLI:
-
-```bash
-  npm install -g supabase
-```
-
-4. Khởi chạy Supabase local và áp migrations:
-
-```bash
-  cd runny-ai
-  supabase start
-  supabase db reset
-```
-
-5. Tạo file môi trường cho Flutter app:
-
-```bash
-  copy apps\runny_app\.env.example apps\runny_app\.env
-```
-
-6. Mở `apps/runny_app/.env` và điền `SUPABASE_URL` và `SUPABASE_ANON_KEY`.
-
-- Lấy giá trị bằng lệnh: `supabase status`
-
-7. Cài đặt Flutter (nếu chưa có):
-
-- Tải Flutter SDK tại https://docs.flutter.dev/get-started/install
-- Đảm bảo lệnh `flutter` chạy được trong terminal
-
-8. Tạo Flutter app (web + đa nền tảng):
-
-```bash
-  flutter create -t app --platforms=android,ios,web,windows,macos,linux apps/runny_app
-```
-
-9. Chạy Flutter app (web):
-
-```bash
-  cd apps/runny_app
-  flutter pub get
-  flutter run -d chrome
-```
