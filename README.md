@@ -102,18 +102,28 @@ Các bảng cốt lõi bao gồm:
   supabase db reset
 ```
 
-5. Cài đặt Flutter (nếu chưa có):
+5. Tạo file môi trường cho Flutter app:
+
+```bash
+  copy apps\runny_app\.env.example apps\runny_app\.env
+```
+
+6. Mở `apps/runny_app/.env` và điền `SUPABASE_URL` và `SUPABASE_ANON_KEY`.
+
+- Lấy giá trị bằng lệnh: `supabase status`
+
+7. Cài đặt Flutter (nếu chưa có):
 
 - Tải Flutter SDK tại https://docs.flutter.dev/get-started/install
 - Đảm bảo lệnh `flutter` chạy được trong terminal
 
-6. Tạo Flutter app (web + đa nền tảng):
+8. Tạo Flutter app (web + đa nền tảng):
 
 ```bash
   flutter create -t app --platforms=android,ios,web,windows,macos,linux apps/runny_app
 ```
 
-7. Chạy Flutter app (web):
+9. Chạy Flutter app (web):
 
 ```bash
   cd apps/runny_app
