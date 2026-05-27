@@ -56,8 +56,8 @@ Dự án được cấu trúc thành 4 phân hệ chính:
 
 _Phần này đang được cập nhật trong quá trình phát triển._
 
-- **Front-end:** [Ví dụ: React.js / Next.js / Tailwind CSS, Chart.js]
-- **Back-end:** [Ví dụ: Node.js / Express / Python FastAPI]
+- **Front-end:** Flutter (Web)
+- **Back-end:** Supabase (Postgres + Auth + Storage)
 - **Database:** PostgreSQL (Lưu trữ quan hệ) + JSONB (Lưu trữ Time-series Data).
 - **AI Integration:** [Ví dụ: Gemini API / OpenAI API]
 - **3rd Party APIs:** Strava API, OpenWeatherMap API (Thời tiết).
@@ -84,4 +84,39 @@ Các bảng cốt lõi bao gồm:
 
 ```bash
    git clone [https://github.com/](https://github.com/)[Tên_Tài_Khoản]/runny-ai.git
+```
+
+2. Cài đặt Docker Desktop (bắt buộc để chạy Supabase local).
+
+3. Cài đặt Supabase CLI:
+
+```bash
+  npm install -g supabase
+```
+
+4. Khởi chạy Supabase local và áp migrations:
+
+```bash
+  cd runny-ai
+  supabase start
+  supabase db reset
+```
+
+5. Cài đặt Flutter (nếu chưa có):
+
+- Tải Flutter SDK tại https://docs.flutter.dev/get-started/install
+- Đảm bảo lệnh `flutter` chạy được trong terminal
+
+6. Tạo Flutter app (web + đa nền tảng):
+
+```bash
+  flutter create -t app --platforms=android,ios,web,windows,macos,linux apps/runny_app
+```
+
+7. Chạy Flutter app (web):
+
+```bash
+  cd apps/runny_app
+  flutter pub get
+  flutter run -d chrome
 ```
