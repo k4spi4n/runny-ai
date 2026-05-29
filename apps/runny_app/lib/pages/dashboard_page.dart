@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'import_activity_page.dart';
+
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -27,6 +29,18 @@ class _DashboardPageState extends State<DashboardPage> {
       appBar: AppBar(
         title: const Text('Runny AI Dashboard'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            tooltip: 'Import Hoạt Động',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ImportActivityPage(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => Supabase.instance.client.auth.signOut(),
@@ -74,7 +88,9 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           const VerticalDivider(thickness: 1, width: 1),
           Expanded(
-            child: _selectedIndex == 0 ? const OverviewContent() : _pages[_selectedIndex],
+            child: _selectedIndex == 0
+                ? const OverviewContent()
+                : _pages[_selectedIndex],
           ),
         ],
       ),
@@ -87,9 +103,18 @@ class _DashboardPageState extends State<DashboardPage> {
                 });
               },
               destinations: const [
-                NavigationDestination(icon: Icon(Icons.dashboard), label: 'Tổng quan'),
-                NavigationDestination(icon: Icon(Icons.history), label: 'Lịch sử'),
-                NavigationDestination(icon: Icon(Icons.psychology), label: 'AI'),
+                NavigationDestination(
+                  icon: Icon(Icons.dashboard),
+                  label: 'Tổng quan',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.history),
+                  label: 'Lịch sử',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.psychology),
+                  label: 'AI',
+                ),
               ],
             )
           : null,
@@ -109,21 +134,45 @@ class OverviewContent extends StatelessWidget {
         children: [
           Text(
             'Chào mừng quay trở lại!',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 24),
           GridView.count(
-            crossAxisCount: MediaQuery.of(context).size.width > 1200 ? 4 : (MediaQuery.of(context).size.width > 600 ? 2 : 1),
+            crossAxisCount: MediaQuery.of(context).size.width > 1200
+                ? 4
+                : (MediaQuery.of(context).size.width > 600 ? 2 : 1),
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 16,
             crossAxisSpacing: 16,
             childAspectRatio: 2.5,
             children: const [
-              StatCard(title: 'Tổng quãng đường', value: '42.5 km', icon: Icons.straighten, color: Colors.blue),
-              StatCard(title: 'Số buổi chạy', value: '12', icon: Icons.directions_run, color: Colors.green),
-              StatCard(title: 'Nhịp tim TB', value: '145 bpm', icon: Icons.favorite, color: Colors.red),
-              StatCard(title: 'Pace trung bình', value: '5:45 /km', icon: Icons.speed, color: Colors.orange),
+              StatCard(
+                title: 'Tổng quãng đường',
+                value: '42.5 km',
+                icon: Icons.straighten,
+                color: Colors.blue,
+              ),
+              StatCard(
+                title: 'Số buổi chạy',
+                value: '12',
+                icon: Icons.directions_run,
+                color: Colors.green,
+              ),
+              StatCard(
+                title: 'Nhịp tim TB',
+                value: '145 bpm',
+                icon: Icons.favorite,
+                color: Colors.red,
+              ),
+              StatCard(
+                title: 'Pace trung bình',
+                value: '5:45 /km',
+                icon: Icons.speed,
+                color: Colors.orange,
+              ),
             ],
           ),
           const SizedBox(height: 32),
@@ -131,7 +180,9 @@ class OverviewContent extends StatelessWidget {
             children: [
               Text(
                 'Hoạt động gần đây',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const Spacer(),
               TextButton(onPressed: () {}, child: const Text('Xem tất cả')),
@@ -188,7 +239,7 @@ class StatCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: color),
@@ -200,7 +251,12 @@ class StatCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(title, style: Theme.of(context).textTheme.bodySmall),
-                  Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                  Text(
+                    value,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),
