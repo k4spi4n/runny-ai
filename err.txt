@@ -1,0 +1,45 @@
+
+D:\CODE\runny-ai\apps\runny_app>flutter run -d chrome
+Launching lib\main.dart on Chrome in debug mode...
+lib/pages/login_page.dart:53:36: Error: Type 'Provider' not found.
+  Future<void> _signInWithProvider(Provider provider) async {
+                                   ^^^^^^^^
+lib/pages/login_page.dart:53:36: Error: 'Provider' isn't a type.
+  Future<void> _signInWithProvider(Provider provider) async {
+                                   ^^^^^^^^
+lib/pages/login_page.dart:56:58: Error: Too few positional arguments: 1 required, 0 given.
+      await Supabase.instance.client.auth.signInWithOAuth(provider: provider);
+                                                         ^
+lib/pages/login_page.dart:126:80: Error: The getter 'Provider' isn't defined for the type '_LoginPageState'.
+ - '_LoginPageState' is from 'package:runny_app/pages/login_page.dart' ('lib/pages/login_page.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Provider'.
+                      onPressed: _isLoading ? null : () => _signInWithProvider(Provider.google),
+                                                                               ^^^^^^^^
+lib/pages/login_page.dart:139:80: Error: The getter 'Provider' isn't defined for the type '_LoginPageState'.
+ - '_LoginPageState' is from 'package:runny_app/pages/login_page.dart' ('lib/pages/login_page.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'Provider'.
+                      onPressed: _isLoading ? null : () => _signInWithProvider(Provider.facebook),
+                                                                               ^^^^^^^^
+Unhandled exception:
+Unsupported operation: Unsupported invalid type InvalidType(<invalid>) (InvalidType). Encountered while compiling file:///D:/CODE/runny-ai/apps/runny_app/lib/pages/login_page.dart, which contains the type: FunctionType(Future<void> Function(<invalid>)).
+#0      LibraryCompiler._typeCompilationError (package:dev_compiler/src/kernel/compiler_new.dart:4493)
+#1      LibraryCompiler._emitType (package:dev_compiler/src/kernel/compiler_new.dart:4458)
+#2      LibraryCompiler._emitClassSignature (package:dev_compiler/src/kernel/compiler_new.dart:2267)
+#3      LibraryCompiler._emitClassDeclaration (package:dev_compiler/src/kernel/compiler_new.dart:1560)
+#4      LibraryCompiler._emitClass (package:dev_compiler/src/kernel/compiler_new.dart:1426)
+#5      List.forEach (dart:core-patch/growable_array.dart:428)
+#6      LibraryCompiler._emitLibrary (package:dev_compiler/src/kernel/compiler_new.dart:1348)
+#7      LibraryCompiler.emitLibrary (package:dev_compiler/src/kernel/compiler_new.dart:962)
+#8      LibraryBundleCompiler.emitModule (package:dev_compiler/src/kernel/compiler_new.dart:164)
+#9      IncrementalJavaScriptBundler.compile (package:frontend_server/src/javascript_bundle.dart:324)
+#10     FrontendCompiler.writeJavaScriptBundle (package:frontend_server/frontend_server.dart:922)
+<asynchronous suspension>
+#11     FrontendCompiler.compile (package:frontend_server/frontend_server.dart:728)
+<asynchronous suspension>
+#12     listenAndCompile.<anonymous closure> (package:frontend_server/frontend_server.dart:1449)
+<asynchronous suspension>
+The Dart compiler exited unexpectedly.
+Waiting for connection from debug service on Chrome...             19.2s
+Failed to compile application.
+
+D:\CODE\runny-ai\apps\runny_app>

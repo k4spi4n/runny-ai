@@ -50,10 +50,10 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _signInWithProvider(Provider provider) async {
+  Future<void> _signInWithProvider(OAuthProvider provider) async {
     setState(() => _isLoading = true);
     try {
-      await Supabase.instance.client.auth.signInWithOAuth(provider: provider);
+      await Supabase.instance.client.auth.signInWithOAuth(provider);
     } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -123,26 +123,34 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : () => _signInWithProvider(Provider.google),
-                      icon: const Icon(Icons.g_mobiledata, color: Colors.redAccent),
+                      onPressed: _isLoading ? null : () => _signInWithProvider(OAuthProvider.google),
+                      icon: const Icon(Icons.g_mobiledata, color: Colors.redAccent, size: 28),
                       label: const Text('Google'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: const BorderSide(color: Colors.grey),
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : () => _signInWithProvider(Provider.facebook),
-                      icon: const Icon(Icons.facebook, color: Color(0xFF1877F2)),
+                      onPressed: _isLoading ? null : () => _signInWithProvider(OAuthProvider.facebook),
+                      icon: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 24),
                       label: const Text('Facebook'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: const BorderSide(color: Colors.grey),
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
