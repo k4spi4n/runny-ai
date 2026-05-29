@@ -85,7 +85,6 @@ Các bảng cốt lõi bao gồm:
 - **Flutter SDK:** [Cài đặt Flutter](https://docs.flutter.dev/get-started/install) (Yêu cầu channel stable).
 - **Docker Desktop:** Bắt buộc để chạy Supabase local.
 - **Supabase CLI:** `npm install -g supabase`.
-  c
 
 ### 2. Thiết lập Backend (Supabase)
 
