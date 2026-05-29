@@ -50,6 +50,27 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _signInWithProvider(Provider provider) async {
+    setState(() => _isLoading = true);
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(provider: provider);
+    } on AuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã có lỗi xảy ra khi đăng nhập bằng OAuth'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -98,6 +119,36 @@ class _LoginPageState extends State<LoginPage> {
                 obscureText: true,
               ),
               const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : () => _signInWithProvider(Provider.google),
+                      icon: const Icon(Icons.g_mobiledata, color: Colors.redAccent),
+                      label: const Text('Google'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : () => _signInWithProvider(Provider.facebook),
+                      icon: const Icon(Icons.facebook, color: Color(0xFF1877F2)),
+                      label: const Text('Facebook'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleAuth,
                 style: ElevatedButton.styleFrom(
