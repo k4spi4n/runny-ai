@@ -81,12 +81,15 @@ Các bảng cốt lõi bao gồm:
 ## 🚀 Hướng dẫn Cài đặt & Chạy thử (Local)
 
 ### 1. Chuẩn bị Môi trường
+
 - **Flutter SDK:** [Cài đặt Flutter](https://docs.flutter.dev/get-started/install) (Yêu cầu channel stable).
 - **Docker Desktop:** Bắt buộc để chạy Supabase local.
 - **Supabase CLI:** `npm install -g supabase`.
 
 ### 2. Thiết lập Backend (Supabase)
+
 Mở terminal tại thư mục gốc của dự án:
+
 ```bash
 # Khởi chạy Supabase (Yêu cầu Docker đang chạy)
 supabase start
@@ -94,21 +97,27 @@ supabase start
 # Reset database và áp dụng migrations
 supabase db reset
 ```
+
 Sau khi chạy xong, dùng lệnh `supabase status` để lấy `API URL` và `anon key`.
 
 ### 3. Cấu hình & Chạy Flutter App
+
 Di chuyển vào thư mục ứng dụng:
+
 ```bash
 cd apps/runny_app
 
 # Tạo file .env từ template
 cp .env.example .env
 ```
+
 Mở tệp `.env` vừa tạo và điền các giá trị lấy được từ `supabase status`:
+
 - `SUPABASE_URL=...`
 - `SUPABASE_ANON_KEY=...`
 
 Tiến hành cài đặt thư viện và chạy ứng dụng:
+
 ```bash
 # Cài đặt dependencies
 flutter pub get
@@ -116,4 +125,3 @@ flutter pub get
 # Chạy trên trình duyệt Chrome
 flutter run -d chrome
 ```
-
