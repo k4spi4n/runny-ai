@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'training_plan_page.dart';
+import 'ai_coach_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -11,13 +13,19 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 0;
 
-  final List<Widget> _pages = [
-    const Center(child: Text('Trang chủ - Tổng quan')),
-    const Center(child: Text('Lịch sử chạy bộ')),
-    const Center(child: Text('Lịch tập luyện')),
-    const Center(child: Text('Trợ lý AI')),
-    const Center(child: Text('Cài đặt & Hồ sơ')),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const OverviewContent(),
+      const Center(child: Text('Lịch sử chạy bộ')),
+      const TrainingPlanPage(),
+      const AICoachPage(),
+      const Center(child: Text('Cài đặt & Hồ sơ')),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {

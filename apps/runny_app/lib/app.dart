@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pages/login_page.dart';
 import 'pages/dashboard_page.dart';
+import 'pages/onboarding_page.dart';
 
 class RunnyApp extends StatelessWidget {
   const RunnyApp({super.key});
@@ -38,11 +39,6 @@ class AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session != null) {
-      return const DashboardPage();
-    }
-
     return StreamBuilder<AuthState>(
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
@@ -52,9 +48,29 @@ class AuthGate extends StatelessWidget {
           );
         }
 
-        final session = snapshot.data?.session;
+        final session = snapshot.data?.session ?? Supabase.instance.client.auth.currentSession;
+        
         if (session != null) {
-          return const DashboardPage();
+          return FutureBuilder<Map<String, dynamic>?>(
+            future: Supabase.instance.client
+                .from('profiles')
+                .select()
+                .eq('id', session.user.id)
+                .maybeSingle(),
+            builder: (context, profileSnapshot) {
+              if (profileSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(body: Center(child: CircularProgressIndicator()));
+              }
+
+              final profile = profileSnapshot.data;
+              // If weight_kg is null, we assume onboarding is not finished
+              if (profile == null || profile['weight_kg'] == null) {
+                return const OnboardingPage();
+              }
+
+              return const DashboardPage();
+            },
+          );
         } else {
           return const LoginPage();
         }
