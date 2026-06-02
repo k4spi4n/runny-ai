@@ -20,6 +20,16 @@ class _AICoachPageState extends State<AICoachPage> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
+    if (!_geminiService.isConfigured) {
+      setState(() {
+        _messages.add({
+          'role': 'assistant',
+          'content': 'AI đang tạm tắt vì thiếu GEMINI_API_KEY trong .env.',
+        });
+      });
+      return;
+    }
+
     setState(() {
       _messages.add({'role': 'user', 'content': text});
       _isLoading = true;
@@ -28,23 +38,31 @@ class _AICoachPageState extends State<AICoachPage> {
 
     try {
       // Check if user is asking for a plan
-      if (text.toLowerCase().contains('lịch tập') || text.toLowerCase().contains('kế hoạch')) {
+      if (text.toLowerCase().contains('lịch tập') ||
+          text.toLowerCase().contains('kế hoạch')) {
         await _trainingService.createGoalBasedPlan(text);
         setState(() {
           _messages.add({
             'role': 'assistant',
-            'content': 'Tôi đã tạo xong lịch tập dựa trên mục tiêu của bạn! Bạn có thể xem chi tiết trong phần Lịch tập.'
+            'content':
+                'Tôi đã tạo xong lịch tập dựa trên mục tiêu của bạn! Bạn có thể xem chi tiết trong phần Lịch tập.',
           });
         });
       } else {
-        final response = await _geminiService.generateResponse(text, history: _messages.sublist(0, _messages.length - 1));
+        final response = await _geminiService.generateResponse(
+          text,
+          history: _messages.sublist(0, _messages.length - 1),
+        );
         setState(() {
           _messages.add({'role': 'assistant', 'content': response});
         });
       }
     } catch (e) {
       setState(() {
-        _messages.add({'role': 'assistant', 'content': 'Xin lỗi, đã có lỗi xảy ra: $e'});
+        _messages.add({
+          'role': 'assistant',
+          'content': 'Xin lỗi, đã có lỗi xảy ra: $e',
+        });
       });
     } finally {
       setState(() {
@@ -65,7 +83,9 @@ class _AICoachPageState extends State<AICoachPage> {
               final msg = _messages[index];
               final isUser = msg['role'] == 'user';
               return Align(
-                alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+                alignment: isUser
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
                 child: Container(
                   margin: const EdgeInsets.symmetric(vertical: 4),
                   padding: const EdgeInsets.all(12),
@@ -75,14 +95,20 @@ class _AICoachPageState extends State<AICoachPage> {
                   ),
                   child: Text(
                     msg['content']!,
-                    style: TextStyle(color: isUser ? Colors.white : Colors.black),
+                    style: TextStyle(
+                      color: isUser ? Colors.white : Colors.black,
+                    ),
                   ),
                 ),
               );
             },
           ),
         ),
-        if (_isLoading) const Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator()),
+        if (_isLoading)
+          const Padding(
+            padding: EdgeInsets.all(8),
+            child: CircularProgressIndicator(),
+          ),
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Row(

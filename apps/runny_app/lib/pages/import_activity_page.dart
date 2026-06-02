@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/activity_parser.dart';
+import '../services/weather_service.dart';
 
 class ImportActivityPage extends StatefulWidget {
   const ImportActivityPage({super.key});
@@ -13,6 +14,7 @@ class ImportActivityPage extends StatefulWidget {
 class _ImportActivityPageState extends State<ImportActivityPage> {
   bool _isLoading = false;
   String? _statusMessage;
+  final WeatherService _weatherService = WeatherService();
 
   Future<void> _pickAndImportFile() async {
     try {
@@ -46,6 +48,22 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           extension ?? '',
         );
 
+        WeatherSnapshot? weatherSnapshot;
+        if (parsedActivity.startLat != null &&
+            parsedActivity.startLon != null) {
+          try {
+            setState(() {
+              _statusMessage = 'Đang lấy thời tiết tại vị trí hoạt động...';
+            });
+            weatherSnapshot = await _weatherService.fetchWeatherSnapshot(
+              lat: parsedActivity.startLat!,
+              lon: parsedActivity.startLon!,
+            );
+          } catch (e) {
+            weatherSnapshot = null;
+          }
+        }
+
         setState(() {
           _statusMessage = 'Đang lưu vào cơ sở dữ liệu...';
         });
@@ -59,6 +77,13 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           'avg_hr': parsedActivity.avgHr,
           'elevation_gain_m': parsedActivity.elevationGainM,
           'data_points': parsedActivity.dataPoints,
+          'start_lat': parsedActivity.startLat,
+          'start_lon': parsedActivity.startLon,
+          'weather_summary': weatherSnapshot?.summary,
+          'temperature_c': weatherSnapshot?.temperatureC,
+          'aqi': weatherSnapshot?.aqi,
+          'weather_json': weatherSnapshot?.toJson(),
+          'weather_fetched_at': weatherSnapshot?.fetchedAt.toIso8601String(),
           'notes': 'Imported from ${file.name}',
         });
 
