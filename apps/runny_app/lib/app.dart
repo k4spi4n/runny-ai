@@ -10,24 +10,87 @@ class RunnyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final baseDark = ThemeData.dark();
     return MaterialApp(
       title: 'Runny AI',
       debugShowCheckedModeBanner: false,
+      themeMode: ThemeMode.dark,
       theme: ThemeData(
         useMaterial3: true,
+        brightness: Brightness.dark,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.orangeAccent,
-          brightness: Brightness.light,
+          seedColor: const Color(0xFFFA6B27),
+          brightness: Brightness.dark,
         ),
-        textTheme: GoogleFonts.lexendTextTheme(),
+        scaffoldBackgroundColor: const Color(0xFF050814),
+        canvasColor: Colors.transparent,
+        cardColor: const Color(0xFF0D1230),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          iconTheme: IconThemeData(color: Colors.white),
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        snackBarTheme: const SnackBarThemeData(
+          backgroundColor: Color(0xFF111A38),
+        ),
+        textTheme: GoogleFonts.lexendTextTheme(baseDark.textTheme).apply(bodyColor: Colors.white),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.08),
+          hintStyle: const TextStyle(color: Colors.white38),
+          labelStyle: const TextStyle(color: Colors.white70),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.18)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: Color(0xFFFA6B27), width: 1.6),
+          ),
+        ),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
+        brightness: Brightness.dark,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.orangeAccent,
+          seedColor: const Color(0xFFFA6B27),
           brightness: Brightness.dark,
         ),
-        textTheme: GoogleFonts.lexendTextTheme(ThemeData.dark().textTheme),
+        scaffoldBackgroundColor: const Color(0xFF050814),
+        canvasColor: Colors.transparent,
+        cardColor: const Color(0xFF0D1230),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          iconTheme: IconThemeData(color: Colors.white),
+          titleTextStyle: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        textTheme: GoogleFonts.lexendTextTheme(baseDark.textTheme).apply(bodyColor: Colors.white),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.08),
+          hintStyle: const TextStyle(color: Colors.white38),
+          labelStyle: const TextStyle(color: Colors.white70),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.18)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: Color(0xFFFA6B27), width: 1.6),
+          ),
+        ),
       ),
       home: const AuthGate(),
     );
@@ -42,20 +105,17 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<AuthState>(
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+        final session = snapshot.data?.session;
 
-        final session = snapshot.data?.session ?? Supabase.instance.client.auth.currentSession;
-        
-        if (session != null) {
+        // Fallback to current session if stream hasn't emitted yet but we have data
+        final effectiveSession = session ?? Supabase.instance.client.auth.currentSession;
+
+        if (effectiveSession != null) {
           return FutureBuilder<Map<String, dynamic>?>(
             future: Supabase.instance.client
                 .from('profiles')
                 .select()
-                .eq('id', session.user.id)
+                .eq('id', effectiveSession.user.id)
                 .maybeSingle(),
             builder: (context, profileSnapshot) {
               if (profileSnapshot.connectionState == ConnectionState.waiting) {
@@ -63,8 +123,7 @@ class AuthGate extends StatelessWidget {
               }
 
               final profile = profileSnapshot.data;
-              // If weight_kg is null, we assume onboarding is not finished
-              if (profile == null || profile['weight_kg'] == null) {
+              if (profile == null || profile['has_completed_onboarding'] == false) {
                 return const OnboardingPage();
               }
 
