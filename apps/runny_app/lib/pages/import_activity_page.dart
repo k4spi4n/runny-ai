@@ -58,6 +58,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           'duration_min': parsedActivity.durationMin,
           'avg_hr': parsedActivity.avgHr,
           'elevation_gain_m': parsedActivity.elevationGainM,
+          'data_points': parsedActivity.dataPoints,
           'notes': 'Imported from ${file.name}',
         });
 
