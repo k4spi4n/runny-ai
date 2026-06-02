@@ -3,7 +3,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'training_plan_page.dart';
 import 'ai_coach_page.dart';
 import 'import_activity_page.dart';
+import 'activity_details_page.dart';
 import '../widgets/ui_components.dart';
+import '../models/workout_models.dart';
+import 'package:intl/intl.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -165,6 +168,48 @@ class _DashboardPageState extends State<DashboardPage> {
 class OverviewContent extends StatelessWidget {
   const OverviewContent({super.key});
 
+  Future<List<Activity>> _fetchLatestActivities() async {
+    final response = await Supabase.instance.client
+        .from('activities')
+        .select()
+        .order('started_at', ascending: false)
+        .limit(5);
+
+    return (response as List).map((json) => Activity.fromJson(json)).toList();
+  }
+
+  Future<Map<String, dynamic>> _fetchStats() async {
+    final response = await Supabase.instance.client
+        .from('activities')
+        .select('distance_km, duration_min, avg_hr');
+
+    final activities = response as List;
+    double totalDistance = 0;
+    int totalSessions = activities.length;
+    double totalDuration = 0;
+    int hrSum = 0;
+    int hrCount = 0;
+
+    for (var a in activities) {
+      totalDistance += (a['distance_km'] as num).toDouble();
+      totalDuration += (a['duration_min'] as num).toDouble();
+      if (a['avg_hr'] != null) {
+        hrSum += (a['avg_hr'] as int);
+        hrCount++;
+      }
+    }
+
+    double avgPace = totalDistance > 0 ? totalDuration / totalDistance : 0;
+    int avgHr = hrCount > 0 ? hrSum ~/ hrCount : 0;
+
+    return {
+      'totalDistance': totalDistance,
+      'totalSessions': totalSessions,
+      'avgPace': avgPace,
+      'avgHr': avgHr,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -249,40 +294,62 @@ class OverviewContent extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          GridView.count(
-            crossAxisCount: crossAxisCount,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 1.6,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            children: const [
-              PerformanceStatCard(
-                title: 'Tổng quãng đường',
-                value: '42.5 km',
-                icon: Icons.straighten,
-                gradient: accentPulseGradient,
-              ),
-              PerformanceStatCard(
-                title: 'Số buổi',
-                value: '12',
-                icon: Icons.directions_run,
-                gradient: secondaryPulseGradient,
-              ),
-              PerformanceStatCard(
-                title: 'Nhịp tim TB',
-                value: '145 bpm',
-                icon: Icons.favorite,
-                gradient: accentPulseGradient,
-              ),
-              PerformanceStatCard(
-                title: 'Pace trung bình',
-                value: '5:45 /km',
-                icon: Icons.speed,
-                gradient: secondaryPulseGradient,
-              ),
-            ],
+          FutureBuilder<Map<String, dynamic>>(
+            future: _fetchStats(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final stats = snapshot.data ?? {
+                'totalDistance': 0.0,
+                'totalSessions': 0,
+                'avgPace': 0.0,
+                'avgHr': 0,
+              };
+
+              String formattedPace = "-:--";
+              if (stats['avgPace'] > 0) {
+                int min = stats['avgPace'].floor();
+                int sec = ((stats['avgPace'] - min) * 60).round();
+                formattedPace = "$min:${sec.toString().padLeft(2, '0')}";
+              }
+
+              return GridView.count(
+                crossAxisCount: crossAxisCount,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 1.6,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                children: [
+                  PerformanceStatCard(
+                    title: 'Tổng quãng đường',
+                    value: '${(stats['totalDistance'] as double).toStringAsFixed(1)} km',
+                    icon: Icons.straighten,
+                    gradient: accentPulseGradient,
+                  ),
+                  PerformanceStatCard(
+                    title: 'Số buổi',
+                    value: '${stats['totalSessions']}',
+                    icon: Icons.directions_run,
+                    gradient: secondaryPulseGradient,
+                  ),
+                  PerformanceStatCard(
+                    title: 'Nhịp tim TB',
+                    value: stats['avgHr'] > 0 ? '${stats['avgHr']} bpm' : '--',
+                    icon: Icons.favorite,
+                    gradient: accentPulseGradient,
+                  ),
+                  PerformanceStatCard(
+                    title: 'Pace trung bình',
+                    value: '$formattedPace /km',
+                    icon: Icons.speed,
+                    gradient: secondaryPulseGradient,
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 24),
           Padding(
@@ -303,30 +370,63 @@ class OverviewContent extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Column(
-            children: List.generate(
-              3,
-              (index) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                child: glassCard(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                    leading: Container(
-                      width: 54,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        gradient: index.isEven ? accentPulseGradient : secondaryPulseGradient,
-                        borderRadius: BorderRadius.circular(16),
+          FutureBuilder<List<Activity>>(
+            future: _fetchLatestActivities(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: Text('Chưa có hoạt động nào.', style: TextStyle(color: Colors.white70))),
+                );
+              }
+
+              final activities = snapshot.data!;
+              return Column(
+                children: activities.map((activity) {
+                  final dateStr = DateFormat('dd/MM/yyyy HH:mm').format(activity.startedAt);
+                  final paceStr = _formatPace(activity.durationMin / activity.distanceKm);
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                    child: glassCard(
+                      padding: EdgeInsets.zero,
+                      child: ListTile(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ActivityDetailsPage(activity: activity),
+                            ),
+                          );
+                        },
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        leading: Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            gradient: accentPulseGradient,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(Icons.run_circle, color: Colors.white, size: 28),
+                        ),
+                        title: Text(
+                          activity.notes ?? 'Hoạt động chạy bộ',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        subtitle: Text(
+                          '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • Pace $paceStr',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        trailing: const Icon(Icons.chevron_right, color: Colors.white70),
                       ),
-                      child: const Icon(Icons.run_circle, color: Colors.white, size: 28),
                     ),
-                    title: Text('Chạy buổi sáng ${3 - index} ngày trước', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                    subtitle: Text('5.2 km • 30:15 • Pace 5:49', style: const TextStyle(color: Colors.white70)),
-                    trailing: const Icon(Icons.chevron_right, color: Colors.white70),
-                  ),
-                ),
-              ),
-            ),
+                  );
+                }).toList(),
+              );
+            },
           ),
           const SizedBox(height: 24),
           Padding(
@@ -359,6 +459,19 @@ class OverviewContent extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatDuration(double minutes) {
+    int m = minutes.toInt();
+    int s = ((minutes - m) * 60).round();
+    return "$m:${s.toString().padLeft(2, '0')}";
+  }
+
+  String _formatPace(double paceDecimal) {
+    if (paceDecimal.isInfinite || paceDecimal.isNaN) return "-:--";
+    int minutes = paceDecimal.floor();
+    int seconds = ((paceDecimal - minutes) * 60).round();
+    return "$minutes:${seconds.toString().padLeft(2, '0')}";
   }
 }
 

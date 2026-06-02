@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/training_service.dart';
@@ -98,22 +97,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
         elevation: 0,
         actions: [
           TextButton(
-            onPressed: () async {
-              final user = _supabase.auth.currentUser;
-              if (user != null) {
-                try {
-                  await _supabase.from('profiles').update({
-                    'has_completed_onboarding': true,
-                  }).eq('id', user.id);
-                } catch (e) {
-                  debugPrint('Error skipping onboarding: $e');
-                }
-              }
-              if (mounted) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const DashboardPage()),
-                );
-              }
+            onPressed: () {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const DashboardPage()),
+              );
             },
             child: const Text(
               'Bỏ qua',
@@ -183,7 +170,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Chỉ số vận động', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text('Athlete metrics', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 12),
             Text('Thiết lập chỉ số nền tảng để AI đưa ra lịch tập tối ưu cho bạn.', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70)),
             const SizedBox(height: 28),
@@ -222,7 +209,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Mục tiêu tập luyện', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text('Training goal', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 12),
             Text('Cho chúng tôi biết mục tiêu hàng đầu của bạn để AI đưa ra lộ trình chiến thắng.', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70)),
             const SizedBox(height: 28),

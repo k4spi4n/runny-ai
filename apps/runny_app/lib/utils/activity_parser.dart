@@ -10,6 +10,7 @@ class ParsedActivity {
   final double durationMin;
   final int? avgHr;
   final double? elevationGainM;
+  final Map<String, dynamic>? dataPoints;
 
   ParsedActivity({
     required this.startedAt,
@@ -17,6 +18,7 @@ class ParsedActivity {
     required this.durationMin,
     this.avgHr,
     this.elevationGainM,
+    this.dataPoints,
   });
 }
 
@@ -51,20 +53,44 @@ class ActivityParser {
     double minEle = double.infinity;
     double maxEle = double.negativeInfinity;
 
-    for (int i = 1; i < trkpts.length; i++) {
-      final p1 = trkpts[i - 1];
-      final p2 = trkpts[i];
+    List<double> times = [];
+    List<double> distances = [];
+    List<double> elevations = [];
+    List<double> paces = []; // min/km
 
-      if (p1.lat != null &&
-          p1.lon != null &&
-          p2.lat != null &&
-          p2.lon != null) {
-        totalDistance += _haversine(p1.lat!, p1.lon!, p2.lat!, p2.lon!);
+    for (int i = 0; i < trkpts.length; i++) {
+      final p = trkpts[i];
+      final currentTime = p.time ?? startedAt;
+      final timeOffset = currentTime.difference(startedAt).inSeconds.toDouble();
+
+      if (i > 0) {
+        final pPrev = trkpts[i - 1];
+        if (pPrev.lat != null && pPrev.lon != null && p.lat != null && p.lon != null) {
+          final d = _haversine(pPrev.lat!, pPrev.lon!, p.lat!, p.lon!);
+          totalDistance += d;
+          
+          final timeDiffSeconds = currentTime.difference(pPrev.time ?? currentTime).inSeconds;
+          if (timeDiffSeconds > 0 && d > 0) {
+             final currentPace = (timeDiffSeconds / 60.0) / d;
+             // Cap pace at 20 min/km to avoid spikes
+             paces.add(currentPace > 20 ? 20 : currentPace);
+          } else {
+             paces.add(paces.isNotEmpty ? paces.last : 0.0);
+          }
+        } else {
+          paces.add(paces.isNotEmpty ? paces.last : 0.0);
+        }
+      } else {
+        paces.add(0.0);
       }
 
-      if (p1.ele != null) {
-        if (p1.ele! < minEle) minEle = p1.ele!;
-        if (p1.ele! > maxEle) maxEle = p1.ele!;
+      times.add(timeOffset);
+      distances.add(totalDistance);
+      elevations.add(p.ele ?? 0.0);
+
+      if (p.ele != null) {
+        if (p.ele! < minEle) minEle = p.ele!;
+        if (p.ele! > maxEle) maxEle = p.ele!;
       }
     }
 
@@ -80,7 +106,13 @@ class ActivityParser {
       distanceKm: totalDistance,
       durationMin: durationMin,
       elevationGainM: elevationGain,
-      avgHr: null, // GPX normally doesn't have HR unless extended
+      avgHr: null,
+      dataPoints: {
+        'times': times,
+        'distances': distances,
+        'elevations': elevations,
+        'paces': paces,
+      },
     );
   }
 
@@ -91,44 +123,96 @@ class ActivityParser {
     double totalDistanceKm = 0.0;
     double durationMin = 0.0;
     int? avgHr;
+    double elevationGain = 0.0;
+    double minEle = double.infinity;
+    double maxEle = double.negativeInfinity;
 
-    // A very basic extraction for FIT files
+    List<double> times = [];
+    List<double> distances = [];
+    List<double> elevations = [];
+    List<double> paces = [];
+    List<double> hrs = [];
+
+    DateTime? firstTimestamp;
+
     for (final record in file.records) {
-      if (record.message is SessionMessage) {
-        final session = record.message as SessionMessage;
-
-        final startTimeValue = session.startTime;
+      final message = record.message;
+      if (message is SessionMessage) {
+        final startTimeValue = message.startTime;
         if (startTimeValue != null) {
           startedAt = DateTime.fromMillisecondsSinceEpoch(
             startTimeValue * 1000 + 631065600000,
-          ); // FIT epoch offset
+          );
         }
-
-        final distanceValue = session.totalDistance;
+        final distanceValue = message.totalDistance;
         if (distanceValue != null) {
           totalDistanceKm = distanceValue / 1000.0;
         }
-
-        final timeValue = session.totalTimerTime;
+        final timeValue = message.totalTimerTime;
         if (timeValue != null) {
           durationMin = timeValue / 60.0;
         }
-
-        final hrValue = session.avgHeartRate;
+        final hrValue = message.avgHeartRate;
         if (hrValue != null) {
           avgHr = hrValue.toInt();
+        }
+      } else if (message is RecordMessage) {
+        final timestampValue = message.timestamp;
+        if (timestampValue == null) continue;
+        
+        final currentTimestamp = DateTime.fromMillisecondsSinceEpoch(
+            timestampValue * 1000 + 631065600000,
+        );
+        firstTimestamp ??= currentTimestamp;
+        
+        final timeOffset = currentTimestamp.difference(firstTimestamp).inSeconds.toDouble();
+        final dist = (message.distance ?? 0.0) / 1000.0;
+        final ele = message.altitude ?? 0.0;
+        final hr = (message.heartRate ?? 0).toDouble();
+
+        if (times.isNotEmpty) {
+           final dDist = dist - distances.last;
+           final dTime = timeOffset - times.last;
+           if (dTime > 0 && dDist > 0) {
+              final pace = (dTime / 60.0) / dDist;
+              paces.add(pace > 20 ? 20 : pace);
+           } else {
+              paces.add(paces.isNotEmpty ? paces.last : 0.0);
+           }
+        } else {
+           paces.add(0.0);
+        }
+
+        times.add(timeOffset);
+        distances.add(dist);
+        elevations.add(ele);
+        if (hr > 0) hrs.add(hr);
+
+        if (message.altitude != null) {
+          if (message.altitude! < minEle) minEle = message.altitude!;
+          if (message.altitude! > maxEle) maxEle = message.altitude!;
         }
       }
     }
 
-    startedAt ??= DateTime.now();
+    startedAt ??= firstTimestamp ?? DateTime.now();
+    if (maxEle != double.negativeInfinity && minEle != double.infinity) {
+      elevationGain = maxEle - minEle;
+    }
 
     return ParsedActivity(
       startedAt: startedAt,
       distanceKm: totalDistanceKm,
       durationMin: durationMin,
       avgHr: avgHr,
-      elevationGainM: 0.0,
+      elevationGainM: elevationGain,
+      dataPoints: {
+        'times': times,
+        'distances': distances,
+        'elevations': elevations,
+        'paces': paces,
+        'hrs': hrs,
+      },
     );
   }
 
