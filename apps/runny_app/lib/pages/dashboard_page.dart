@@ -4,6 +4,7 @@ import 'training_plan_page.dart';
 import 'ai_coach_page.dart';
 import 'import_activity_page.dart';
 import 'activity_details_page.dart';
+import 'profile_page.dart';
 import '../widgets/ui_components.dart';
 import '../models/workout_models.dart';
 import 'package:intl/intl.dart';
@@ -28,7 +29,7 @@ class _DashboardPageState extends State<DashboardPage> {
       const Center(child: Text('Lịch sử chạy bộ', style: TextStyle(color: Colors.white))),
       const TrainingPlanPage(),
       const AICoachPage(),
-      const Center(child: Text('Cài đặt & Hồ sơ', style: TextStyle(color: Colors.white))),
+      const ProfilePage(),
     ];
   }
 
