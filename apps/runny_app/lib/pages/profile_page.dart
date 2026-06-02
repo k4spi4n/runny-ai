@@ -61,9 +61,9 @@ class _ProfilePageState extends State<ProfilePage> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi khi tải hồ sơ: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi khi tải hồ sơ: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -83,16 +83,21 @@ class _ProfilePageState extends State<ProfilePage> {
       double? bmi;
       if (weight != null && height != null && height > 0) {
         final heightInM = height / 100;
-        bmi = double.parse((weight / (heightInM * heightInM)).toStringAsFixed(2));
+        bmi = double.parse(
+          (weight / (heightInM * heightInM)).toStringAsFixed(2),
+        );
       }
 
-      await _supabase.from('profiles').update({
-        'display_name': _displayNameController.text.trim(),
-        'weight_kg': weight,
-        'height_cm': height,
-        'max_hr': maxHr,
-        'bmi': bmi,
-      }).eq('id', user.id);
+      await _supabase
+          .from('profiles')
+          .update({
+            'display_name': _displayNameController.text.trim(),
+            'weight_kg': weight,
+            'height_cm': height,
+            'max_hr': maxHr,
+            'bmi': bmi,
+          })
+          .eq('id', user.id);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -101,9 +106,9 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi khi cập nhật: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi khi cập nhật: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -114,13 +119,17 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       if (_stravaId != null) {
         await _integrationService.disconnectStrava();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã ngắt kết nối Strava')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Đã ngắt kết nối Strava')));
       } else {
         await _integrationService.connectStrava();
       }
       _loadProfile();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
     }
   }
 
@@ -128,13 +137,17 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       if (_garminId != null) {
         await _integrationService.disconnectGarmin();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã ngắt kết nối Garmin')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Đã ngắt kết nối Garmin')));
       } else {
         await _integrationService.connectGarmin();
       }
       _loadProfile();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
     }
   }
 
@@ -172,7 +185,11 @@ class _ProfilePageState extends State<ProfilePage> {
           TextField(
             controller: _displayNameController,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
             decoration: const InputDecoration(
               hintText: 'Tên hiển thị',
               hintStyle: TextStyle(color: Colors.white38),
@@ -196,26 +213,42 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           const Text(
             'Chỉ số Thể trạng (Requirement 1.2)',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 24),
           TextField(
             controller: _weightController,
-            decoration: themedInputDecoration('Cân nặng', suffixText: 'kg', icon: Icons.monitor_weight),
+            decoration: themedInputDecoration(
+              'Cân nặng',
+              suffixText: 'kg',
+              icon: Icons.monitor_weight,
+            ),
             keyboardType: TextInputType.number,
             style: const TextStyle(color: Colors.white),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _heightController,
-            decoration: themedInputDecoration('Chiều cao', suffixText: 'cm', icon: Icons.height),
+            decoration: themedInputDecoration(
+              'Chiều cao',
+              suffixText: 'cm',
+              icon: Icons.height,
+            ),
             keyboardType: TextInputType.number,
             style: const TextStyle(color: Colors.white),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _maxHrController,
-            decoration: themedInputDecoration('Nhịp tim tối đa', suffixText: 'bpm', icon: Icons.favorite),
+            decoration: themedInputDecoration(
+              'Nhịp tim tối đa',
+              suffixText: 'bpm',
+              icon: Icons.favorite,
+            ),
             keyboardType: TextInputType.number,
             style: const TextStyle(color: Colors.white),
           ),
@@ -242,7 +275,11 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           const Text(
             'Kết nối Nền tảng (Requirement 1.3)',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 24),
           _buildIntegrationTile(
@@ -275,16 +312,16 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.2),
+              color: color.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color),
@@ -294,10 +331,19 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
                 Text(
                   isConnected ? 'Đã kết nối' : 'Chưa kết nối',
-                  style: TextStyle(color: isConnected ? Colors.green : Colors.white54, fontSize: 12),
+                  style: TextStyle(
+                    color: isConnected ? Colors.green : Colors.white54,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -307,7 +353,9 @@ class _ProfilePageState extends State<ProfilePage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: isConnected ? Colors.white12 : color,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             child: Text(isConnected ? 'Ngắt kết nối' : 'Kết nối'),
           ),
