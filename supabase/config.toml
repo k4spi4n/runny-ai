@@ -25,5 +25,8 @@ site_url = "http://localhost:3000"
 additional_redirect_urls = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
 jwt_expiry = 3600
 
+[auth.email]
+enable_confirmations = false
+
 [functions]
 # verify_jwt = true
