@@ -6,7 +6,6 @@ import 'import_activity_page.dart';
 import 'activity_details_page.dart';
 import '../widgets/ui_components.dart';
 import '../models/workout_models.dart';
-import 'package:intl/intl.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -58,19 +57,16 @@ class _DashboardPageState extends State<DashboardPage> {
             icon: const Icon(Icons.logout),
             tooltip: 'Đăng xuất',
             onPressed: () async {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Đang đăng xuất...'), duration: Duration(seconds: 1)),
-                );
-              }
+              final messenger = ScaffoldMessenger.of(context);
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Đang đăng xuất...'), duration: Duration(seconds: 1)),
+              );
               try {
                 await Supabase.instance.client.auth.signOut();
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Lỗi khi đăng xuất: $e')),
-                  );
-                }
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Lỗi khi đăng xuất: $e')),
+                );
               }
             },
           ),
@@ -88,7 +84,7 @@ class _DashboardPageState extends State<DashboardPage> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [Colors.white.withOpacity(0.08), Colors.transparent],
+                  colors: [Colors.white.withValues(alpha: 0.08), Colors.transparent],
                 ),
               ),
             ),
@@ -100,10 +96,10 @@ class _DashboardPageState extends State<DashboardPage> {
                 if (isDesktop)
                   NavigationRail(
                     extended: width > 1100,
-                    backgroundColor: Colors.white.withOpacity(0.05),
+                    backgroundColor: Colors.white.withValues(alpha: 0.05),
                     selectedIndex: _selectedIndex,
                     onDestinationSelected: (index) => setState(() => _selectedIndex = index),
-                    labelType: NavigationRailLabelType.all,
+                    labelType: width > 1100 ? NavigationRailLabelType.none : NavigationRailLabelType.all,
                     destinations: const [
                       NavigationRailDestination(
                         icon: Icon(Icons.dashboard_outlined),
@@ -386,7 +382,6 @@ class OverviewContent extends StatelessWidget {
               final activities = snapshot.data!;
               return Column(
                 children: activities.map((activity) {
-                  final dateStr = DateFormat('dd/MM/yyyy HH:mm').format(activity.startedAt);
                   final paceStr = _formatPace(activity.durationMin / activity.distanceKm);
 
                   return Padding(
@@ -502,7 +497,7 @@ class PerformanceStatCard extends StatelessWidget {
               gradient: gradient,
               borderRadius: BorderRadius.circular(18),
               boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.18), blurRadius: 16, offset: const Offset(0, 10)),
+                BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 16, offset: const Offset(0, 10)),
               ],
             ),
             child: Icon(icon, color: Colors.white, size: 26),
@@ -534,9 +529,9 @@ class _OverviewBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.14)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
       ),
       child: Text(text, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600)),
     );
@@ -560,7 +555,7 @@ class _ActionChip extends StatelessWidget {
           gradient: const LinearGradient(colors: [Color(0xFF4A82FF), Color(0xFF3AB8FF)]),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.18), blurRadius: 20, offset: const Offset(0, 10)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 20, offset: const Offset(0, 10)),
           ],
         ),
         child: Row(

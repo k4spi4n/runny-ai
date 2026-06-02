@@ -120,7 +120,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               height: 260,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: RadialGradient(colors: [Colors.white.withOpacity(0.08), Colors.transparent]),
+                gradient: RadialGradient(colors: [Colors.white.withValues(alpha: 0.08), Colors.transparent]),
               ),
             ),
           ),
@@ -132,7 +132,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               height: 260,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: RadialGradient(colors: [Colors.orange.withOpacity(0.16), Colors.transparent]),
+                gradient: RadialGradient(colors: [Colors.orange.withValues(alpha: 0.16), Colors.transparent]),
               ),
             ),
           ),
@@ -227,9 +227,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.08),
+                color: Colors.white.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withOpacity(0.14)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
               ),
               child: Row(
                 children: const [

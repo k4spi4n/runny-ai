@@ -128,7 +128,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           Positioned(
             top: 24,
             right: -100,
-            child: Container(width: 220, height: 220, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [Colors.white.withOpacity(0.08), Colors.transparent]))),
+            child: Container(width: 220, height: 220, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [Colors.white.withValues(alpha: 0.08), Colors.transparent]))),
           ),
           SafeArea(
             child: SingleChildScrollView(
@@ -256,9 +256,9 @@ class _PlanMetricCard extends StatelessWidget {
       width: 150,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.14)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

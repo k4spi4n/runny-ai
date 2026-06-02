@@ -61,7 +61,7 @@ class ActivityChart extends StatelessWidget {
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (value) {
                     return FlLine(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       strokeWidth: 1,
                     );
                   },
@@ -84,9 +84,9 @@ class ActivityChart extends StatelessWidget {
                         return SideTitleWidget(
                           axisSide: meta.axisSide,
                           child: Text(
-                            '${minutes}m',
+                            '$minutes m',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
+                              color: Colors.white.withValues(alpha: 0.5),
                               fontSize: 10,
                             ),
                           ),
@@ -104,7 +104,7 @@ class ActivityChart extends StatelessWidget {
                           child: Text(
                             isPace ? _formatPace(value) : value.toStringAsFixed(0),
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.5),
+                              color: Colors.white.withValues(alpha: 0.5),
                               fontSize: 10,
                             ),
                           ),
@@ -120,7 +120,7 @@ class ActivityChart extends StatelessWidget {
                     spots: spots,
                     isCurved: true,
                     gradient: LinearGradient(
-                      colors: [color, color.withOpacity(0.6)],
+                      colors: [color, color.withValues(alpha: 0.6)],
                     ),
                     barWidth: 3,
                     isStrokeCapRound: true,
@@ -129,8 +129,8 @@ class ActivityChart extends StatelessWidget {
                       show: true,
                       gradient: LinearGradient(
                         colors: [
-                          color.withOpacity(0.3),
-                          color.withOpacity(0.0),
+                          color.withValues(alpha: 0.3),
+                          color.withValues(alpha: 0.0),
                         ],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -145,7 +145,7 @@ class ActivityChart extends StatelessWidget {
                       return touchedBarSpots.map((barSpot) {
                         final minutes = (barSpot.x / 60).floor();
                         final seconds = (barSpot.x % 60).floor();
-                        final timeStr = '${minutes}:${seconds.toString().padLeft(2, '0')}';
+                        final timeStr = '$minutes:${seconds.toString().padLeft(2, '0')}';
                         final valStr = isPace ? _formatPace(barSpot.y) : barSpot.y.toStringAsFixed(1);
                         return LineTooltipItem(
                           '$timeStr\n$valStr $yAxisLabel',

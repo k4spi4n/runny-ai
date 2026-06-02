@@ -42,12 +42,12 @@ class RunnyApp extends StatelessWidget {
         textTheme: GoogleFonts.lexendTextTheme(baseDark.textTheme).apply(bodyColor: Colors.white),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white.withOpacity(0.08),
+          fillColor: Colors.white.withValues(alpha: 0.08),
           hintStyle: const TextStyle(color: Colors.white38),
           labelStyle: const TextStyle(color: Colors.white70),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide(color: Colors.white.withOpacity(0.18)),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
@@ -79,12 +79,12 @@ class RunnyApp extends StatelessWidget {
         textTheme: GoogleFonts.lexendTextTheme(baseDark.textTheme).apply(bodyColor: Colors.white),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: Colors.white.withOpacity(0.08),
+          fillColor: Colors.white.withValues(alpha: 0.08),
           hintStyle: const TextStyle(color: Colors.white38),
           labelStyle: const TextStyle(color: Colors.white70),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide(color: Colors.white.withOpacity(0.18)),
+            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(18),

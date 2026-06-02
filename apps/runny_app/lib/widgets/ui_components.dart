@@ -32,12 +32,12 @@ const secondaryPulseGradient = LinearGradient(
 
 BoxDecoration glassDecoration({BorderRadius borderRadius = const BorderRadius.all(Radius.circular(24))}) {
   return BoxDecoration(
-    color: Colors.white.withOpacity(0.08),
+    color: Colors.white.withValues(alpha: 0.08),
     borderRadius: borderRadius,
-    border: Border.all(color: Colors.white.withOpacity(0.16), width: 1.2),
+    border: Border.all(color: Colors.white.withValues(alpha: 0.16), width: 1.2),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.28),
+        color: Colors.black.withValues(alpha: 0.28),
         blurRadius: 24,
         offset: const Offset(0, 16),
       ),
@@ -69,13 +69,13 @@ ButtonStyle primaryActionButton({Color? backgroundColor}) => ElevatedButton.styl
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
       elevation: 8,
-      shadowColor: Colors.black.withOpacity(0.28),
+      shadowColor: Colors.black.withValues(alpha: 0.28),
       textStyle: const TextStyle(fontWeight: FontWeight.w700),
     );
 
 ButtonStyle secondaryActionButton() => OutlinedButton.styleFrom(
       foregroundColor: Colors.white,
-      side: BorderSide(color: Colors.white.withOpacity(0.18), width: 1.3),
+      side: BorderSide(color: Colors.white.withValues(alpha: 0.18), width: 1.3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
       textStyle: const TextStyle(fontWeight: FontWeight.w600),
@@ -89,10 +89,10 @@ InputDecoration themedInputDecoration(String label,
     suffixText: suffixText,
     prefixIcon: icon != null ? Icon(icon, color: Colors.white70) : null,
     filled: true,
-    fillColor: Colors.white.withOpacity(0.08),
+    fillColor: Colors.white.withValues(alpha: 0.08),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: BorderSide(color: Colors.white.withOpacity(0.18), width: 1.2),
+      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18), width: 1.2),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),

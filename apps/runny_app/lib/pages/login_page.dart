@@ -88,7 +88,7 @@ class _LoginPageState extends State<LoginPage> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [Colors.deepOrangeAccent.withOpacity(0.35), Colors.transparent],
+                  colors: [Colors.deepOrangeAccent.withValues(alpha: 0.35), Colors.transparent],
                 ),
               ),
             ),
@@ -102,7 +102,7 @@ class _LoginPageState extends State<LoginPage> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [const Color(0xFF4F65FF).withOpacity(0.3), Colors.transparent],
+                  colors: [const Color(0xFF4F65FF).withValues(alpha: 0.3), Colors.transparent],
                 ),
               ),
             ),
@@ -155,7 +155,7 @@ class _LoginPageState extends State<LoginPage> {
                     Text(
                       _isSignUp ? 'Bắt đầu di sản tập luyện của bạn' : 'Đăng nhập để gặp huấn luyện viên hiệu suất cao của bạn',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Colors.white.withOpacity(0.88),
+                            color: Colors.white.withValues(alpha: 0.88),
                             fontWeight: FontWeight.w600,
                           ),
                     ),

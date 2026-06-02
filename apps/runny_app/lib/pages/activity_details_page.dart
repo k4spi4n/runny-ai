@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/workout_models.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
-import 'package:intl/intl.dart';
 
 class ActivityDetailsPage extends StatelessWidget {
   final Activity activity;
