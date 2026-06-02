@@ -67,6 +67,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
       await _supabase.from('profiles').update({
         'weight_kg': weight,
+        'height_cm': height,
         'bmi': double.parse(bmi.toStringAsFixed(2)),
         'max_hr': maxHr,
         'has_completed_onboarding': true,
