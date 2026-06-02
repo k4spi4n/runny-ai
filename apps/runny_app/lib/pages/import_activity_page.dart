@@ -83,7 +83,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Import Hoạt Động')),
+      appBar: AppBar(title: const Text('Nhập Hoạt Động')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),

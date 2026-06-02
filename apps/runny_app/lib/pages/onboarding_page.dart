@@ -1,6 +1,8 @@
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/training_service.dart';
+import '../widgets/ui_components.dart';
 import 'dashboard_page.dart';
 
 class OnboardingPage extends StatefulWidget {
@@ -15,12 +17,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final _trainingService = TrainingService();
   final _supabase = Supabase.instance.client;
 
-  // Step 1: Metrics
   final _weightController = TextEditingController();
   final _heightController = TextEditingController();
   final _maxHrController = TextEditingController();
-
-  // Step 2: Goal
   final _goalController = TextEditingController();
 
   bool _isLoading = false;
@@ -38,10 +37,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   void _nextPage() {
     if (_currentStep < 1) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+      _pageController.nextPage(duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
       setState(() => _currentStep++);
     } else {
       _finishOnboarding();
@@ -50,13 +46,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   Future<void> _finishOnboarding() async {
     final weight = double.tryParse(_weightController.text);
-    final height = double.tryParse(_heightController.text); // in cm
+    final height = double.tryParse(_heightController.text);
     final maxHr = int.tryParse(_maxHrController.text);
     final goal = _goalController.text.trim();
 
     if (weight == null || height == null || goal.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập đầy đủ thông tin')),
+        const SnackBar(content: Text('Vui lòng nhập đầy đủ thông tin')), 
       );
       return;
     }
@@ -67,30 +63,24 @@ class _OnboardingPageState extends State<OnboardingPage> {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      // Calculate BMI
       final heightInM = height / 100;
       final bmi = weight / (heightInM * heightInM);
 
-      // 1. Update Profile
       await _supabase.from('profiles').update({
         'weight_kg': weight,
         'bmi': double.parse(bmi.toStringAsFixed(2)),
         'max_hr': maxHr,
+        'has_completed_onboarding': true,
       }).eq('id', user.id);
 
-      // 2. Generate Initial Plan via AI
       await _trainingService.createGoalBasedPlan(goal);
 
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const DashboardPage()),
-        );
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const DashboardPage()));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi khi khởi tạo: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi khi khởi tạo: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -100,151 +90,233 @@ class _OnboardingPageState extends State<OnboardingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Thiết lập tài khoản'),
         centerTitle: true,
-      ),
-      body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 24),
-                  const Text('AI đang thiết kế lịch tập riêng cho bạn...'),
-                  const SizedBox(height: 8),
-                  const Text('Vui lòng đợi trong giây lát', style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            )
-          : PageView(
-              controller: _pageController,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [
-                _buildMetricsStep(),
-                _buildGoalStep(),
-              ],
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          TextButton(
+            onPressed: () async {
+              final user = _supabase.auth.currentUser;
+              if (user != null) {
+                try {
+                  await _supabase.from('profiles').update({
+                    'has_completed_onboarding': true,
+                  }).eq('id', user.id);
+                } catch (e) {
+                  debugPrint('Error skipping onboarding: $e');
+                }
+              }
+              if (mounted) {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(builder: (_) => const DashboardPage()),
+                );
+              }
+            },
+            child: const Text(
+              'Bỏ qua',
+              style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
             ),
-    );
-  }
-
-  Widget _buildMetricsStep() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            'Chỉ số cơ thể',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text('Thông tin này giúp AI tính toán cường độ tập luyện phù hợp.'),
-          const SizedBox(height: 32),
-          TextField(
-            controller: _weightController,
-            decoration: const InputDecoration(
-              labelText: 'Cân nặng (kg)',
-              border: OutlineInputBorder(),
-              suffixText: 'kg',
-            ),
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _heightController,
-            decoration: const InputDecoration(
-              labelText: 'Chiều cao (cm)',
-              border: OutlineInputBorder(),
-              suffixText: 'cm',
-            ),
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _maxHrController,
-            decoration: const InputDecoration(
-              labelText: 'Nhịp tim tối đa (tùy chọn)',
-              hintText: 'Mặc định: 220 - tuổi',
-              border: OutlineInputBorder(),
-              suffixText: 'bpm',
-            ),
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 48),
-          ElevatedButton(
-            onPressed: _nextPage,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: Colors.orangeAccent,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Tiếp theo'),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildGoalStep() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: Stack(
         children: [
-          const Text(
-            'Mục tiêu của bạn',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          const Text('Bạn muốn đạt được điều gì trong thời gian tới?'),
-          const SizedBox(height: 32),
-          TextField(
-            controller: _goalController,
-            maxLines: 4,
-            decoration: const InputDecoration(
-              hintText: 'Ví dụ: Tôi muốn chạy được 5km liên tục sau 1 tháng, hiện tại tôi có thể chạy 2km.',
-              border: OutlineInputBorder(),
+          const SizedBox.expand(child: DecoratedBox(decoration: BoxDecoration(gradient: sportPlatformGradient))),
+          Positioned(
+            top: -80,
+            left: -60,
+            child: Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [Colors.white.withOpacity(0.08), Colors.transparent]),
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          const Card(
-            color: Colors.blueGrey,
-            child: Padding(
-              padding: EdgeInsets.all(12.0),
-              child: Row(
+          Positioned(
+            bottom: -80,
+            right: -80,
+            child: Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [Colors.orange.withOpacity(0.16), Colors.transparent]),
+              ),
+            ),
+          ),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else
+            SafeArea(
+              child: Column(
                 children: [
-                  Icon(Icons.psychology, color: Colors.white),
-                  SizedBox(width: 12),
+                  const SizedBox(height: 18),
+                  _OnboardingStepper(currentStep: _currentStep),
+                  const SizedBox(height: 18),
                   Expanded(
-                    child: Text(
-                      'AI sẽ dựa vào mục tiêu này để cá nhân hóa lịch tập cho bạn.',
-                      style: TextStyle(color: Colors.white, fontSize: 13),
+                    child: PageView(
+                      controller: _pageController,
+                      physics: const NeverScrollableScrollPhysics(),
+                      children: [
+                        _buildMetricsStep(context),
+                        _buildGoalStep(context),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 48),
-          ElevatedButton(
-            onPressed: _nextPage,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: Colors.orangeAccent,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Hoàn tất & Tạo lịch tập'),
-          ),
-          TextButton(
-            onPressed: () => setState(() {
-              _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
-              _currentStep--;
-            }),
-            child: const Text('Quay lại'),
-          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMetricsStep(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: glassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Chỉ số vận động', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 12),
+            Text('Thiết lập chỉ số nền tảng để AI đưa ra lịch tập tối ưu cho bạn.', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70)),
+            const SizedBox(height: 28),
+            TextField(
+              controller: _weightController,
+              decoration: themedInputDecoration('Cân nặng', suffixText: 'kg', icon: Icons.monitor_weight),
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _heightController,
+              decoration: themedInputDecoration('Chiều cao', suffixText: 'cm', icon: Icons.height),
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 18),
+            TextField(
+              controller: _maxHrController,
+              decoration: themedInputDecoration('Nhịp tim tối đa', hint: '220 - tuổi', suffixText: 'bpm', icon: Icons.favorite),
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(onPressed: _nextPage, style: primaryActionButton(), child: const Text('Tiếp theo')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGoalStep(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: glassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Mục tiêu tập luyện', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 12),
+            Text('Cho chúng tôi biết mục tiêu hàng đầu của bạn để AI đưa ra lộ trình chiến thắng.', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70)),
+            const SizedBox(height: 28),
+            TextField(
+              controller: _goalController,
+              maxLines: 5,
+              decoration: themedInputDecoration(
+                'Mục tiêu của bạn',
+                hint: 'Ví dụ: Tôi muốn hoàn thành 5km với pace dưới 5:30 trong 6 tuần.',
+                icon: Icons.flag_circle,
+              ),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withOpacity(0.14)),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.psychology, color: Colors.white),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'AI sẽ dùng mục tiêu này để cá nhân hóa cường độ, phục hồi và khối lượng tập.',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+            ElevatedButton(onPressed: _nextPage, style: primaryActionButton(), child: const Text('Hoàn tất & Tạo lịch tập')),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () {
+                if (_currentStep > 0) {
+                  _pageController.previousPage(duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
+                  setState(() => _currentStep--);
+                }
+              },
+              child: const Text('Quay lại', style: TextStyle(color: Colors.white70)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OnboardingStepper extends StatelessWidget {
+  final int currentStep;
+
+  const _OnboardingStepper({required this.currentStep});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          _StepDot(label: 'Chỉ số', active: currentStep == 0),
+          Expanded(child: Container(height: 2, color: Colors.white12)),
+          _StepDot(label: 'Mục tiêu', active: currentStep == 1),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepDot extends StatelessWidget {
+  final String label;
+  final bool active;
+
+  const _StepDot({required this.label, required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFFFA6B27) : Colors.white12,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(label, style: TextStyle(color: active ? Colors.white : Colors.white54)),
+      ],
     );
   }
 }

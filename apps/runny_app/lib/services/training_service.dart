@@ -1,5 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/workout_models.dart';
 import 'gemini_service.dart';
 
 class TrainingService {

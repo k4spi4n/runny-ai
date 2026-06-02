@@ -1,6 +1,6 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class Activity {
+
   final String? id;
   final String userId;
   final DateTime startedAt;

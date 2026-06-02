@@ -2,20 +2,20 @@
 project_id = "runny-ai"
 
 [api]
-port = 54321
+port = 64321
 schemas = ["public", "storage", "graphql_public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
 [db]
-port = 54322
+port = 64322
 major_version = 15
 
 [studio]
-port = 54323
+port = 64323
 
 [inbucket]
-port = 54324
+port = 64324
 
 [storage]
 file_size_limit = "50MiB"
