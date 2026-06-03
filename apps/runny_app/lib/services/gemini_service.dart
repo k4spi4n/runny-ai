@@ -15,7 +15,7 @@ class GeminiService {
     }
   }
 
-  bool get isConfigured => _apiKey != null && _apiKey!.isNotEmpty;
+  bool get isConfigured => _apiKey != null && _apiKey.isNotEmpty;
 
   GenerativeModel _createModel({String? systemInstruction}) {
     if (!isConfigured) {

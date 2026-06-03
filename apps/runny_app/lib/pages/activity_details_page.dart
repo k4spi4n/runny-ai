@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/workout_models.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
+import '../services/weather_service.dart';
 
 class ActivityDetailsPage extends StatelessWidget {
   final Activity activity;
@@ -25,7 +26,11 @@ class ActivityDetailsPage extends StatelessWidget {
       ),
       body: Stack(
         children: [
-          const SizedBox.expand(child: DecoratedBox(decoration: BoxDecoration(gradient: sportPlatformGradient))),
+          const SizedBox.expand(
+            child: DecoratedBox(
+              decoration: BoxDecoration(gradient: sportPlatformGradient),
+            ),
+          ),
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -34,6 +39,12 @@ class ActivityDetailsPage extends StatelessWidget {
                 children: [
                   _buildSummaryHeader(context),
                   const SizedBox(height: 24),
+                  if (activity.weatherSummary != null ||
+                      activity.temperatureC != null ||
+                      activity.aqi != null) ...[
+                    _buildWeatherCard(context),
+                    const SizedBox(height: 24),
+                  ],
                   if (paces.isNotEmpty) ...[
                     ActivityChart(
                       title: 'Pace (Tốc độ)',
@@ -68,19 +79,139 @@ class ActivityDetailsPage extends StatelessWidget {
                   if (activity.notes != null && activity.notes!.isNotEmpty) ...[
                     const Text(
                       'Ghi chú',
-                      style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     glassCard(
                       child: Text(
                         activity.notes!,
-                        style: const TextStyle(color: Colors.white70, fontSize: 16),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ],
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeatherCard(BuildContext context) {
+    WeatherSnapshot? snapshot;
+    if (activity.weatherJson != null) {
+      snapshot = WeatherSnapshot.fromJson(activity.weatherJson!);
+    } else if (activity.temperatureC != null ||
+        activity.aqi != null ||
+        activity.weatherSummary != null) {
+      snapshot = WeatherSnapshot(
+        fetchedAt: activity.weatherFetchedAt ?? DateTime.now(),
+        temperatureC: activity.temperatureC,
+        aqi: activity.aqi,
+        description: activity.weatherSummary,
+      );
+    }
+
+    if (snapshot == null) return const SizedBox.shrink();
+
+    return glassCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Điều kiện môi trường',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              if (snapshot.icon != null) ...[
+                Image.network(
+                  'https://openweathermap.org/img/wn/${snapshot.icon}@2x.png',
+                  width: 48,
+                  height: 48,
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${snapshot.temperatureC?.toStringAsFixed(1) ?? '--'}°C • ${snapshot.summary ?? snapshot.description ?? 'Thời tiết'}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.air,
+                          color: Colors.white54,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'AQI ${snapshot.aqi ?? '--'}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: snapshot.aqiColor.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            snapshot.aqiLabel,
+                            style: TextStyle(
+                              color: snapshot.aqiColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (snapshot.windKph != null) ...[
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Icon(Icons.wind_power, color: Colors.white54, size: 20),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${snapshot.windKph!.toStringAsFixed(1)} km/h',
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
         ],
       ),

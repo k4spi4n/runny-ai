@@ -258,9 +258,9 @@ class _OverviewContentState extends State<OverviewContent> {
           .order('started_at', ascending: false)
           .limit(1);
 
-      if (response is! List || response.isEmpty) return null;
+      if (response.isEmpty) return null;
 
-      final activity = response.first as Map<String, dynamic>;
+      final activity = response.first;
       final weatherJson = activity['weather_json'];
       if (weatherJson is Map<String, dynamic>) {
         return WeatherSnapshot.fromJson(weatherJson);
@@ -375,9 +375,6 @@ class _OverviewContentState extends State<OverviewContent> {
                               final tempText = weather.temperatureC != null
                                   ? '${weather.temperatureC!.toStringAsFixed(1)}°C'
                                   : '--';
-                              final aqiText = weather.aqi != null
-                                  ? 'AQI ${weather.aqi}'
-                                  : 'AQI --';
                               final location =
                                   weather.locationName ?? 'Không rõ vị trí';
 
@@ -404,12 +401,46 @@ class _OverviewContentState extends State<OverviewContent> {
                                               ?.copyWith(color: Colors.white),
                                         ),
                                         const SizedBox(height: 6),
-                                        Text(
-                                          '$location • $aqiText',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyMedium
-                                              ?.copyWith(color: Colors.white70),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              '$location • ',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodyMedium
+                                                  ?.copyWith(
+                                                    color: Colors.white70,
+                                                  ),
+                                            ),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 6,
+                                                vertical: 2,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: weather.aqiColor
+                                                    .withOpacity(0.2),
+                                                borderRadius:
+                                                    BorderRadius.circular(4),
+                                                border: Border.all(
+                                                  color: weather.aqiColor
+                                                      .withOpacity(0.5),
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                'AQI ${weather.aqi ?? '--'} - ${weather.aqiLabel}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color: weather.aqiColor,
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
