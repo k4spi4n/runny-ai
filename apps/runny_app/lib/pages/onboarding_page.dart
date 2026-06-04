@@ -43,15 +43,45 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
   }
 
+  Future<void> _skipOnboarding() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+
+      await _supabase.from('profiles').update({
+        'has_completed_onboarding': true,
+      }).eq('id', user.id);
+
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const DashboardPage()),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _finishOnboarding() async {
-    final weight = double.tryParse(_weightController.text);
-    final height = double.tryParse(_heightController.text);
-    final maxHr = int.tryParse(_maxHrController.text);
+    final weightStr = _weightController.text.trim().replaceAll(',', '.');
+    final heightStr = _heightController.text.trim().replaceAll(',', '.');
+    final maxHrStr = _maxHrController.text.trim();
     final goal = _goalController.text.trim();
+
+    final weight = double.tryParse(weightStr);
+    final height = double.tryParse(heightStr);
+    final maxHr = int.tryParse(maxHrStr);
 
     if (weight == null || height == null || goal.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập đầy đủ thông tin')), 
+        const SnackBar(content: Text('Vui lòng nhập đầy đủ thông tin')),
       );
       return;
     }
@@ -76,11 +106,15 @@ class _OnboardingPageState extends State<OnboardingPage> {
       await _trainingService.createGoalBasedPlan(goal);
 
       if (mounted) {
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const DashboardPage()));
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const DashboardPage()),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi khi khởi tạo: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Lỗi khi khởi tạo: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -98,14 +132,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
         elevation: 0,
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const DashboardPage()),
-              );
-            },
+            onPressed: _isLoading ? null : _skipOnboarding,
             child: const Text(
               'Bỏ qua',
-              style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white70,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
