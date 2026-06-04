@@ -9,12 +9,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:runny_app/app.dart';
 
+import 'package:runny_app/widgets/ui_components.dart';
+
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const RunnyApp());
 
     // Verify that our app starts.
-    expect(find.text('Runny AI'), findsOneWidget);
+    expect(find.byType(RunnyLogo), findsAtLeastNWidgets(1));
   });
 }

@@ -44,7 +44,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Runny AI'),
+        title: const RunnyLogo(fontSize: 20),
         actions: [
           IconButton(
             icon: const Icon(Icons.add_circle_outline),

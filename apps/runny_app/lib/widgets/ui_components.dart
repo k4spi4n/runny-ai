@@ -116,3 +116,96 @@ Widget badgeLabel(String text, {Color background = const Color(0xFF262F57)}) {
     ),
   );
 }
+
+class RunnyLogo extends StatelessWidget {
+  final double fontSize;
+  final bool showText;
+  final Color? textColor;
+
+  const RunnyLogo({
+    super.key,
+    this.fontSize = 24,
+    this.showText = true,
+    this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            Transform.rotate(
+              angle: -0.15,
+              child: Container(
+                width: fontSize * 1.4,
+                height: fontSize * 1.4,
+                decoration: BoxDecoration(
+                  gradient: accentPulseGradient,
+                  borderRadius: BorderRadius.circular(fontSize * 0.35),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFA6B27).withValues(alpha: 0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Icon(
+              Icons.bolt_rounded,
+              color: Colors.white,
+              size: fontSize * 1.1,
+            ),
+          ],
+        ),
+        if (showText) ...[
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'RUNNY',
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w900,
+                      color: textColor ?? Colors.white,
+                      letterSpacing: -0.5,
+                      height: 1,
+                    ),
+                  ),
+                  Text(
+                    'AI',
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w300,
+                      color: (textColor ?? Colors.white).withValues(alpha: 0.7),
+                      letterSpacing: -0.5,
+                      height: 1,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Container(
+                height: 2,
+                width: fontSize * 1.5,
+                decoration: BoxDecoration(
+                  gradient: accentPulseGradient,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
