@@ -55,9 +55,14 @@ Widget glassCard({
     child: BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
       child: Container(
-        padding: padding,
         decoration: glassDecoration(borderRadius: borderRadius),
-        child: child,
+        child: Material(
+          color: Colors.transparent,
+          child: Padding(
+            padding: padding,
+            child: child,
+          ),
+        ),
       ),
     ),
   );

@@ -3,6 +3,7 @@ import '../models/workout_models.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
 import '../services/weather_service.dart';
+import 'ai_coach_page.dart';
 
 class ActivityDetailsPage extends StatelessWidget {
   final Activity activity;
@@ -23,6 +24,18 @@ class ActivityDetailsPage extends StatelessWidget {
         title: Text(activity.notes ?? 'Chi tiết hoạt động'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AICoachPage(initialActivity: activity),
+            ),
+          );
+        },
+        backgroundColor: const Color(0xFF4A82FF),
+        child: const Icon(Icons.tips_and_updates_outlined, color: Colors.white),
       ),
       body: Stack(
         children: [
@@ -161,11 +174,7 @@ class ActivityDetailsPage extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(
-                          Icons.air,
-                          color: Colors.white54,
-                          size: 14,
-                        ),
+                        const Icon(Icons.air, color: Colors.white54, size: 14),
                         const SizedBox(width: 4),
                         Text(
                           'AQI ${snapshot.aqi ?? '--'}',
@@ -181,7 +190,7 @@ class ActivityDetailsPage extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: snapshot.aqiColor.withOpacity(0.2),
+                            color: snapshot.aqiColor.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -202,7 +211,11 @@ class ActivityDetailsPage extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Icon(Icons.wind_power, color: Colors.white54, size: 20),
+                    const Icon(
+                      Icons.wind_power,
+                      color: Colors.white54,
+                      size: 20,
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       '${snapshot.windKph!.toStringAsFixed(1)} km/h',
@@ -224,18 +237,37 @@ class ActivityDetailsPage extends StatelessWidget {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildStatItem(context, 'Quãng đường', '${activity.distanceKm.toStringAsFixed(2)} km'),
-              _buildStatItem(context, 'Thời gian', _formatDuration(activity.durationMin)),
+              Expanded(
+                child: _buildStatItem(
+                  context,
+                  'Quãng đường',
+                  '${activity.distanceKm.toStringAsFixed(2)} km',
+                ),
+              ),
+              Expanded(
+                child: _buildStatItem(
+                  context,
+                  'Thời gian',
+                  _formatDuration(activity.durationMin),
+                ),
+              ),
             ],
           ),
           const Divider(color: Colors.white10, height: 32),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildStatItem(context, 'Pace TB', _formatPace(activity.durationMin / activity.distanceKm)),
-              _buildStatItem(context, 'Độ cao (+)', '${activity.elevationGainM?.toStringAsFixed(0) ?? 0} m'),
+              _buildStatItem(
+                context,
+                'Pace TB',
+                _formatPace(activity.durationMin / activity.distanceKm),
+              ),
+              _buildStatItem(
+                context,
+                'Độ cao (+)',
+                '${activity.elevationGainM?.toStringAsFixed(0) ?? 0} m',
+              ),
             ],
           ),
           if (activity.avgHr != null) ...[
@@ -251,9 +283,19 @@ class ActivityDetailsPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 14)),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white54, fontSize: 14),
+        ),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ],
     );
   }
@@ -262,7 +304,8 @@ class ActivityDetailsPage extends StatelessWidget {
     int h = minutes ~/ 60;
     int m = minutes.toInt() % 60;
     int s = ((minutes - minutes.toInt()) * 60).round();
-    if (h > 0) return "$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
+    if (h > 0)
+      return "$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
     return "$m:${s.toString().padLeft(2, '0')}";
   }
 

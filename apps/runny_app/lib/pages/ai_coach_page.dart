@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import '../services/training_service.dart';
 import '../services/gemini_service.dart';
 import '../services/chat_service.dart';
+import '../widgets/ui_components.dart';
+import '../models/workout_models.dart';
 
 class AICoachPage extends StatefulWidget {
-  const AICoachPage({super.key});
+  final Activity? initialActivity;
+  const AICoachPage({super.key, this.initialActivity});
 
   @override
   State<AICoachPage> createState() => _AICoachPageState();
@@ -17,10 +20,15 @@ class _AICoachPageState extends State<AICoachPage> {
   final ChatService _chatService = ChatService();
   final List<Map<String, String>> _messages = [];
   bool _isLoading = false;
+  Activity? _contextActivity;
 
   @override
   void initState() {
     super.initState();
+    _contextActivity = widget.initialActivity;
+    if (_contextActivity != null) {
+      _controller.text = "Hãy phân tích hoạt động chạy ${_contextActivity!.distanceKm.toStringAsFixed(2)}km của tôi.";
+    }
     _loadHistory();
   }
 
@@ -76,8 +84,20 @@ class _AICoachPageState extends State<AICoachPage> {
         });
         await _chatService.saveMessage('assistant', assistantMsg);
       } else {
+        String prompt = text;
+        if (_contextActivity != null) {
+          prompt = "Dựa trên dữ liệu hoạt động chạy bộ này: "
+              "Khoảng cách: ${_contextActivity!.distanceKm.toStringAsFixed(2)}km, "
+              "Thời gian: ${_contextActivity!.durationMin.toStringAsFixed(1)} phút, "
+              "Nhịp tim TB: ${_contextActivity!.avgHr ?? 'N/A'} bpm, "
+              "Độ cao tích lũy: ${_contextActivity!.elevationGainM ?? 0}m. "
+              "Ghi chú: ${_contextActivity!.notes ?? 'Không có'}. "
+              "Hãy trả lời câu hỏi sau: $text";
+          setState(() => _contextActivity = null); // Reset context after sending
+        }
+
         final response = await _geminiService.generateResponse(
-          text,
+          prompt,
           history: _messages.sublist(0, _messages.length - 1),
         );
         setState(() {
@@ -130,76 +150,142 @@ class _AICoachPageState extends State<AICoachPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Lịch sử trò chuyện', style: TextStyle(fontWeight: FontWeight.bold)),
-              TextButton.icon(
-                onPressed: _clearHistory,
-                icon: const Icon(Icons.delete_outline, size: 20),
-                label: const Text('Xóa lịch sử'),
-              ),
-            ],
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text('AI Coach'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: _clearHistory,
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Xóa lịch sử',
           ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: _messages.length,
-            itemBuilder: (context, index) {
-              final msg = _messages[index];
-              final isUser = msg['role'] == 'user';
-              return Align(
-                alignment: isUser
-                    ? Alignment.centerRight
-                    : Alignment.centerLeft,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isUser ? Colors.blue : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(12),
+        ],
+      ),
+      body: Stack(
+        children: [
+          const SizedBox.expand(
+            child: DecoratedBox(
+              decoration: BoxDecoration(gradient: sportPlatformGradient),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = _messages[index];
+                      final isUser = msg['role'] == 'user';
+                      return Align(
+                        alignment: isUser
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isUser
+                                ? const Color(0xFF4A82FF)
+                                : Colors.white.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: isUser
+                                ? null
+                                : Border.all(
+                                    color: Colors.white.withValues(alpha: 0.1)),
+                          ),
+                          child: Text(
+                            msg['content']!,
+                            style: TextStyle(
+                              color: isUser ? Colors.white : Colors.white,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  child: Text(
-                    msg['content']!,
-                    style: TextStyle(
-                      color: isUser ? Colors.white : Colors.black,
+                ),
+                if (_isLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: CircularProgressIndicator(color: Colors.white70),
+                  ),
+                if (_contextActivity != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.description_outlined, color: Colors.white70, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Hoạt động: ${_contextActivity!.distanceKm.toStringAsFixed(2)}km',
+                            style: const TextStyle(color: Colors.white70, fontSize: 13),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            onPressed: () => setState(() => _contextActivity = null),
+                            icon: const Icon(Icons.close, color: Colors.white70, size: 14),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
-        ),
-        if (_isLoading && _messages.isNotEmpty)
-          const Padding(
-            padding: EdgeInsets.all(8),
-            child: CircularProgressIndicator(),
-          ),
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  decoration: const InputDecoration(
-                    hintText: 'Hỏi HLV ảo hoặc yêu cầu lịch tập...',
-                    border: OutlineInputBorder(),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Hỏi HLV ảo hoặc yêu cầu lịch tập...',
+                            hintStyle: const TextStyle(color: Colors.white54),
+                            filled: true,
+                            fillColor: Colors.white.withValues(alpha: 0.08),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 10),
+                          ),
+                          onSubmitted: (_) => _sendMessage(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF4A82FF),
+                        ),
+                        child: IconButton(
+                          onPressed: _sendMessage,
+                          icon: const Icon(Icons.send, color: Colors.white),
+                        ),
+                      ),
+                    ],
                   ),
-                  onSubmitted: (_) => _sendMessage(),
                 ),
-              ),
-              IconButton(onPressed: _sendMessage, icon: const Icon(Icons.send)),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

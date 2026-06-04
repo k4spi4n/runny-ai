@@ -413,18 +413,19 @@ class _OverviewContentState extends State<OverviewContent> {
                                                   ),
                                             ),
                                             Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 6,
-                                                vertical: 2,
-                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                    vertical: 2,
+                                                  ),
                                               decoration: BoxDecoration(
                                                 color: weather.aqiColor
-                                                    .withOpacity(0.2),
+                                                    .withValues(alpha: 0.2),
                                                 borderRadius:
                                                     BorderRadius.circular(4),
                                                 border: Border.all(
                                                   color: weather.aqiColor
-                                                      .withOpacity(0.5),
+                                                      .withValues(alpha: 0.5),
                                                   width: 1,
                                                 ),
                                               ),
