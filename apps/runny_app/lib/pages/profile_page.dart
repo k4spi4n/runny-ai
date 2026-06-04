@@ -71,17 +71,35 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _saveProfile() async {
+    final weightStr = _weightController.text.trim().replaceAll(',', '.');
+    final heightStr = _heightController.text.trim().replaceAll(',', '.');
+    final maxHrStr = _maxHrController.text.trim();
+
+    if (weightStr.isEmpty || heightStr.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng nhập cân nặng và chiều cao')),
+      );
+      return;
+    }
+
+    final weight = double.tryParse(weightStr);
+    final height = double.tryParse(heightStr);
+    final maxHr = int.tryParse(maxHrStr);
+
+    if (weight == null || height == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cân nặng hoặc chiều cao không hợp lệ')),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      final weight = double.tryParse(_weightController.text);
-      final height = double.tryParse(_heightController.text);
-      final maxHr = int.tryParse(_maxHrController.text);
-
       double? bmi;
-      if (weight != null && height != null && height > 0) {
+      if (height > 0) {
         final heightInM = height / 100;
         bmi = double.parse(
           (weight / (heightInM * heightInM)).toStringAsFixed(2),
@@ -96,8 +114,11 @@ class _ProfilePageState extends State<ProfilePage> {
             'height_cm': height,
             'max_hr': maxHr,
             'bmi': bmi,
+            'has_completed_onboarding': true,
           })
           .eq('id', user.id);
+
+      await _loadProfile();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -212,7 +233,7 @@ class _ProfilePageState extends State<ProfilePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Chỉ số Thể trạng (Requirement 1.2)',
+            'Chỉ số Thể trạng',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -274,7 +295,7 @@ class _ProfilePageState extends State<ProfilePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Kết nối Nền tảng (Requirement 1.3)',
+            'Kết nối Nền tảng',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
