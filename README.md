@@ -125,5 +125,3 @@ flutter pub get
 # Chạy trên trình duyệt Chrome
 flutter run -d chrome
 ```
-
-
