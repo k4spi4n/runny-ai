@@ -156,21 +156,24 @@ class _LoginPageState extends State<LoginPage> {
                           : Text(_isSignUp ? 'Đăng ký tài khoản' : 'Đăng nhập vào Runny'),
                     ),
                     const SizedBox(height: 16),
-                    Wrap(
-                      runSpacing: 12,
-                      spacing: 12,
+                    Row(
                       children: [
-                        OutlinedButton.icon(
-                          onPressed: _isLoading ? null : () => _signInWithProvider(OAuthProvider.google),
-                          icon: const Icon(Icons.g_mobiledata, color: Colors.redAccent, size: 24),
-                          label: const Text('Google'),
-                          style: secondaryActionButton(),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _isLoading ? null : () => _signInWithProvider(OAuthProvider.google),
+                            icon: const Icon(Icons.g_mobiledata, color: Colors.redAccent, size: 24),
+                            label: const Text('Google'),
+                            style: secondaryActionButton(),
+                          ),
                         ),
-                        OutlinedButton.icon(
-                          onPressed: _isLoading ? null : () => _signInWithProvider(OAuthProvider.facebook),
-                          icon: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 24),
-                          label: const Text('Facebook'),
-                          style: secondaryActionButton(),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _isLoading ? null : () => _signInWithProvider(OAuthProvider.facebook),
+                            icon: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 24),
+                            label: const Text('Facebook'),
+                            style: secondaryActionButton(),
+                          ),
                         ),
                       ],
                     ),
