@@ -1,0 +1,28 @@
+A Dart VM Service on Chrome is available at: http://127.0.0.1:55612/sy3lU0Rs4M8=
+The Flutter DevTools debugger and profiler on Chrome is available at: http://127.0.0.1:55612/sy3lU0Rs4M8=/devtools/?uri=ws://127.0.0.1:55612/sy3lU0Rs4M8=/ws
+Starting application from main method in: org-dartlang-app:/web_entrypoint.dart.
+supabase.supabase_flutter: INFO: ***** Supabase init completed ***** 
+══╡ EXCEPTION CAUGHT BY FLUTTER FRAMEWORK ╞═════════════════════════════════════════════════════════
+The following assertion was thrown:
+ListTile background color or ink splashes may be invisible.
+The ListTile is wrapped in a DecoratedBox that has a background color. Because ListTile paints its
+background and ink splashes on the nearest Material ancestor, this DecoratedBox will hide those
+effects.
+To fix this, wrap the ListTile in its own Material widget, or remove the background color from the
+intermediate DecoratedBox.
+
+ListTile: ListTile(contentPadding: EdgeInsets(20.0, 10.0, 20.0, 10.0), onTap:
+    Closure: () => void from: () => {
+                                navigator.Navigator.push(T.dynamic(), context, new page.MaterialPageRoute.new(T.MaterialPageRoute(), {builder: dart.fn(context => new activity_details_page.ActivityDetailsPage.new({activity: activity,
+                                $creationLocationd_0dea112b090073317d4: C[235] || CT.C235}), T.BuildContextToActivityDetailsPage())}));
+                              }
+  )
+DecoratedBox: DecoratedBox(bg:
+    BoxDecoration(color: Color(alpha: 0.0800, red: 1.0000, green: 1.0000, blue: 1.0000, colorSpace: ColorSpace.sRGB), border: Border.all(BorderSide(color: Color(alpha: 0.1600, red: 1.0000, green: 1.0000, blue: 1.0000, colorSpace: ColorSpace.sRGB), width:
+    1.2)), borderRadius: BorderRadius.circular(24.0),
+      boxShadow: [BoxShadow(Color(alpha: 0.2800, red: 0.0000, green:
+        0.0000, blue: 0.0000, colorSpace: ColorSpace.sRGB), Offset(0.0,
+        16.0), 24.0, 0.0, BlurStyle.normal)]
+      )
+  )
+════════════════════════════════════════════════════════════════════════════════════════════════════
