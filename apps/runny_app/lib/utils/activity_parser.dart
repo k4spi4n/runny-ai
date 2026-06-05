@@ -11,6 +11,8 @@ class ParsedActivity {
   final int? avgHr;
   final double? elevationGainM;
   final Map<String, dynamic>? dataPoints;
+  final double? startLat;
+  final double? startLon;
 
   ParsedActivity({
     required this.startedAt,
@@ -19,6 +21,8 @@ class ParsedActivity {
     this.avgHr,
     this.elevationGainM,
     this.dataPoints,
+    this.startLat,
+    this.startLon,
   });
 }
 
@@ -48,6 +52,8 @@ class ActivityParser {
 
     DateTime startedAt = trkpts.first.time ?? DateTime.now();
     DateTime endedAt = trkpts.last.time ?? startedAt;
+    final startLat = trkpts.first.lat;
+    final startLon = trkpts.first.lon;
 
     double totalDistance = 0.0;
     double minEle = double.infinity;
@@ -65,17 +71,22 @@ class ActivityParser {
 
       if (i > 0) {
         final pPrev = trkpts[i - 1];
-        if (pPrev.lat != null && pPrev.lon != null && p.lat != null && p.lon != null) {
+        if (pPrev.lat != null &&
+            pPrev.lon != null &&
+            p.lat != null &&
+            p.lon != null) {
           final d = _haversine(pPrev.lat!, pPrev.lon!, p.lat!, p.lon!);
           totalDistance += d;
-          
-          final timeDiffSeconds = currentTime.difference(pPrev.time ?? currentTime).inSeconds;
+
+          final timeDiffSeconds = currentTime
+              .difference(pPrev.time ?? currentTime)
+              .inSeconds;
           if (timeDiffSeconds > 0 && d > 0) {
-             final currentPace = (timeDiffSeconds / 60.0) / d;
-             // Cap pace at 20 min/km to avoid spikes
-             paces.add(currentPace > 20 ? 20 : currentPace);
+            final currentPace = (timeDiffSeconds / 60.0) / d;
+            // Cap pace at 20 min/km to avoid spikes
+            paces.add(currentPace > 20 ? 20 : currentPace);
           } else {
-             paces.add(paces.isNotEmpty ? paces.last : 0.0);
+            paces.add(paces.isNotEmpty ? paces.last : 0.0);
           }
         } else {
           paces.add(paces.isNotEmpty ? paces.last : 0.0);
@@ -107,6 +118,8 @@ class ActivityParser {
       durationMin: durationMin,
       elevationGainM: elevationGain,
       avgHr: null,
+      startLat: startLat,
+      startLon: startLon,
       dataPoints: {
         'times': times,
         'distances': distances,
@@ -132,6 +145,8 @@ class ActivityParser {
     List<double> elevations = [];
     List<double> paces = [];
     List<double> hrs = [];
+    double? startLat;
+    double? startLon;
 
     DateTime? firstTimestamp;
 
@@ -159,28 +174,37 @@ class ActivityParser {
       } else if (message is RecordMessage) {
         final timestampValue = message.timestamp;
         if (timestampValue == null) continue;
-        
+
         final currentTimestamp = DateTime.fromMillisecondsSinceEpoch(
-            timestampValue * 1000 + 631065600000,
+          timestampValue * 1000 + 631065600000,
         );
         firstTimestamp ??= currentTimestamp;
-        
-        final timeOffset = currentTimestamp.difference(firstTimestamp).inSeconds.toDouble();
+
+        final timeOffset = currentTimestamp
+            .difference(firstTimestamp)
+            .inSeconds
+            .toDouble();
         final dist = (message.distance ?? 0.0) / 1000.0;
         final ele = message.altitude ?? 0.0;
         final hr = (message.heartRate ?? 0).toDouble();
+        final recordLat = message.positionLat;
+        final recordLon = message.positionLong;
+        if (startLat == null && recordLat != null && recordLon != null) {
+          startLat = _semicirclesToDegrees(recordLat);
+          startLon = _semicirclesToDegrees(recordLon);
+        }
 
         if (times.isNotEmpty) {
-           final dDist = dist - distances.last;
-           final dTime = timeOffset - times.last;
-           if (dTime > 0 && dDist > 0) {
-              final pace = (dTime / 60.0) / dDist;
-              paces.add(pace > 20 ? 20 : pace);
-           } else {
-              paces.add(paces.isNotEmpty ? paces.last : 0.0);
-           }
+          final dDist = dist - distances.last;
+          final dTime = timeOffset - times.last;
+          if (dTime > 0 && dDist > 0) {
+            final pace = (dTime / 60.0) / dDist;
+            paces.add(pace > 20 ? 20 : pace);
+          } else {
+            paces.add(paces.isNotEmpty ? paces.last : 0.0);
+          }
         } else {
-           paces.add(0.0);
+          paces.add(0.0);
         }
 
         times.add(timeOffset);
@@ -206,6 +230,8 @@ class ActivityParser {
       durationMin: durationMin,
       avgHr: avgHr,
       elevationGainM: elevationGain,
+      startLat: startLat,
+      startLon: startLon,
       dataPoints: {
         'times': times,
         'distances': distances,
@@ -229,5 +255,9 @@ class ActivityParser {
 
   static double _toRadians(double degree) {
     return degree * pi / 180;
+  }
+
+  static double _semicirclesToDegrees(num semicircles) {
+    return semicircles.toDouble() * (180 / 2147483648);
   }
 }

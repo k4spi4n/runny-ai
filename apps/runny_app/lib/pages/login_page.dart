@@ -115,41 +115,11 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 62,
-                          height: 62,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFFF7F3F), Color(0xFFFFC65C)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: const Icon(Icons.sports_score, color: Colors.white, size: 32),
-                        ),
-                        const SizedBox(width: 18),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'RUNNY AI',
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.4,
-                                  ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Trí tuệ thể thao ưu tú dành cho những người hiệu suất cao.',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70),
-                            ),
-                          ],
-                        ),
-                      ],
+                    const RunnyLogo(fontSize: 32),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Trí tuệ thể thao ưu tú dành cho những người hiệu suất cao.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70),
                     ),
                     const SizedBox(height: 28),
                     Text(

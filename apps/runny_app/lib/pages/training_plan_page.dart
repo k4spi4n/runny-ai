@@ -17,7 +17,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   final TrainingService _trainingService = TrainingService();
   bool _isLoading = true;
   Map<String, dynamic>? _activeSchedule;
-  List<dynamic> _workouts = [];
+  List<Map<String, dynamic>> _workouts = [];
 
   @override
   void initState() {
@@ -84,7 +84,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_activeSchedule == null) {
+    if (_activeSchedule == null || _workouts.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -106,8 +106,8 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
 
     final completedWorkouts = _workouts.where((w) => w['status'] == 'completed').length;
     final completionRate = _workouts.isEmpty ? 0 : ((completedWorkouts / _workouts.length) * 100).round();
-    final nextWorkout = _workouts.firstWhere((workout) {
-      final date = DateTime.parse(workout['date']);
+    final Map<String, dynamic> nextWorkout = _workouts.firstWhere((workout) {
+      final date = DateTime.parse(workout['date'] as String);
       return !DateUtils.isSameDay(date, DateTime.now()) || workout['status'] == 'planned';
     }, orElse: () => _workouts.first);
 
@@ -165,7 +165,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                       leading: Icon(Icons.flag, color: Colors.white, size: 32),
                       title: Text(nextWorkout['title'] ?? 'Bài tập tiếp theo', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       subtitle: Text(
-                        '${DateFormat('EEEE, dd MMM').format(DateTime.parse(nextWorkout['date']))} • ${nextWorkout['target_distance_km']} km',
+                        '${DateFormat('EEEE, dd MMM').format(DateTime.parse(nextWorkout['date'] as String))} • ${nextWorkout['target_distance_km']} km',
                         style: const TextStyle(color: Colors.white70),
                       ),
                       trailing: ElevatedButton(onPressed: () {}, style: primaryActionButton(backgroundColor: const Color(0xFF4A82FF)), child: const Text('Khởi động')),
@@ -179,7 +179,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                       _workouts.length,
                       (index) {
                         final workout = _workouts[index];
-                        final date = DateTime.parse(workout['date']);
+                        final date = DateTime.parse(workout['date'] as String);
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 14),
                           child: glassCard(

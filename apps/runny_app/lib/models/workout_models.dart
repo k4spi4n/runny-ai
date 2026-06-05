@@ -1,6 +1,4 @@
-
 class Activity {
-
   final String? id;
   final String userId;
   final DateTime startedAt;
@@ -10,6 +8,13 @@ class Activity {
   final double? elevationGainM;
   final String? notes;
   final Map<String, dynamic>? dataPoints;
+  final double? startLat;
+  final double? startLon;
+  final String? weatherSummary;
+  final double? temperatureC;
+  final int? aqi;
+  final DateTime? weatherFetchedAt;
+  final Map<String, dynamic>? weatherJson;
 
   Activity({
     this.id,
@@ -21,6 +26,13 @@ class Activity {
     this.elevationGainM,
     this.notes,
     this.dataPoints,
+    this.startLat,
+    this.startLon,
+    this.weatherSummary,
+    this.temperatureC,
+    this.aqi,
+    this.weatherFetchedAt,
+    this.weatherJson,
   });
 
   factory Activity.fromJson(Map<String, dynamic> json) {
@@ -31,9 +43,20 @@ class Activity {
       distanceKm: (json['distance_km'] as num).toDouble(),
       durationMin: (json['duration_min'] as num).toDouble(),
       avgHr: json['avg_hr'],
-      elevationGainM: json['elevation_gain_m'] != null ? (json['elevation_gain_m'] as num).toDouble() : null,
+      elevationGainM: json['elevation_gain_m'] != null
+          ? (json['elevation_gain_m'] as num).toDouble()
+          : null,
       notes: json['notes'],
       dataPoints: json['data_points'],
+      startLat: (json['start_lat'] as num?)?.toDouble(),
+      startLon: (json['start_lon'] as num?)?.toDouble(),
+      weatherSummary: json['weather_summary'],
+      temperatureC: (json['temperature_c'] as num?)?.toDouble(),
+      aqi: json['aqi'],
+      weatherFetchedAt: json['weather_fetched_at'] != null
+          ? DateTime.parse(json['weather_fetched_at'])
+          : null,
+      weatherJson: json['weather_json'],
     );
   }
 
@@ -48,6 +71,13 @@ class Activity {
       'elevation_gain_m': elevationGainM,
       'notes': notes,
       'data_points': dataPoints,
+      'start_lat': startLat,
+      'start_lon': startLon,
+      'weather_summary': weatherSummary,
+      'temperature_c': temperatureC,
+      'aqi': aqi,
+      'weather_fetched_at': weatherFetchedAt?.toIso8601String(),
+      'weather_json': weatherJson,
     };
   }
 }
@@ -80,10 +110,18 @@ class TrainingSchedule {
       id: json['id'],
       userId: json['user_id'],
       title: json['title'],
-      targetPaceMinPerKm: json['target_pace_min_per_km'] != null ? (json['target_pace_min_per_km'] as num).toDouble() : null,
-      targetDistanceKm: json['target_distance_km'] != null ? (json['target_distance_km'] as num).toDouble() : null,
-      startDate: json['start_date'] != null ? DateTime.parse(json['start_date']) : null,
-      endDate: json['end_date'] != null ? DateTime.parse(json['end_date']) : null,
+      targetPaceMinPerKm: json['target_pace_min_per_km'] != null
+          ? (json['target_pace_min_per_km'] as num).toDouble()
+          : null,
+      targetDistanceKm: json['target_distance_km'] != null
+          ? (json['target_distance_km'] as num).toDouble()
+          : null,
+      startDate: json['start_date'] != null
+          ? DateTime.parse(json['start_date'])
+          : null,
+      endDate: json['end_date'] != null
+          ? DateTime.parse(json['end_date'])
+          : null,
       goalDescription: json['goal_description'],
       status: json['status'] ?? 'active',
     );
@@ -139,9 +177,15 @@ class ScheduledWorkout {
       date: DateTime.parse(json['date']),
       title: json['title'],
       description: json['description'],
-      targetDistanceKm: json['target_distance_km'] != null ? (json['target_distance_km'] as num).toDouble() : null,
-      targetDurationMin: json['target_duration_min'] != null ? (json['target_duration_min'] as num).toDouble() : null,
-      targetPaceMinPerKm: json['target_pace_min_per_km'] != null ? (json['target_pace_min_per_km'] as num).toDouble() : null,
+      targetDistanceKm: json['target_distance_km'] != null
+          ? (json['target_distance_km'] as num).toDouble()
+          : null,
+      targetDurationMin: json['target_duration_min'] != null
+          ? (json['target_duration_min'] as num).toDouble()
+          : null,
+      targetPaceMinPerKm: json['target_pace_min_per_km'] != null
+          ? (json['target_pace_min_per_km'] as num).toDouble()
+          : null,
       status: json['status'],
       activityId: json['activity_id'],
     );
