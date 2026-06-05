@@ -228,7 +228,66 @@ class _ProfilePageState extends State<ProfilePage> {
           _buildIntegrationsSection(),
           const SizedBox(height: 24),
           _buildMatchingSection(),
-          const SizedBox(height: 40),
+          const SizedBox(height: 32),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: OutlinedButton.icon(
+              onPressed: () => _showLogoutDialog(context),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.redAccent,
+                side: const BorderSide(color: Colors.redAccent),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              icon: const Icon(Icons.logout),
+              label: const Text(
+                'Đăng xuất',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          const SizedBox(height: 60),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Đăng xuất'),
+        content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi Runny AI?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Huỷ'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final messenger = ScaffoldMessenger.of(context);
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('Đang đăng xuất...'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+              try {
+                await _supabase.auth.signOut();
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Lỗi khi đăng xuất: $e')),
+                );
+              }
+            },
+            child: const Text(
+              'Đăng xuất',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
         ],
       ),
     );

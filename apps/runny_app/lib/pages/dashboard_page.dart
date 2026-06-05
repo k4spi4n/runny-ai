@@ -63,22 +63,7 @@ class _DashboardPageState extends State<DashboardPage> {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Đăng xuất',
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              messenger.showSnackBar(
-                const SnackBar(
-                  content: Text('Đang đăng xuất...'),
-                  duration: Duration(seconds: 1),
-                ),
-              );
-              try {
-                await Supabase.instance.client.auth.signOut();
-              } catch (e) {
-                messenger.showSnackBar(
-                  SnackBar(content: Text('Lỗi khi đăng xuất: $e')),
-                );
-              }
-            },
+            onPressed: () => _showLogoutDialog(context),
           ),
         ],
       ),
@@ -209,6 +194,45 @@ class _DashboardPageState extends State<DashboardPage> {
               ],
             )
           : null,
+    );
+  }
+
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Đăng xuất'),
+        content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi Runny AI?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Huỷ'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final messenger = ScaffoldMessenger.of(context);
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('Đang đăng xuất...'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+              try {
+                await Supabase.instance.client.auth.signOut();
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Lỗi khi đăng xuất: $e')),
+                );
+              }
+            },
+            child: const Text(
+              'Đăng xuất',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
