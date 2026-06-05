@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/ui_components.dart';
 import '../services/integration_service.dart';
+import '../services/social_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -13,6 +14,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final _supabase = Supabase.instance.client;
   final _integrationService = IntegrationService();
+  final _socialService = SocialService();
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -20,9 +22,14 @@ class _ProfilePageState extends State<ProfilePage> {
   final _heightController = TextEditingController();
   final _maxHrController = TextEditingController();
   final _displayNameController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _bioController = TextEditingController();
+  final _preferredPaceController = TextEditingController();
 
   String? _stravaId;
   String? _garminId;
+  bool _lookingForPartner = false;
+  bool _isSavingMatching = false;
 
   @override
   void initState() {
@@ -36,6 +43,9 @@ class _ProfilePageState extends State<ProfilePage> {
     _heightController.dispose();
     _maxHrController.dispose();
     _displayNameController.dispose();
+    _cityController.dispose();
+    _bioController.dispose();
+    _preferredPaceController.dispose();
     super.dispose();
   }
 
@@ -58,6 +68,10 @@ class _ProfilePageState extends State<ProfilePage> {
         _maxHrController.text = (data['max_hr'] ?? '').toString();
         _stravaId = data['strava_id'];
         _garminId = data['garmin_id'];
+        _cityController.text = data['city'] ?? '';
+        _bioController.text = data['bio'] ?? '';
+        _preferredPaceController.text = (data['preferred_pace_min_per_km'] ?? '').toString();
+        _lookingForPartner = data['looking_for_partner'] == true;
       });
     } catch (e) {
       if (mounted) {
@@ -110,6 +124,31 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _saveMatching() async {
+    setState(() => _isSavingMatching = true);
+    try {
+      await _socialService.updateMatchingPreferences(
+        lookingForPartner: _lookingForPartner,
+        preferredPace: double.tryParse(_preferredPaceController.text),
+        city: _cityController.text.trim().isEmpty ? null : _cityController.text.trim(),
+        bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Đã lưu thiết lập ghép đôi!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingMatching = false);
+    }
+  }
+
   Future<void> _connectStrava() async {
     try {
       if (_stravaId != null) {
@@ -153,6 +192,8 @@ class _ProfilePageState extends State<ProfilePage> {
           _buildMetricsSection(),
           const SizedBox(height: 24),
           _buildIntegrationsSection(),
+          const SizedBox(height: 24),
+          _buildMatchingSection(),
           const SizedBox(height: 40),
         ],
       ),
@@ -259,6 +300,64 @@ class _ProfilePageState extends State<ProfilePage> {
             isConnected: _garminId != null,
             onConnect: _connectGarmin,
             color: const Color(0xFF007CC3),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMatchingSection() {
+    return glassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Ghép đôi Bạn chạy (Requirement 4.3)',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Bật để xuất hiện trong gợi ý của người chạy khác và nhận lời mời chạy cùng.',
+            style: TextStyle(color: Colors.white60, fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _lookingForPartner,
+            onChanged: (v) => setState(() => _lookingForPartner = v),
+            title: const Text('Tìm bạn chạy', style: TextStyle(color: Colors.white)),
+            activeThumbColor: const Color(0xFFFA6B27),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _cityController,
+            decoration: themedInputDecoration('Khu vực / Thành phố', icon: Icons.place),
+            style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _preferredPaceController,
+            decoration: themedInputDecoration('Pace mong muốn', suffixText: 'phút/km', icon: Icons.speed),
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _bioController,
+            maxLines: 3,
+            decoration: themedInputDecoration('Giới thiệu ngắn', icon: Icons.notes),
+            style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isSavingMatching ? null : _saveMatching,
+              style: primaryActionButton(),
+              child: _isSavingMatching
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Lưu thiết lập ghép đôi'),
+            ),
           ),
         ],
       ),

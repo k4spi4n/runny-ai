@@ -5,6 +5,7 @@ import 'ai_coach_page.dart';
 import 'import_activity_page.dart';
 import 'activity_details_page.dart';
 import 'profile_page.dart';
+import 'community_page.dart';
 import '../widgets/ui_components.dart';
 import '../models/workout_models.dart';
 
@@ -28,6 +29,7 @@ class _DashboardPageState extends State<DashboardPage> {
       const Center(child: Text('Lịch sử chạy bộ', style: TextStyle(color: Colors.white))),
       const TrainingPlanPage(),
       const AICoachPage(),
+      const CommunityPage(),
       const ProfilePage(),
     ];
   }
@@ -123,6 +125,11 @@ class _DashboardPageState extends State<DashboardPage> {
                         label: Text('AI Coach'),
                       ),
                       NavigationRailDestination(
+                        icon: Icon(Icons.groups_outlined),
+                        selectedIcon: Icon(Icons.groups),
+                        label: Text('Cộng đồng'),
+                      ),
+                      NavigationRailDestination(
                         icon: Icon(Icons.person_outline),
                         selectedIcon: Icon(Icons.person),
                         label: Text('Hồ sơ'),
@@ -154,6 +161,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 NavigationDestination(icon: Icon(Icons.history), label: 'Lịch sử'),
                 NavigationDestination(icon: Icon(Icons.calendar_month), label: 'Lịch tập'),
                 NavigationDestination(icon: Icon(Icons.psychology), label: 'AI'),
+                NavigationDestination(icon: Icon(Icons.groups), label: 'Cộng đồng'),
                 NavigationDestination(icon: Icon(Icons.person), label: 'Hồ sơ'),
               ],
             )
