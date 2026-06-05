@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/ui_components.dart';
 import '../services/integration_service.dart';
 import '../services/social_service.dart';
+import 'weight_tracking_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -323,6 +324,21 @@ class _ProfilePageState extends State<ProfilePage> {
               child: _isSaving
                   ? const CircularProgressIndicator(color: Colors.white)
                   : const Text('Cập nhật chỉ số'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: secondaryActionButton(),
+              icon: const Icon(Icons.timeline, size: 18),
+              label: const Text('Theo dõi cân nặng & mục tiêu'),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WeightTrackingPage()),
+                ).then((_) => _loadProfile());
+              },
             ),
           ),
         ],
