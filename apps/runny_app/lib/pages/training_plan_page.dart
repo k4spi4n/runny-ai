@@ -97,7 +97,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
               const SizedBox(height: 24),
               ElevatedButton(onPressed: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const AICoachPage()));
-              }, style: primaryActionButton(), child: const Text('Tạo lịch tập với AI Coach')),
+              }, style: primaryActionButton(context), child: const Text('Tạo lịch tập với AI Coach')),
             ],
           ),
         ),
@@ -124,7 +124,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       ),
       body: Stack(
         children: [
-          const SizedBox.expand(child: DecoratedBox(decoration: BoxDecoration(gradient: sportPlatformGradient))),
+          SizedBox.expand(child: DecoratedBox(decoration: BoxDecoration(gradient: sportPlatformGradient(context)))),
           Positioned(
             top: 24,
             right: -100,
@@ -137,6 +137,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   glassCard(
+                    context: context,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -160,6 +161,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                   Text('Buổi tập tiếp theo', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   glassCard(
+                    context: context,
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                       leading: Icon(Icons.flag, color: Colors.white, size: 32),
@@ -168,7 +170,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                         '${DateFormat('EEEE, dd MMM').format(DateTime.parse(nextWorkout['date'] as String))} • ${nextWorkout['target_distance_km']} km',
                         style: const TextStyle(color: Colors.white70),
                       ),
-                      trailing: ElevatedButton(onPressed: () {}, style: primaryActionButton(backgroundColor: const Color(0xFF4A82FF)), child: const Text('Khởi động')),
+                      trailing: ElevatedButton(onPressed: () {}, style: primaryActionButton(context, backgroundColor: const Color(0xFF4A82FF)), child: const Text('Khởi động')),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -183,6 +185,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 14),
                           child: glassCard(
+                            context: context,
                             child: ListTile(
                               contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                               leading: CircleAvatar(
@@ -199,7 +202,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                                 ],
                               ),
                               trailing: workout['status'] == 'planned'
-                                  ? ElevatedButton(onPressed: () {}, style: primaryActionButton(backgroundColor: const Color(0xFF4A82FF)), child: const Text('Bắt đầu'))
+                                  ? ElevatedButton(onPressed: () {}, style: primaryActionButton(context, backgroundColor: const Color(0xFF4A82FF)), child: const Text('Bắt đầu'))
                                   : Icon(_getStatusIcon(workout['status']), color: _getStatusColor(workout['status'])),
                             ),
                           ),

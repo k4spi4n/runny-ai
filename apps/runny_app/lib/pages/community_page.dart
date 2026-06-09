@@ -39,6 +39,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         ),
         const SizedBox(height: 12),
         glassCard(
+          context: context,
           padding: const EdgeInsets.all(6),
           child: TabBar(
             controller: _tabController,
@@ -103,6 +104,7 @@ class _BadgesTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               glassCard(
+          context: context,
                 child: Row(
                   children: [
                     Container(
@@ -161,6 +163,7 @@ class _BadgeCard extends StatelessWidget {
     return Opacity(
       opacity: earned ? 1 : 0.45,
       child: glassCard(
+          context: context,
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
@@ -250,6 +253,7 @@ class _LeaderboardRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return glassCard(
+          context: context,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       child: Row(
         children: [
@@ -274,7 +278,7 @@ class _LeaderboardRow extends StatelessWidget {
                     ),
                     if (isMe) ...[
                       const SizedBox(width: 8),
-                      badgeLabel('Bạn', background: const Color(0xFFF85F2B)),
+                      badgeLabel(context, 'Bạn', background: const Color(0xFFF85F2B)),
                     ],
                   ],
                 ),
@@ -451,6 +455,7 @@ class _IncomingCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: glassCard(
+          context: context,
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
@@ -495,6 +500,7 @@ class _PartnerCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: glassCard(
+          context: context,
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
@@ -513,7 +519,7 @@ class _PartnerCard extends StatelessWidget {
                 ],
               ),
             ),
-            badgeLabel('Đã kết nối', background: const Color(0xFF1F7A4D)),
+            badgeLabel(context, 'Đã kết nối', background: const Color(0xFF1F7A4D)),
           ],
         ),
       ),
@@ -532,6 +538,7 @@ class _SuggestionCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: glassCard(
+          context: context,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -554,7 +561,7 @@ class _SuggestionCard extends StatelessWidget {
                           ),
                           if (suggestion.sameCity) ...[
                             const SizedBox(width: 8),
-                            badgeLabel('Cùng khu vực', background: const Color(0xFF2A3B6B)),
+                            badgeLabel(context, 'Cùng khu vực', background: const Color(0xFF2A3B6B)),
                           ],
                         ],
                       ),
@@ -584,7 +591,7 @@ class _SuggestionCard extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: onSend,
-                style: primaryActionButton(),
+                style: primaryActionButton(context),
                 icon: const Icon(Icons.person_add_alt_1, size: 18),
                 label: const Text('Gửi lời mời chạy cùng'),
               ),

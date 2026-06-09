@@ -251,9 +251,9 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         ),
         body: Stack(
           children: [
-            const SizedBox.expand(
+            SizedBox.expand(
               child: DecoratedBox(
-                decoration: BoxDecoration(gradient: sportPlatformGradient),
+                decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
               ),
             ),
             SafeArea(
@@ -316,6 +316,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                       ),
                       const SizedBox(height: 8),
                       glassCard(
+                        context: context,
                         child: Text(
                           _activity.notes!,
                           style: const TextStyle(
@@ -353,6 +354,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
     if (snapshot == null) return const SizedBox.shrink();
 
     return glassCard(
+      context: context,
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,6 +452,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
 
   Widget _buildSummaryHeader(BuildContext context) {
     return glassCard(
+      context: context,
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [

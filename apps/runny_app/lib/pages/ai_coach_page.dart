@@ -166,9 +166,9 @@ class _AICoachPageState extends State<AICoachPage> {
       ),
       body: Stack(
         children: [
-          const SizedBox.expand(
+          SizedBox.expand(
             child: DecoratedBox(
-              decoration: BoxDecoration(gradient: sportPlatformGradient),
+              decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
             ),
           ),
           SafeArea(
