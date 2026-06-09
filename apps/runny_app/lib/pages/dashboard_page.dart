@@ -10,6 +10,7 @@ import 'community_page.dart';
 import '../widgets/ui_components.dart';
 import '../models/workout_models.dart';
 import '../services/weather_service.dart';
+import '../l10n/app_localizations.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -28,8 +29,13 @@ class _DashboardPageState extends State<DashboardPage> {
     super.initState();
     _pages = [
       const OverviewContent(),
-      const Center(
-        child: Text('Lịch sử chạy bộ', style: TextStyle(color: Colors.white)),
+      Center(
+        child: Builder(
+          builder: (context) => Text(
+            'Activity History', 
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface)
+          ),
+        ),
       ),
       const TrainingPlanPage(),
       const AICoachPage(),
@@ -42,15 +48,21 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final isDesktop = width > 900;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const RunnyLogo(fontSize: 20),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
+          const LanguageSwitcher(),
+          const ThemeToggle(),
           IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            tooltip: 'Nhập hoạt động',
+            icon: Icon(Icons.add_circle_outline, color: colorScheme.onSurface),
+            tooltip: 'Import Activity',
             onPressed: () {
               Navigator.push(
                 context,
@@ -61,34 +73,17 @@ class _DashboardPageState extends State<DashboardPage> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Đăng xuất',
+            icon: Icon(Icons.logout, color: colorScheme.onSurface),
+            tooltip: 'Logout',
             onPressed: () => _showLogoutDialog(context),
           ),
         ],
       ),
       body: Stack(
         children: [
-          const SizedBox.expand(
+          SizedBox.expand(
             child: DecoratedBox(
-              decoration: BoxDecoration(gradient: sportPlatformGradient),
-            ),
-          ),
-          Positioned(
-            top: 40,
-            right: -120,
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: RadialGradient(
-                  colors: [
-                    Colors.white.withValues(alpha: 0.08),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
+              decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
             ),
           ),
           SafeArea(
@@ -98,51 +93,53 @@ class _DashboardPageState extends State<DashboardPage> {
                 if (isDesktop)
                   NavigationRail(
                     extended: width > 1100,
-                    backgroundColor: Colors.white.withValues(alpha: 0.05),
+                    backgroundColor: theme.brightness == Brightness.dark 
+                        ? Colors.white.withValues(alpha: 0.05) 
+                        : Colors.black.withValues(alpha: 0.03),
                     selectedIndex: _selectedIndex,
                     onDestinationSelected: (index) =>
                         setState(() => _selectedIndex = index),
                     labelType: width > 1100
                         ? NavigationRailLabelType.none
                         : NavigationRailLabelType.all,
-                    destinations: const [
+                    destinations: [
                       NavigationRailDestination(
-                        icon: Icon(Icons.dashboard_outlined),
-                        selectedIcon: Icon(Icons.dashboard),
-                        label: Text('Tổng quan'),
+                        icon: const Icon(Icons.dashboard_outlined),
+                        selectedIcon: const Icon(Icons.dashboard),
+                        label: Text(context.translate('dashboard')),
                       ),
-                      NavigationRailDestination(
+                      const NavigationRailDestination(
                         icon: Icon(Icons.history_outlined),
                         selectedIcon: Icon(Icons.history),
-                        label: Text('Lịch sử'),
+                        label: Text('History'),
                       ),
                       NavigationRailDestination(
-                        icon: Icon(Icons.calendar_month_outlined),
-                        selectedIcon: Icon(Icons.calendar_month),
-                        label: Text('Lịch tập'),
+                        icon: const Icon(Icons.calendar_month_outlined),
+                        selectedIcon: const Icon(Icons.calendar_month),
+                        label: Text(context.translate('training_plan')),
                       ),
                       NavigationRailDestination(
-                        icon: Icon(Icons.psychology_outlined),
-                        selectedIcon: Icon(Icons.psychology),
-                        label: Text('AI Coach'),
+                        icon: const Icon(Icons.psychology_outlined),
+                        selectedIcon: const Icon(Icons.psychology),
+                        label: Text(context.translate('ai_coach')),
                       ),
                       NavigationRailDestination(
-                        icon: Icon(Icons.groups_outlined),
-                        selectedIcon: Icon(Icons.groups),
-                        label: Text('Cộng đồng'),
+                        icon: const Icon(Icons.groups_outlined),
+                        selectedIcon: const Icon(Icons.groups),
+                        label: Text(context.translate('community')),
                       ),
                       NavigationRailDestination(
-                        icon: Icon(Icons.person_outline),
-                        selectedIcon: Icon(Icons.person),
-                        label: Text('Hồ sơ'),
+                        icon: const Icon(Icons.person_outline),
+                        selectedIcon: const Icon(Icons.person),
+                        label: Text(context.translate('profile')),
                       ),
                     ],
                   ),
                 if (isDesktop)
-                  const VerticalDivider(
+                  VerticalDivider(
                     width: 1,
                     thickness: 1,
-                    color: Colors.white12,
+                    color: colorScheme.outline.withValues(alpha: 0.1),
                   ),
                 Expanded(
                   child: Container(
@@ -166,30 +163,30 @@ class _DashboardPageState extends State<DashboardPage> {
                   _selectedIndex = index;
                 });
               },
-              destinations: const [
+              destinations: [
                 NavigationDestination(
-                  icon: Icon(Icons.dashboard),
-                  label: 'Tổng quan',
+                  icon: const Icon(Icons.dashboard),
+                  label: context.translate('dashboard'),
                 ),
-                NavigationDestination(
+                const NavigationDestination(
                   icon: Icon(Icons.history),
-                  label: 'Lịch sử',
+                  label: 'History',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.calendar_month),
-                  label: 'Lịch tập',
+                  icon: const Icon(Icons.calendar_month),
+                  label: context.translate('training_plan'),
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.psychology),
-                  label: 'AI',
+                  icon: const Icon(Icons.psychology),
+                  label: context.translate('ai_coach'),
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.groups),
-                  label: 'Cộng đồng',
+                  icon: const Icon(Icons.groups),
+                  label: context.translate('community'),
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.person),
-                  label: 'Hồ sơ',
+                  icon: const Icon(Icons.person),
+                  label: context.translate('profile'),
                 ),
               ],
             )
@@ -198,15 +195,17 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   void _showLogoutDialog(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Đăng xuất'),
-        content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi Runny AI?'),
+        backgroundColor: colorScheme.surface,
+        title: Text('Logout', style: TextStyle(color: colorScheme.onSurface)),
+        content: Text('Are you sure you want to logout from Runny AI?', style: TextStyle(color: colorScheme.onSurfaceVariant)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Huỷ'),
+            child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () async {
@@ -214,7 +213,7 @@ class _DashboardPageState extends State<DashboardPage> {
               final messenger = ScaffoldMessenger.of(context);
               messenger.showSnackBar(
                 const SnackBar(
-                  content: Text('Đang đăng xuất...'),
+                  content: Text('Logging out...'),
                   duration: Duration(seconds: 1),
                 ),
               );
@@ -222,13 +221,13 @@ class _DashboardPageState extends State<DashboardPage> {
                 await Supabase.instance.client.auth.signOut();
               } catch (e) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Lỗi khi đăng xuất: $e')),
+                  SnackBar(content: Text('Error logging out: $e')),
                 );
               }
             },
             child: const Text(
-              'Đăng xuất',
-              style: TextStyle(color: Colors.redAccent),
+              'Logout',
+              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -361,6 +360,8 @@ class _OverviewContentState extends State<OverviewContent> {
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
     final crossAxisCount = width > 1200 ? 4 : (width > 800 ? 2 : 1);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -368,6 +369,7 @@ class _OverviewContentState extends State<OverviewContent> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           glassCard(
+            context: context,
             padding: const EdgeInsets.all(28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -379,12 +381,11 @@ class _OverviewContentState extends State<OverviewContent> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Thời tiết hoạt động gần nhất',
-                            style: Theme.of(context).textTheme.displaySmall
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                            'Performance Overview',
+                            style: theme.textTheme.displaySmall?.copyWith(
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                           const SizedBox(height: 12),
                           FutureBuilder<WeatherSnapshot?>(
@@ -404,9 +405,9 @@ class _OverviewContentState extends State<OverviewContent> {
                               final weather = snapshot.data;
                               if (weather == null) {
                                 return Text(
-                                  'Chưa có dữ liệu thời tiết. Hãy bật quyền vị trí hoặc nhập một hoạt động có GPS để hiển thị.',
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(color: Colors.white70),
+                                  'Weather data unavailable.',
+                                  style: theme.textTheme.bodyMedium
+                                      ?.copyWith(color: colorScheme.onSurfaceVariant),
                                 );
                               }
 
@@ -414,7 +415,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                   ? '${weather.temperatureC!.toStringAsFixed(1)}°C'
                                   : '--';
                               final location =
-                                  weather.locationName ?? 'Không rõ vị trí';
+                                  weather.locationName ?? 'Unknown Location';
 
                               return Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -432,22 +433,18 @@ class _OverviewContentState extends State<OverviewContent> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '$tempText • ${weather.summary ?? 'Thời tiết ổn định'}',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleLarge
-                                              ?.copyWith(color: Colors.white),
+                                          '$tempText • ${weather.summary ?? 'Clear'}',
+                                          style: theme.textTheme.titleLarge
+                                              ?.copyWith(color: colorScheme.onSurface),
                                         ),
                                         const SizedBox(height: 6),
                                         Row(
                                           children: [
                                             Text(
                                               '$location • ',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodyMedium
+                                              style: theme.textTheme.bodyMedium
                                                   ?.copyWith(
-                                                    color: Colors.white70,
+                                                    color: colorScheme.onSurfaceVariant,
                                                   ),
                                             ),
                                             Container(
@@ -469,9 +466,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                               ),
                                               child: Text(
                                                 'AQI ${weather.aqi ?? '--'} - ${weather.aqiLabel}',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall
+                                                style: theme.textTheme.bodySmall
                                                     ?.copyWith(
                                                       color: weather.aqiColor,
                                                       fontWeight:
@@ -495,7 +490,7 @@ class _OverviewContentState extends State<OverviewContent> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        badgeLabel('PRO HUD'),
+                        badgeLabel(context, 'PRO HUD'),
                         const SizedBox(height: 12),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -510,14 +505,14 @@ class _OverviewContentState extends State<OverviewContent> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                'Chuỗi bền bỉ',
-                                style: Theme.of(context).textTheme.bodySmall
+                                'Streak',
+                                style: theme.textTheme.bodySmall
                                     ?.copyWith(color: Colors.white70),
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                '7 ngày',
-                                style: Theme.of(context).textTheme.headlineSmall
+                                '7 Days',
+                                style: theme.textTheme.headlineSmall
                                     ?.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w900,
@@ -530,17 +525,6 @@ class _OverviewContentState extends State<OverviewContent> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: const [
-                    _OverviewBadge(text: 'Tập trung Tốc độ'),
-                    _OverviewBadge(text: 'Ưu tiên Phục hồi'),
-                    _OverviewBadge(text: 'Hiệu suất Đỉnh cao'),
-                    _OverviewBadge(text: 'Sẵn sàng Thi đấu'),
-                  ],
-                ),
               ],
             ),
           ),
@@ -548,10 +532,11 @@ class _OverviewContentState extends State<OverviewContent> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'Chỉ số Hiệu suất',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              'Performance Stats',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -587,26 +572,26 @@ class _OverviewContentState extends State<OverviewContent> {
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 children: [
                   PerformanceStatCard(
-                    title: 'Tổng quãng đường',
+                    title: context.translate('distance'),
                     value:
                         '${(stats['totalDistance'] as double).toStringAsFixed(1)} km',
                     icon: Icons.straighten,
                     gradient: accentPulseGradient,
                   ),
                   PerformanceStatCard(
-                    title: 'Số buổi',
+                    title: 'Sessions',
                     value: '${stats['totalSessions']}',
                     icon: Icons.directions_run,
                     gradient: secondaryPulseGradient,
                   ),
                   PerformanceStatCard(
-                    title: 'Nhịp tim TB',
+                    title: 'Avg HR',
                     value: stats['avgHr'] > 0 ? '${stats['avgHr']} bpm' : '--',
                     icon: Icons.favorite,
                     gradient: accentPulseGradient,
                   ),
                   PerformanceStatCard(
-                    title: 'Pace trung bình',
+                    title: context.translate('pace'),
                     value: '$formattedPace /km',
                     icon: Icons.speed,
                     gradient: secondaryPulseGradient,
@@ -622,13 +607,17 @@ class _OverviewContentState extends State<OverviewContent> {
               children: [
                 Expanded(
                   child: Text(
-                    'Hoạt động mới nhất',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    context.translate('recent_activities'),
+                    style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                 ),
-                TextButton(onPressed: () {}, child: const Text('Xem tất cả')),
+                TextButton(
+                  onPressed: () {}, 
+                  child: const Text('View All'),
+                ),
               ],
             ),
           ),
@@ -640,12 +629,12 @@ class _OverviewContentState extends State<OverviewContent> {
                 return const Center(child: CircularProgressIndicator());
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Center(
                     child: Text(
-                      'Chưa có hoạt động nào.',
-                      style: TextStyle(color: Colors.white70),
+                      'No activities yet.',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
                     ),
                   ),
                 );
@@ -664,6 +653,7 @@ class _OverviewContentState extends State<OverviewContent> {
                       vertical: 8,
                     ),
                     child: glassCard(
+                      context: context,
                       padding: EdgeInsets.zero,
                       child: ListTile(
                         onTap: () async {
@@ -696,19 +686,19 @@ class _OverviewContentState extends State<OverviewContent> {
                           ),
                         ),
                         title: Text(
-                          activity.notes ?? 'Hoạt động chạy bộ',
-                          style: const TextStyle(
+                          activity.notes ?? 'Run Activity',
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: colorScheme.onSurface,
                           ),
                         ),
                         subtitle: Text(
                           '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • Pace $paceStr',
-                          style: const TextStyle(color: Colors.white70),
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
-                        trailing: const Icon(
+                        trailing: Icon(
                           Icons.chevron_right,
-                          color: Colors.white70,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -721,10 +711,11 @@ class _OverviewContentState extends State<OverviewContent> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'Hành động nhanh',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+              'Quick Actions',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -735,7 +726,7 @@ class _OverviewContentState extends State<OverviewContent> {
               runSpacing: 12,
               children: [
                 _ActionChip(
-                  text: 'Nhập hoạt động',
+                  text: 'Import Activity',
                   icon: Icons.cloud_upload,
                   onTap: () {
                     Navigator.push(
@@ -747,7 +738,7 @@ class _OverviewContentState extends State<OverviewContent> {
                   },
                 ),
                 _ActionChip(
-                  text: 'Xem lịch tập',
+                  text: context.translate('training_plan'),
                   icon: Icons.calendar_month,
                   onTap: () {
                     Navigator.push(
@@ -759,7 +750,7 @@ class _OverviewContentState extends State<OverviewContent> {
                   },
                 ),
                 _ActionChip(
-                  text: 'Hỏi AI Coach',
+                  text: context.translate('ai_coach'),
                   icon: Icons.psychology,
                   onTap: () {
                     Navigator.push(
@@ -807,7 +798,9 @@ class PerformanceStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return glassCard(
+      context: context,
       padding: const EdgeInsets.all(20),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -834,47 +827,22 @@ class PerformanceStatCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: Colors.white70),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   value,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _OverviewBadge extends StatelessWidget {
-  final String text;
-
-  const _OverviewBadge({required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white70,
-          fontWeight: FontWeight.w600,
-        ),
       ),
     );
   }

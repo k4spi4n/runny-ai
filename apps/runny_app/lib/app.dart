@@ -1,97 +1,40 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pages/login_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/onboarding_page.dart';
+import 'theme/app_theme.dart';
+import 'theme/theme_provider.dart';
+import 'l10n/language_provider.dart';
+import 'l10n/app_localizations.dart';
 
 class RunnyApp extends StatelessWidget {
   const RunnyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final baseDark = ThemeData.dark();
+    final themeProvider = context.watch<ThemeProvider>();
+    final languageProvider = context.watch<LanguageProvider>();
+
     return MaterialApp(
-      title: 'Runny AI',
+      onGenerateTitle: (context) => context.translate('app_title'),
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFFA6B27),
-          brightness: Brightness.dark,
-        ),
-        scaffoldBackgroundColor: const Color(0xFF050814),
-        canvasColor: Colors.transparent,
-        cardColor: const Color(0xFF0D1230),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          surfaceTintColor: Colors.transparent,
-          iconTheme: IconThemeData(color: Colors.white),
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        snackBarTheme: const SnackBarThemeData(
-          backgroundColor: Color(0xFF111A38),
-        ),
-        textTheme: GoogleFonts.lexendTextTheme(baseDark.textTheme).apply(bodyColor: Colors.white),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white.withValues(alpha: 0.08),
-          hintStyle: const TextStyle(color: Colors.white38),
-          labelStyle: const TextStyle(color: Colors.white70),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: Color(0xFFFA6B27), width: 1.6),
-          ),
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFFA6B27),
-          brightness: Brightness.dark,
-        ),
-        scaffoldBackgroundColor: const Color(0xFF050814),
-        canvasColor: Colors.transparent,
-        cardColor: const Color(0xFF0D1230),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          surfaceTintColor: Colors.transparent,
-          iconTheme: IconThemeData(color: Colors.white),
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        textTheme: GoogleFonts.lexendTextTheme(baseDark.textTheme).apply(bodyColor: Colors.white),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white.withValues(alpha: 0.08),
-          hintStyle: const TextStyle(color: Colors.white38),
-          labelStyle: const TextStyle(color: Colors.white70),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: Color(0xFFFA6B27), width: 1.6),
-          ),
-        ),
-      ),
+      themeMode: themeProvider.themeMode,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      locale: languageProvider.locale,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('en'),
+        Locale('vi'),
+      ],
       home: const AuthGate(),
     );
   }

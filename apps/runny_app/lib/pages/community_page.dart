@@ -29,16 +29,21 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   }
 
   @override
-  Widget build(BuildContext context) {
+    Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
           'Cộng đồng',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
+          ),
         ),
         const SizedBox(height: 12),
         glassCard(
+          context: context,
           padding: const EdgeInsets.all(6),
           child: TabBar(
             controller: _tabController,
@@ -49,7 +54,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             indicatorSize: TabBarIndicatorSize.tab,
             dividerColor: Colors.transparent,
             labelColor: Colors.white,
-            unselectedLabelColor: Colors.white60,
+            unselectedLabelColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
             labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             tabs: const [
               Tab(text: 'Huy hiệu'),
@@ -84,6 +89,7 @@ class _BadgesTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final service = SocialService();
+    final colorScheme = Theme.of(context).colorScheme;
     return FutureBuilder<List<BadgeProgress>>(
       future: service.fetchBadges(),
       builder: (context, snapshot) {
@@ -91,7 +97,7 @@ class _BadgesTab extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _errorView('Không tải được huy hiệu: ${snapshot.error}');
+          return _errorView(context, 'Không tải được huy hiệu: ${snapshot.error}');
         }
         final badges = snapshot.data ?? [];
         final earnedCount = badges.where((b) => b.isEarned).length;
@@ -103,6 +109,7 @@ class _BadgesTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               glassCard(
+                context: context,
                 child: Row(
                   children: [
                     Container(
@@ -118,12 +125,12 @@ class _BadgesTab extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Thành tích của bạn',
-                              style: TextStyle(color: Colors.white70)),
+                          Text('Thành tích của bạn',
+                              style: TextStyle(color: colorScheme.onSurfaceVariant)),
                           const SizedBox(height: 4),
                           Text('$earnedCount / ${badges.length} huy hiệu',
-                              style: const TextStyle(
-                                  color: Colors.white,
+                              style: TextStyle(
+                                  color: colorScheme.onSurface,
                                   fontSize: 22,
                                   fontWeight: FontWeight.w900)),
                         ],
@@ -157,10 +164,15 @@ class _BadgeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final earned = badge.isEarned;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Opacity(
       opacity: earned ? 1 : 0.45,
       child: glassCard(
+          context: context,
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
@@ -168,12 +180,12 @@ class _BadgeCard extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 gradient: earned ? accentPulseGradient : null,
-                color: earned ? null : Colors.white.withValues(alpha: 0.08),
+                color: earned ? null : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05)),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
                 earned ? _iconFor(badge.icon) : Icons.lock_outline,
-                color: Colors.white,
+                color: earned ? Colors.white : colorScheme.onSurfaceVariant,
                 size: 26,
               ),
             ),
@@ -186,13 +198,13 @@ class _BadgeCard extends StatelessWidget {
                   Text(badge.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+                      style: TextStyle(
+                          color: colorScheme.onSurface, fontWeight: FontWeight.w800, fontSize: 15)),
                   const SizedBox(height: 4),
                   Text(badge.description,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                      style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
                 ],
               ),
             ),
@@ -222,11 +234,11 @@ class _LeaderboardTab extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _errorView('Không tải được bảng xếp hạng: ${snapshot.error}');
+          return _errorView(context, 'Không tải được bảng xếp hạng: ${snapshot.error}');
         }
         final entries = snapshot.data ?? [];
         if (entries.isEmpty) {
-          return _emptyView('Chưa có dữ liệu xếp hạng.');
+          return _emptyView(context, 'Chưa có dữ liệu xếp hạng.');
         }
         return ListView.separated(
           itemCount: entries.length,
@@ -249,7 +261,9 @@ class _LeaderboardRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return glassCard(
+          context: context,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       child: Row(
         children: [
@@ -266,7 +280,7 @@ class _LeaderboardRow extends StatelessWidget {
                         entry.displayName,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.white,
+                          color: colorScheme.onSurface,
                           fontWeight: FontWeight.w800,
                           fontSize: 15,
                         ),
@@ -274,19 +288,19 @@ class _LeaderboardRow extends StatelessWidget {
                     ),
                     if (isMe) ...[
                       const SizedBox(width: 8),
-                      badgeLabel('Bạn', background: const Color(0xFFF85F2B)),
+                      badgeLabel(context, 'Bạn', background: const Color(0xFFF85F2B)),
                     ],
                   ],
                 ),
                 const SizedBox(height: 2),
                 Text('${entry.activityCount} buổi chạy',
-                    style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
               ],
             ),
           ),
           Text('${entry.totalDistanceKm.toStringAsFixed(1)} km',
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+              style: TextStyle(
+                  color: colorScheme.onSurface, fontWeight: FontWeight.w900, fontSize: 16)),
         ],
       ),
     );
@@ -299,6 +313,8 @@ class _RankBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final medal = switch (rank) {
       1 => const Color(0xFFFFD700),
       2 => const Color(0xFFC0C0C0),
@@ -313,12 +329,12 @@ class _RankBadge extends StatelessWidget {
         gradient: medal != null
             ? LinearGradient(colors: [medal, medal.withValues(alpha: 0.6)])
             : null,
-        color: medal == null ? Colors.white.withValues(alpha: 0.08) : null,
+        color: medal == null ? (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05)) : null,
         shape: BoxShape.circle,
       ),
       child: Text('$rank',
           style: TextStyle(
-              color: medal != null ? Colors.black : Colors.white,
+              color: medal != null ? Colors.black : theme.colorScheme.onSurface,
               fontWeight: FontWeight.w900)),
     );
   }
@@ -387,6 +403,7 @@ class _MatchingTabState extends State<_MatchingTab> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return FutureBuilder<_MatchData>(
       future: _future,
       builder: (context, snapshot) {
@@ -394,7 +411,7 @@ class _MatchingTabState extends State<_MatchingTab> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _errorView('Không tải được dữ liệu ghép đôi: ${snapshot.error}');
+          return _errorView(context, 'Không tải được dữ liệu ghép đôi: ${snapshot.error}');
         }
         final data = snapshot.data!;
         return RefreshIndicator(
@@ -402,24 +419,24 @@ class _MatchingTabState extends State<_MatchingTab> {
           child: ListView(
             children: [
               if (data.incoming.isNotEmpty) ...[
-                _sectionTitle('Lời mời đang chờ (${data.incoming.length})'),
+                _sectionTitle(context, 'Lời mời đang chờ (${data.incoming.length})'),
                 ...data.incoming.map((m) => _IncomingCard(match: m, onRespond: _respond)),
                 const SizedBox(height: 16),
               ],
               if (data.partners.isNotEmpty) ...[
-                _sectionTitle('Bạn chạy của bạn (${data.partners.length})'),
+                _sectionTitle(context, 'Bạn chạy của bạn (${data.partners.length})'),
                 ...data.partners.map((m) => _PartnerCard(match: m)),
                 const SizedBox(height: 16),
               ],
-              _sectionTitle('Gợi ý bạn chạy'),
+              _sectionTitle(context, 'Gợi ý bạn chạy'),
               const SizedBox(height: 4),
-              const Text(
+              Text(
                 'Dựa trên pace và vị trí. Bật "Tìm bạn chạy" trong Hồ sơ để xuất hiện với người khác.',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
+                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
               ),
               const SizedBox(height: 12),
               if (data.suggestions.isEmpty)
-                _emptyView('Chưa có gợi ý phù hợp.')
+                _emptyView(context, 'Chưa có gợi ý phù hợp.')
               else
                 ...data.suggestions.map((s) => _SuggestionCard(
                       suggestion: s,
@@ -448,9 +465,11 @@ class _IncomingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: glassCard(
+          context: context,
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
@@ -461,11 +480,11 @@ class _IncomingCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(match.otherDisplayName,
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w800)),
+                      style: TextStyle(
+                          color: colorScheme.onSurface, fontWeight: FontWeight.w800)),
                   if (match.otherCity != null)
                     Text(match.otherCity!,
-                        style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
                 ],
               ),
             ),
@@ -475,7 +494,7 @@ class _IncomingCard extends StatelessWidget {
               onPressed: () => onRespond(match, true),
             ),
             IconButton(
-              icon: const Icon(Icons.cancel, color: Colors.white38),
+              icon: Icon(Icons.cancel, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
               tooltip: 'Từ chối',
               onPressed: () => onRespond(match, false),
             ),
@@ -492,9 +511,11 @@ class _PartnerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: glassCard(
+          context: context,
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
@@ -505,15 +526,15 @@ class _PartnerCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(match.otherDisplayName,
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w800)),
+                      style: TextStyle(
+                          color: colorScheme.onSurface, fontWeight: FontWeight.w800)),
                   if (match.otherCity != null)
                     Text(match.otherCity!,
-                        style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
                 ],
               ),
             ),
-            badgeLabel('Đã kết nối', background: const Color(0xFF1F7A4D)),
+            badgeLabel(context, 'Đã kết nối', background: const Color(0xFF1F7A4D)),
           ],
         ),
       ),
@@ -528,10 +549,12 @@ class _SuggestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     final pace = suggestion.effectivePace;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: glassCard(
+          context: context,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -549,12 +572,12 @@ class _SuggestionCard extends StatelessWidget {
                           Flexible(
                             child: Text(suggestion.displayName,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                    color: Colors.white, fontWeight: FontWeight.w800)),
+                                style: TextStyle(
+                                    color: colorScheme.onSurface, fontWeight: FontWeight.w800)),
                           ),
                           if (suggestion.sameCity) ...[
                             const SizedBox(width: 8),
-                            badgeLabel('Cùng khu vực', background: const Color(0xFF2A3B6B)),
+                            badgeLabel(context, 'Cùng khu vực', background: const Color(0xFF2A3B6B)),
                           ],
                         ],
                       ),
@@ -563,9 +586,9 @@ class _SuggestionCard extends StatelessWidget {
                         spacing: 12,
                         children: [
                           if (suggestion.city != null)
-                            _meta(Icons.place, suggestion.city!),
-                          if (pace != null) _meta(Icons.speed, '${_formatPace(pace)} /km'),
-                          _meta(Icons.straighten,
+                            _meta(context, Icons.place, suggestion.city!),
+                          if (pace != null) _meta(context, Icons.speed, '${_formatPace(pace)} /km'),
+                          _meta(context, Icons.straighten,
                               '${suggestion.totalDistanceKm.toStringAsFixed(0)} km'),
                         ],
                       ),
@@ -577,14 +600,14 @@ class _SuggestionCard extends StatelessWidget {
             if (suggestion.bio != null && suggestion.bio!.trim().isNotEmpty) ...[
               const SizedBox(height: 10),
               Text(suggestion.bio!,
-                  style: const TextStyle(color: Colors.white60, fontSize: 13)),
+                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13)),
             ],
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: onSend,
-                style: primaryActionButton(),
+                style: primaryActionButton(context),
                 icon: const Icon(Icons.person_add_alt_1, size: 18),
                 label: const Text('Gửi lời mời chạy cùng'),
               ),
@@ -598,21 +621,24 @@ class _SuggestionCard extends StatelessWidget {
 
 // ----- helpers dùng chung -----
 
-Widget _sectionTitle(String text) => Padding(
+Widget _sectionTitle(BuildContext context, String text) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Text(text,
-          style: const TextStyle(
-              color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
+          style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface, fontSize: 16, fontWeight: FontWeight.w800)),
     );
 
-Widget _meta(IconData icon, String text) => Row(
+Widget _meta(BuildContext context, IconData icon, String text) {
+  final colorScheme = Theme.of(context).colorScheme;
+  return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: Colors.white54),
+        Icon(icon, size: 14, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
         const SizedBox(width: 4),
-        Text(text, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        Text(text, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
       ],
     );
+}
 
 Widget _avatar(String name) {
   final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
@@ -626,19 +652,19 @@ Widget _avatar(String name) {
   );
 }
 
-Widget _errorView(String message) => Center(
+Widget _errorView(BuildContext context, String message) => Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Text(message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70)),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
       ),
     );
 
-Widget _emptyView(String message) => Center(
+Widget _emptyView(BuildContext context, String message) => Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 32),
-        child: Text(message, style: const TextStyle(color: Colors.white60)),
+        child: Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
       ),
     );
 
