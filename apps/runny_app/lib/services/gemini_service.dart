@@ -1,77 +1,84 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
 
 class GeminiService {
   final String? _apiKey;
-  final String _modelName = 'gemini-3.5-flash';
+  final String _modelName;
 
-  GeminiService() : _apiKey = dotenv.env['GEMINI_API_KEY'] {
+  GeminiService()
+      : _apiKey = dotenv.env['OPENROUTER_API_KEY'],
+        _modelName = dotenv.env['OPENROUTER_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct:free' {
     if (!isConfigured) {
-      debugPrint('GeminiService disabled: GEMINI_API_KEY missing');
+      debugPrint('GeminiService (OpenRouter) disabled: OPENROUTER_API_KEY missing');
     } else {
-      debugPrint('GeminiService initialized with model: $_modelName');
+      debugPrint('GeminiService (OpenRouter) initialized with model: $_modelName');
     }
   }
 
   bool get isConfigured => _apiKey != null && _apiKey.isNotEmpty;
 
-  GenerativeModel _createModel({String? systemInstruction}) {
-    if (!isConfigured) {
-      throw Exception('GEMINI_API_KEY not found in .env');
-    }
-    return GenerativeModel(
-      model: _modelName,
-      apiKey: _apiKey!,
-      systemInstruction: systemInstruction != null
-          ? Content.system(systemInstruction)
-          : null,
-    );
-  }
-
-  GenerativeModel _createStructuredModel({String? systemInstruction}) {
-    if (!isConfigured) {
-      throw Exception('GEMINI_API_KEY not found in .env');
-    }
-    return GenerativeModel(
-      model: _modelName,
-      apiKey: _apiKey!,
-      systemInstruction: systemInstruction != null
-          ? Content.system(systemInstruction)
-          : null,
-      generationConfig: GenerationConfig(responseMimeType: 'application/json'),
-    );
-  }
-
   Future<String> generateResponse(
     String prompt, {
     List<Map<String, String>>? history,
   }) async {
+    if (!isConfigured) {
+      throw Exception('OPENROUTER_API_KEY not found in .env');
+    }
+
     try {
-      // Separate system prompt if present in history
-      String? systemInstruction;
-      final chatHistory = <Content>[];
+      final messages = <Map<String, String>>[];
 
       if (history != null) {
         for (final m in history) {
-          if (m['role'] == 'system') {
-            systemInstruction = m['content'];
-          } else {
-            final role = m['role'] == 'user' ? 'user' : 'model';
-            chatHistory.add(Content(role, [TextPart(m['content'] ?? '')]));
-          }
+          final role = m['role'] == 'model' ? 'assistant' : (m['role'] ?? 'user');
+          messages.add({
+            'role': role,
+            'content': m['content'] ?? '',
+          });
         }
       }
 
-      final model = _createModel(systemInstruction: systemInstruction);
-      final chat = model.startChat(history: chatHistory);
-      final response = await chat.sendMessage(Content.text(prompt));
+      messages.add({
+        'role': 'user',
+        'content': prompt,
+      });
 
-      return response.text ?? 'No response from Gemini';
+      final response = await http.post(
+        Uri.parse('${dotenv.env['OPENROUTER_BASE_URL'] ?? 'https://openrouter.ai/api/v1'}/chat/completions'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $_apiKey',
+          'HTTP-Referer': 'https://github.com/k4spi4n/runny-ai',
+          'X-Title': 'Runny AI',
+        },
+        body: jsonEncode({
+          'model': _modelName,
+          'messages': messages,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('OpenRouter API error: ${response.statusCode} ${response.body}');
+      }
+
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      final choices = decoded['choices'] as List?;
+      if (choices == null || choices.isEmpty) {
+        throw Exception('Invalid response structure from OpenRouter: $decoded');
+      }
+
+      final message = choices[0]['message'] as Map?;
+      final content = message?['content'] as String?;
+      if (content == null) {
+        throw Exception('No message content returned from OpenRouter');
+      }
+
+      return content;
     } catch (e) {
-      debugPrint('Gemini error: $e');
-      throw Exception('Error calling Gemini: $e');
+      debugPrint('OpenRouter error: $e');
+      throw Exception('Error calling OpenRouter: $e');
     }
   }
 
@@ -79,17 +86,61 @@ class GeminiService {
     String prompt,
     String systemPrompt,
   ) async {
+    if (!isConfigured) {
+      throw Exception('OPENROUTER_API_KEY not found in .env');
+    }
+
     try {
-      final model = _createStructuredModel(systemInstruction: systemPrompt);
-      final response = await model.generateContent([Content.text(prompt)]);
+      final messages = [
+        {'role': 'system', 'content': systemPrompt},
+        {'role': 'user', 'content': prompt},
+      ];
 
-      final content = response.text;
-      if (content == null) throw Exception('Empty response from Gemini');
+      final response = await http.post(
+        Uri.parse('${dotenv.env['OPENROUTER_BASE_URL'] ?? 'https://openrouter.ai/api/v1'}/chat/completions'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'Authorization': 'Bearer $_apiKey',
+          'HTTP-Referer': 'https://github.com/k4spi4n/runny-ai',
+          'X-Title': 'Runny AI',
+        },
+        body: jsonEncode({
+          'model': _modelName,
+          'messages': messages,
+          'response_format': {'type': 'json_object'},
+        }),
+      );
 
-      return jsonDecode(content);
+      if (response.statusCode != 200) {
+        throw Exception('OpenRouter API error: ${response.statusCode} ${response.body}');
+      }
+
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      final choices = decoded['choices'] as List?;
+      if (choices == null || choices.isEmpty) {
+        throw Exception('Invalid response structure from OpenRouter: $decoded');
+      }
+
+      final message = choices[0]['message'] as Map?;
+      final content = message?['content'] as String?;
+      if (content == null) {
+        throw Exception('No message content returned from OpenRouter');
+      }
+
+      // Cleanup code blocks if returned
+      var cleanedContent = content.trim();
+      if (cleanedContent.startsWith('```')) {
+        final lastBackticks = cleanedContent.lastIndexOf('```');
+        if (lastBackticks > 0) {
+          cleanedContent = cleanedContent.substring(0, lastBackticks);
+        }
+        cleanedContent = cleanedContent.replaceFirst(RegExp(r'^```json\s*'), '').trim();
+      }
+
+      return jsonDecode(cleanedContent);
     } catch (e) {
-      debugPrint('Gemini structured error: $e');
-      throw Exception('Error calling Gemini for structured response: $e');
+      debugPrint('OpenRouter structured error: $e');
+      throw Exception('Error calling OpenRouter for structured response: $e');
     }
   }
 }

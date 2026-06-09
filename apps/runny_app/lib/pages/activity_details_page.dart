@@ -1,135 +1,352 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/workout_models.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
 import '../services/weather_service.dart';
 import 'ai_coach_page.dart';
 
-class ActivityDetailsPage extends StatelessWidget {
+class ActivityDetailsPage extends StatefulWidget {
   final Activity activity;
 
   const ActivityDetailsPage({super.key, required this.activity});
 
   @override
-  Widget build(BuildContext context) {
-    final dataPoints = activity.dataPoints;
-    final List<double> times = _convertToList(dataPoints?['times']);
-    final List<double> paces = _convertToList(dataPoints?['paces']);
-    final List<double> elevations = _convertToList(dataPoints?['elevations']);
-    final List<double> hrs = _convertToList(dataPoints?['hrs']);
+  State<ActivityDetailsPage> createState() => _ActivityDetailsPageState();
+}
 
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: Text(activity.notes ?? 'Chi tiết hoạt động'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AICoachPage(initialActivity: activity),
+class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
+  late Activity _activity;
+  bool _isSaving = false;
+  bool _hasChanged = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _activity = widget.activity;
+  }
+
+  Future<void> _updateActivityNotes(String notes) async {
+    if (_activity.id == null) return;
+    setState(() => _isSaving = true);
+    try {
+      await Supabase.instance.client
+          .from('activities')
+          .update({'notes': notes.isEmpty ? null : notes})
+          .eq('id', _activity.id!);
+
+      setState(() {
+        _activity = Activity(
+          id: _activity.id,
+          userId: _activity.userId,
+          startedAt: _activity.startedAt,
+          distanceKm: _activity.distanceKm,
+          durationMin: _activity.durationMin,
+          avgHr: _activity.avgHr,
+          elevationGainM: _activity.elevationGainM,
+          notes: notes.isEmpty ? null : notes,
+          dataPoints: _activity.dataPoints,
+          startLat: _activity.startLat,
+          startLon: _activity.startLon,
+          weatherSummary: _activity.weatherSummary,
+          temperatureC: _activity.temperatureC,
+          aqi: _activity.aqi,
+          weatherFetchedAt: _activity.weatherFetchedAt,
+          weatherJson: _activity.weatherJson,
+        );
+        _hasChanged = true;
+        _isSaving = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã cập nhật thông tin hoạt động thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Có lỗi xảy ra: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteActivity() async {
+    if (_activity.id == null) return;
+    setState(() => _isSaving = true);
+    try {
+      await Supabase.instance.client
+          .from('activities')
+          .delete()
+          .eq('id', _activity.id!);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã xóa hoạt động thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, true); // Pop page indicating deletion
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Có lỗi xảy ra khi xóa: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showEditNotesDialog() {
+    final controller = TextEditingController(text: _activity.notes ?? '');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('Chỉnh sửa thông tin', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Nhập ghi chú hoặc tên hoạt động...',
+            hintStyle: TextStyle(color: Colors.white38),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.white24),
             ),
-          );
-        },
-        backgroundColor: const Color(0xFF4A82FF),
-        child: const Icon(Icons.tips_and_updates_outlined, color: Colors.white),
-      ),
-      body: Stack(
-        children: [
-          const SizedBox.expand(
-            child: DecoratedBox(
-              decoration: BoxDecoration(gradient: sportPlatformGradient),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFF4A82FF)),
             ),
           ),
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildSummaryHeader(context),
-                  const SizedBox(height: 24),
-                  if (activity.weatherSummary != null ||
-                      activity.temperatureC != null ||
-                      activity.aqi != null) ...[
-                    _buildWeatherCard(context),
-                    const SizedBox(height: 24),
-                  ],
-                  if (paces.isNotEmpty) ...[
-                    ActivityChart(
-                      title: 'Pace (Tốc độ)',
-                      xValues: times,
-                      yValues: paces,
-                      color: const Color(0xFFFA6B27),
-                      yAxisLabel: 'min/km',
-                      isPace: true,
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                  if (hrs.isNotEmpty) ...[
-                    ActivityChart(
-                      title: 'Nhịp tim',
-                      xValues: times,
-                      yValues: hrs,
-                      color: Colors.redAccent,
-                      yAxisLabel: 'bpm',
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                  if (elevations.isNotEmpty) ...[
-                    ActivityChart(
-                      title: 'Độ cao',
-                      xValues: times,
-                      yValues: elevations,
-                      color: const Color(0xFF3CABFF),
-                      yAxisLabel: 'm',
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                  if (activity.notes != null && activity.notes!.isNotEmpty) ...[
-                    const Text(
-                      'Ghi chú',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    glassCard(
-                      child: Text(
-                        activity.notes!,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy', style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final newNotes = controller.text.trim();
+              Navigator.pop(context);
+              await _updateActivityNotes(newNotes);
+            },
+            child: const Text('Lưu', style: TextStyle(color: Color(0xFF4A82FF))),
           ),
         ],
       ),
     );
   }
 
+  void _confirmDeleteActivity() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('Xóa hoạt động?', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Bạn có chắc chắn muốn xóa hoạt động này? Hành động này không thể hoàn tác.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy', style: TextStyle(color: Colors.white70)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteActivity();
+            },
+            child: const Text('Xóa', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dataPoints = _activity.dataPoints;
+    final List<double> times = _convertToList(dataPoints?['times']);
+    final List<double> paces = _convertToList(dataPoints?['paces']);
+    final List<double> elevations = _convertToList(dataPoints?['elevations']);
+    final List<double> hrs = _convertToList(dataPoints?['hrs']);
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.pop(context, _hasChanged);
+      },
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context, _hasChanged),
+          ),
+          title: Text(_activity.notes ?? 'Chi tiết hoạt động'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          actions: [
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              onSelected: (value) {
+                if (value == 'edit') {
+                  _showEditNotesDialog();
+                } else if (value == 'delete') {
+                  _confirmDeleteActivity();
+                }
+              },
+              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                const PopupMenuItem<String>(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit, color: Colors.white70),
+                      SizedBox(width: 8),
+                      Text('Sửa thông tin', style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, color: Colors.redAccent),
+                      SizedBox(width: 8),
+                      Text('Xóa hoạt động', style: TextStyle(color: Colors.redAccent)),
+                    ],
+                  ),
+                ),
+              ],
+              color: const Color(0xFF1E293B),
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AICoachPage(initialActivity: _activity),
+              ),
+            );
+          },
+          backgroundColor: const Color(0xFF4A82FF),
+          child: const Icon(Icons.tips_and_updates_outlined, color: Colors.white),
+        ),
+        body: Stack(
+          children: [
+            const SizedBox.expand(
+              child: DecoratedBox(
+                decoration: BoxDecoration(gradient: sportPlatformGradient),
+              ),
+            ),
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_isSaving) ...[
+                      const Center(child: CircularProgressIndicator()),
+                      const SizedBox(height: 24),
+                    ],
+                    _buildSummaryHeader(context),
+                    const SizedBox(height: 24),
+                    if (_activity.weatherSummary != null ||
+                        _activity.temperatureC != null ||
+                        _activity.aqi != null) ...[
+                      _buildWeatherCard(context),
+                      const SizedBox(height: 24),
+                    ],
+                    if (paces.isNotEmpty) ...[
+                      ActivityChart(
+                        title: 'Pace (Tốc độ)',
+                        xValues: times,
+                        yValues: paces,
+                        color: const Color(0xFFFA6B27),
+                        yAxisLabel: 'min/km',
+                        isPace: true,
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                    if (hrs.isNotEmpty) ...[
+                      ActivityChart(
+                        title: 'Nhịp tim',
+                        xValues: times,
+                        yValues: hrs,
+                        color: Colors.redAccent,
+                        yAxisLabel: 'bpm',
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                    if (elevations.isNotEmpty) ...[
+                      ActivityChart(
+                        title: 'Độ cao',
+                        xValues: times,
+                        yValues: elevations,
+                        color: const Color(0xFF3CABFF),
+                        yAxisLabel: 'm',
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                    if (_activity.notes != null && _activity.notes!.isNotEmpty) ...[
+                      const Text(
+                        'Ghi chú',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      glassCard(
+                        child: Text(
+                          _activity.notes!,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildWeatherCard(BuildContext context) {
     WeatherSnapshot? snapshot;
-    if (activity.weatherJson != null) {
-      snapshot = WeatherSnapshot.fromJson(activity.weatherJson!);
-    } else if (activity.temperatureC != null ||
-        activity.aqi != null ||
-        activity.weatherSummary != null) {
+    if (_activity.weatherJson != null) {
+      snapshot = WeatherSnapshot.fromJson(_activity.weatherJson!);
+    } else if (_activity.temperatureC != null ||
+        _activity.aqi != null ||
+        _activity.weatherSummary != null) {
       snapshot = WeatherSnapshot(
-        fetchedAt: activity.weatherFetchedAt ?? DateTime.now(),
-        temperatureC: activity.temperatureC,
-        aqi: activity.aqi,
-        description: activity.weatherSummary,
+        fetchedAt: _activity.weatherFetchedAt ?? DateTime.now(),
+        temperatureC: _activity.temperatureC,
+        aqi: _activity.aqi,
+        description: _activity.weatherSummary,
       );
     }
 
@@ -242,14 +459,14 @@ class ActivityDetailsPage extends StatelessWidget {
                 child: _buildStatItem(
                   context,
                   'Quãng đường',
-                  '${activity.distanceKm.toStringAsFixed(2)} km',
+                  '${_activity.distanceKm.toStringAsFixed(2)} km',
                 ),
               ),
               Expanded(
                 child: _buildStatItem(
                   context,
                   'Thời gian',
-                  _formatDuration(activity.durationMin),
+                  _formatDuration(_activity.durationMin),
                 ),
               ),
             ],
@@ -261,18 +478,18 @@ class ActivityDetailsPage extends StatelessWidget {
               _buildStatItem(
                 context,
                 'Pace TB',
-                _formatPace(activity.durationMin / activity.distanceKm),
+                _formatPace(_activity.durationMin / _activity.distanceKm),
               ),
               _buildStatItem(
                 context,
                 'Độ cao (+)',
-                '${activity.elevationGainM?.toStringAsFixed(0) ?? 0} m',
+                '${_activity.elevationGainM?.toStringAsFixed(0) ?? 0} m',
               ),
             ],
           ),
-          if (activity.avgHr != null) ...[
+          if (_activity.avgHr != null) ...[
             const Divider(color: Colors.white10, height: 32),
-            _buildStatItem(context, 'Nhịp tim TB', '${activity.avgHr} bpm'),
+            _buildStatItem(context, 'Nhịp tim TB', '${_activity.avgHr} bpm'),
           ],
         ],
       ),
@@ -304,8 +521,9 @@ class ActivityDetailsPage extends StatelessWidget {
     int h = minutes ~/ 60;
     int m = minutes.toInt() % 60;
     int s = ((minutes - minutes.toInt()) * 60).round();
-    if (h > 0)
+    if (h > 0) {
       return "$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
+    }
     return "$m:${s.toString().padLeft(2, '0')}";
   }
 

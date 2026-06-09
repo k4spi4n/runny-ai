@@ -54,7 +54,7 @@ class _AICoachPageState extends State<AICoachPage> {
       setState(() {
         _messages.add({
           'role': 'assistant',
-          'content': 'AI đang tạm tắt vì thiếu GEMINI_API_KEY trong .env.',
+          'content': 'AI đang tạm tắt vì thiếu OPENROUTER_API_KEY trong .env.',
         });
       });
       return;

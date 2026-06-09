@@ -666,14 +666,17 @@ class _OverviewContentState extends State<OverviewContent> {
                     child: glassCard(
                       padding: EdgeInsets.zero,
                       child: ListTile(
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
                                   ActivityDetailsPage(activity: activity),
                             ),
                           );
+                          if (result == true) {
+                            setState(() {});
+                          }
                         },
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 20,
