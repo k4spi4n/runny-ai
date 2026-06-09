@@ -80,6 +80,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -91,9 +95,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Bạn chưa có lịch tập nào.', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('Bạn chưa có lịch tập nào.', style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              Text('Bắt đầu với AI Coach để nhận ngay lịch tập cá nhân hoá, phù hợp với mục tiêu của bạn.', style: TextStyle(color: Colors.white70), textAlign: TextAlign.center),
+              Text('Bắt đầu với AI Coach để nhận ngay lịch tập cá nhân hoá, phù hợp với mục tiêu của bạn.', style: TextStyle(color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
               const SizedBox(height: 24),
               ElevatedButton(onPressed: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const AICoachPage()));
@@ -114,12 +118,12 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(_activeSchedule!['title'] ?? 'Lịch tập của bạn'),
+        title: Text(_activeSchedule!['title'] ?? 'Lịch tập của bạn', style: TextStyle(color: colorScheme.onSurface)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(icon: const Icon(Icons.auto_fix_high), onPressed: _adjustPlan, tooltip: 'Tối ưu lịch tập với AI'),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchData),
+          IconButton(icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface), onPressed: _adjustPlan, tooltip: 'Tối ưu lịch tập với AI'),
+          IconButton(icon: Icon(Icons.refresh, color: colorScheme.onSurface), onPressed: _fetchData),
         ],
       ),
       body: Stack(
@@ -128,7 +132,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           Positioned(
             top: 24,
             right: -100,
-            child: Container(width: 220, height: 220, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [Colors.white.withValues(alpha: 0.08), Colors.transparent]))),
+            child: Container(width: 220, height: 220, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [colorScheme.primary.withValues(alpha: 0.08), Colors.transparent]))),
           ),
           SafeArea(
             child: SingleChildScrollView(
@@ -141,9 +145,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text('Chi tiết lịch tập', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+                        Text('Chi tiết lịch tập', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: colorScheme.onSurface)),
                         const SizedBox(height: 12),
-                        Text('Hệ thống AI đang giữ nhịp cho tiến độ của bạn với chuyên môn thể thao cao cấp.', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70)),
+                        Text('Hệ thống AI đang giữ nhịp cho tiến độ của bạn với chuyên môn thể thao cao cấp.', style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
                         const SizedBox(height: 20),
                         Wrap(
                           spacing: 12,
@@ -158,23 +162,23 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     ),
                   ),
                   const SizedBox(height: 22),
-                  Text('Buổi tập tiếp theo', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                  Text('Buổi tập tiếp theo', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                   const SizedBox(height: 12),
                   glassCard(
                     context: context,
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                      leading: Icon(Icons.flag, color: Colors.white, size: 32),
-                      title: Text(nextWorkout['title'] ?? 'Bài tập tiếp theo', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      leading: Icon(Icons.flag, color: colorScheme.primary, size: 32),
+                      title: Text(nextWorkout['title'] ?? 'Bài tập tiếp theo', style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold)),
                       subtitle: Text(
                         '${DateFormat('EEEE, dd MMM').format(DateTime.parse(nextWorkout['date'] as String))} • ${nextWorkout['target_distance_km']} km',
-                        style: const TextStyle(color: Colors.white70),
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
                       ),
-                      trailing: ElevatedButton(onPressed: () {}, style: primaryActionButton(context, backgroundColor: const Color(0xFF4A82FF)), child: const Text('Khởi động')),
+                      trailing: ElevatedButton(onPressed: () {}, style: primaryActionButton(context), child: const Text('Khởi động')),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Text('Lịch trình chi tiết', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+                  Text('Lịch trình chi tiết', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                   const SizedBox(height: 14),
                   Column(
                     children: List.generate(
@@ -190,19 +194,19 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                               contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                               leading: CircleAvatar(
                                 backgroundColor: _getStatusColor(workout['status']),
-                                child: Icon(_getStatusIcon(workout['status']), color: Colors.white),
+                                child: const Icon(Icons.directions_run, color: Colors.white),
                               ),
-                              title: Text(workout['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                              title: Text(workout['title'], style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('${DateFormat('EEEE, dd/MM').format(date)} • ${workout['target_distance_km']} km', style: const TextStyle(color: Colors.white70)),
+                                  Text('${DateFormat('EEEE, dd/MM').format(date)} • ${workout['target_distance_km']} km', style: TextStyle(color: colorScheme.onSurfaceVariant)),
                                   if (workout['description'] != null)
-                                    Text(workout['description'], style: const TextStyle(color: Colors.white60, fontSize: 13)),
+                                    Text(workout['description'], style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7), fontSize: 13)),
                                 ],
                               ),
                               trailing: workout['status'] == 'planned'
-                                  ? ElevatedButton(onPressed: () {}, style: primaryActionButton(context, backgroundColor: const Color(0xFF4A82FF)), child: const Text('Bắt đầu'))
+                                  ? ElevatedButton(onPressed: () {}, style: primaryActionButton(context), child: const Text('Bắt đầu'))
                                   : Icon(_getStatusIcon(workout['status']), color: _getStatusColor(workout['status'])),
                             ),
                           ),
@@ -224,7 +228,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       case 'completed':
         return Colors.greenAccent;
       case 'skipped':
-        return Colors.white54;
+        return Colors.grey;
       case 'rescheduled':
         return Colors.orangeAccent;
       default:
@@ -235,7 +239,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   IconData _getStatusIcon(String status) {
     switch (status) {
       case 'completed':
-        return Icons.check;
+        return Icons.check_circle;
       case 'skipped':
         return Icons.pause_circle;
       case 'rescheduled':
@@ -255,22 +259,26 @@ class _PlanMetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       width: 150,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.14) : Colors.black.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.white70, size: 24),
+          Icon(icon, color: colorScheme.primary, size: 24),
           const SizedBox(height: 12),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+          Text(value, style: TextStyle(color: colorScheme.onSurface, fontSize: 20, fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
-          Text(label, style: const TextStyle(color: Colors.white70)),
+          Text(label, style: TextStyle(color: colorScheme.onSurfaceVariant)),
         ],
       ),
     );

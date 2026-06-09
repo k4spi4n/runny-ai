@@ -111,31 +111,32 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
   }
 
   void _showEditNotesDialog() {
+    final theme = Theme.of(context);
     final controller = TextEditingController(text: _activity.notes ?? '');
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        title: const Text('Chỉnh sửa thông tin', style: TextStyle(color: Colors.white)),
+        backgroundColor: theme.colorScheme.surface,
+        title: Text('Chỉnh sửa thông tin', style: TextStyle(color: theme.colorScheme.onSurface)),
         content: TextField(
           controller: controller,
           maxLines: 3,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
+          style: TextStyle(color: theme.colorScheme.onSurface),
+          decoration: InputDecoration(
             hintText: 'Nhập ghi chú hoặc tên hoạt động...',
-            hintStyle: TextStyle(color: Colors.white38),
+            hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
             enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Colors.white24),
+              borderSide: BorderSide(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
             ),
             focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFF4A82FF)),
+              borderSide: BorderSide(color: theme.colorScheme.primary),
             ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy', style: TextStyle(color: Colors.white70)),
+            child: Text('Hủy', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () async {
@@ -143,7 +144,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               Navigator.pop(context);
               await _updateActivityNotes(newNotes);
             },
-            child: const Text('Lưu', style: TextStyle(color: Color(0xFF4A82FF))),
+            child: Text('Lưu', style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -151,26 +152,27 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
   }
 
   void _confirmDeleteActivity() {
+    final theme = Theme.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        title: const Text('Xóa hoạt động?', style: TextStyle(color: Colors.white)),
-        content: const Text(
+        backgroundColor: theme.colorScheme.surface,
+        title: Text('Xóa hoạt động?', style: TextStyle(color: theme.colorScheme.onSurface)),
+        content: Text(
           'Bạn có chắc chắn muốn xóa hoạt động này? Hành động này không thể hoàn tác.',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy', style: TextStyle(color: Colors.white70)),
+            child: Text('Hủy', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
               await _deleteActivity();
             },
-            child: const Text('Xóa', style: TextStyle(color: Colors.redAccent)),
+            child: const Text('Xóa', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -179,6 +181,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final dataPoints = _activity.dataPoints;
     final List<double> times = _convertToList(dataPoints?['times']);
     final List<double> paces = _convertToList(dataPoints?['paces']);
@@ -195,15 +199,15 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         extendBodyBehindAppBar: true,
         appBar: AppBar(
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
             onPressed: () => Navigator.pop(context, _hasChanged),
           ),
-          title: Text(_activity.notes ?? 'Chi tiết hoạt động'),
+          title: Text(_activity.notes ?? 'Chi tiết hoạt động', style: TextStyle(color: colorScheme.onSurface)),
           backgroundColor: Colors.transparent,
           elevation: 0,
           actions: [
             PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
+              icon: Icon(Icons.more_vert, color: colorScheme.onSurface),
               onSelected: (value) {
                 if (value == 'edit') {
                   _showEditNotesDialog();
@@ -212,28 +216,28 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                 }
               },
               itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                const PopupMenuItem<String>(
+                PopupMenuItem<String>(
                   value: 'edit',
                   child: Row(
                     children: [
-                      Icon(Icons.edit, color: Colors.white70),
-                      SizedBox(width: 8),
-                      Text('Sửa thông tin', style: TextStyle(color: Colors.white)),
+                      Icon(Icons.edit, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Text('Sửa thông tin', style: TextStyle(color: colorScheme.onSurface)),
                     ],
                   ),
                 ),
-                const PopupMenuItem<String>(
+                PopupMenuItem<String>(
                   value: 'delete',
                   child: Row(
                     children: [
-                      Icon(Icons.delete, color: Colors.redAccent),
-                      SizedBox(width: 8),
-                      Text('Xóa hoạt động', style: TextStyle(color: Colors.redAccent)),
+                      const Icon(Icons.delete, color: Colors.redAccent),
+                      const SizedBox(width: 8),
+                      const Text('Xóa hoạt động', style: TextStyle(color: Colors.redAccent)),
                     ],
                   ),
                 ),
               ],
-              color: const Color(0xFF1E293B),
+              color: colorScheme.surface,
             ),
           ],
         ),
@@ -246,7 +250,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               ),
             );
           },
-          backgroundColor: const Color(0xFF4A82FF),
+          backgroundColor: colorScheme.primary,
           child: const Icon(Icons.tips_and_updates_outlined, color: Colors.white),
         ),
         body: Stack(
@@ -306,10 +310,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                       const SizedBox(height: 24),
                     ],
                     if (_activity.notes != null && _activity.notes!.isNotEmpty) ...[
-                      const Text(
+                      Text(
                         'Ghi chú',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: colorScheme.onSurface,
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
@@ -319,8 +323,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                         context: context,
                         child: Text(
                           _activity.notes!,
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
                             fontSize: 16,
                           ),
                         ),
@@ -337,6 +341,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
   }
 
   Widget _buildWeatherCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     WeatherSnapshot? snapshot;
     if (_activity.weatherJson != null) {
       snapshot = WeatherSnapshot.fromJson(_activity.weatherJson!);
@@ -359,10 +364,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Điều kiện môi trường',
             style: TextStyle(
-              color: Colors.white70,
+              color: colorScheme.onSurfaceVariant,
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
@@ -384,8 +389,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                   children: [
                     Text(
                       '${snapshot.temperatureC?.toStringAsFixed(1) ?? '--'}°C • ${snapshot.summary ?? snapshot.description ?? 'Thời tiết'}',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: colorScheme.onSurface,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -393,12 +398,12 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.air, color: Colors.white54, size: 14),
+                        Icon(Icons.air, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6), size: 14),
                         const SizedBox(width: 4),
                         Text(
                           'AQI ${snapshot.aqi ?? '--'}',
-                          style: const TextStyle(
-                            color: Colors.white70,
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
                             fontSize: 14,
                           ),
                         ),
@@ -430,15 +435,15 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.wind_power,
-                      color: Colors.white54,
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
                       size: 20,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${snapshot.windKph!.toStringAsFixed(1)} km/h',
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      style: TextStyle(color: colorScheme.onSurface, fontSize: 14),
                     ),
                   ],
                 ),
@@ -451,6 +456,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
   }
 
   Widget _buildSummaryHeader(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return glassCard(
       context: context,
       padding: const EdgeInsets.all(24),
@@ -474,7 +480,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               ),
             ],
           ),
-          const Divider(color: Colors.white10, height: 32),
+          Divider(color: colorScheme.outline.withValues(alpha: 0.1), height: 32),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -491,7 +497,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             ],
           ),
           if (_activity.avgHr != null) ...[
-            const Divider(color: Colors.white10, height: 32),
+            Divider(color: colorScheme.outline.withValues(alpha: 0.1), height: 32),
             _buildStatItem(context, 'Nhịp tim TB', '${_activity.avgHr} bpm'),
           ],
         ],
@@ -500,18 +506,19 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
   }
 
   Widget _buildStatItem(BuildContext context, String label, String value) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(color: Colors.white54, fontSize: 14),
+          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14),
         ),
         const SizedBox(height: 4),
         Text(
           value,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: colorScheme.onSurface,
             fontSize: 22,
             fontWeight: FontWeight.bold,
           ),

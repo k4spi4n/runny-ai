@@ -42,8 +42,13 @@ class AppTheme {
         primary: primary,
         onPrimary: Colors.white,
         secondary: secondary,
+        onSecondary: Colors.white,
         surface: lightSurface,
+        onSurface: lightTextPrimary,
+        onSurfaceVariant: lightTextSecondary,
         error: error,
+        onError: Colors.white,
+        outline: lightBorder,
       ),
       scaffoldBackgroundColor: lightBg,
       cardTheme: CardThemeData(
@@ -72,8 +77,8 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Color(0xFFF1F5F9),
-        hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-        labelStyle: const TextStyle(color: Color(0xFF64748B)),
+        hintStyle: TextStyle(color: lightTextSecondary.withValues(alpha: 0.7)),
+        labelStyle: TextStyle(color: lightTextSecondary),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: const BorderSide(color: lightBorder),
@@ -97,8 +102,13 @@ class AppTheme {
         primary: primary,
         onPrimary: Colors.white,
         secondary: secondary,
+        onSecondary: Colors.white,
         surface: darkSurface,
+        onSurface: darkTextPrimary,
+        onSurfaceVariant: darkTextSecondary,
         error: error,
+        onError: Colors.white,
+        outline: darkBorder,
       ),
       scaffoldBackgroundColor: darkBg,
       cardTheme: CardThemeData(

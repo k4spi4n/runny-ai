@@ -29,8 +29,13 @@ class _DashboardPageState extends State<DashboardPage> {
     super.initState();
     _pages = [
       const OverviewContent(),
-      const Center(
-        child: Text('Activity History', style: TextStyle(color: Colors.white)),
+      Center(
+        child: Builder(
+          builder: (context) => Text(
+            'Activity History', 
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface)
+          ),
+        ),
       ),
       const TrainingPlanPage(),
       const AICoachPage(),
@@ -44,16 +49,19 @@ class _DashboardPageState extends State<DashboardPage> {
     final width = MediaQuery.of(context).size.width;
     final isDesktop = width > 900;
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const RunnyLogo(fontSize: 20),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           const LanguageSwitcher(),
           const ThemeToggle(),
           IconButton(
-            icon: const Icon(Icons.add_circle_outline),
+            icon: Icon(Icons.add_circle_outline, color: colorScheme.onSurface),
             tooltip: 'Import Activity',
             onPressed: () {
               Navigator.push(
@@ -65,7 +73,7 @@ class _DashboardPageState extends State<DashboardPage> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: Icon(Icons.logout, color: colorScheme.onSurface),
             tooltip: 'Logout',
             onPressed: () => _showLogoutDialog(context),
           ),
@@ -131,7 +139,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   VerticalDivider(
                     width: 1,
                     thickness: 1,
-                    color: theme.dividerColor.withValues(alpha: 0.1),
+                    color: colorScheme.outline.withValues(alpha: 0.1),
                   ),
                 Expanded(
                   child: Container(
@@ -187,15 +195,17 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   void _showLogoutDialog(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout from Runny AI?'),
+        backgroundColor: colorScheme.surface,
+        title: Text('Logout', style: TextStyle(color: colorScheme.onSurface)),
+        content: Text('Are you sure you want to logout from Runny AI?', style: TextStyle(color: colorScheme.onSurfaceVariant)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () async {
@@ -217,7 +227,7 @@ class _DashboardPageState extends State<DashboardPage> {
             },
             child: const Text(
               'Logout',
-              style: TextStyle(color: Colors.redAccent),
+              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -351,7 +361,7 @@ class _OverviewContentState extends State<OverviewContent> {
     final width = MediaQuery.of(context).size.width;
     final crossAxisCount = width > 1200 ? 4 : (width > 800 ? 2 : 1);
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final colorScheme = theme.colorScheme;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -373,7 +383,7 @@ class _OverviewContentState extends State<OverviewContent> {
                           Text(
                             'Performance Overview',
                             style: theme.textTheme.displaySmall?.copyWith(
-                              color: isDark ? Colors.white : Colors.black87,
+                              color: colorScheme.onSurface,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -397,7 +407,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                 return Text(
                                   'Weather data unavailable.',
                                   style: theme.textTheme.bodyMedium
-                                      ?.copyWith(color: isDark ? Colors.white70 : Colors.black54),
+                                      ?.copyWith(color: colorScheme.onSurfaceVariant),
                                 );
                               }
 
@@ -425,7 +435,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                         Text(
                                           '$tempText • ${weather.summary ?? 'Clear'}',
                                           style: theme.textTheme.titleLarge
-                                              ?.copyWith(color: isDark ? Colors.white : Colors.black87),
+                                              ?.copyWith(color: colorScheme.onSurface),
                                         ),
                                         const SizedBox(height: 6),
                                         Row(
@@ -434,7 +444,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                               '$location • ',
                                               style: theme.textTheme.bodyMedium
                                                   ?.copyWith(
-                                                    color: isDark ? Colors.white70 : Colors.black54,
+                                                    color: colorScheme.onSurfaceVariant,
                                                   ),
                                             ),
                                             Container(
@@ -525,7 +535,7 @@ class _OverviewContentState extends State<OverviewContent> {
               'Performance Stats',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
+                color: colorScheme.onSurface,
               ),
             ),
           ),
@@ -600,7 +610,7 @@ class _OverviewContentState extends State<OverviewContent> {
                     context.translate('recent_activities'),
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -624,7 +634,7 @@ class _OverviewContentState extends State<OverviewContent> {
                   child: Center(
                     child: Text(
                       'No activities yet.',
-                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
                     ),
                   ),
                 );
@@ -679,16 +689,16 @@ class _OverviewContentState extends State<OverviewContent> {
                           activity.notes ?? 'Run Activity',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
+                            color: colorScheme.onSurface,
                           ),
                         ),
                         subtitle: Text(
                           '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • Pace $paceStr',
-                          style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
                         trailing: Icon(
                           Icons.chevron_right,
-                          color: isDark ? Colors.white70 : Colors.black54,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -704,7 +714,7 @@ class _OverviewContentState extends State<OverviewContent> {
               'Quick Actions',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : Colors.black87,
+                color: colorScheme.onSurface,
               ),
             ),
           ),
@@ -788,7 +798,7 @@ class PerformanceStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
     return glassCard(
       context: context,
       padding: const EdgeInsets.all(20),
@@ -818,7 +828,7 @@ class PerformanceStatCard extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isDark ? Colors.white70 : Colors.black54,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -826,7 +836,7 @@ class PerformanceStatCard extends StatelessWidget {
                   value,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : Colors.black87,
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ],

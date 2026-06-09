@@ -122,19 +122,21 @@ class _AICoachPageState extends State<AICoachPage> {
   }
 
   void _clearHistory() async {
+    final theme = Theme.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Xóa lịch sử?'),
-        content: const Text('Hành động này sẽ xóa tất cả tin nhắn trong phiên chat này.'),
+        backgroundColor: theme.colorScheme.surface,
+        title: Text('Xóa lịch sử?', style: TextStyle(color: theme.colorScheme.onSurface)),
+        content: Text('Hành động này sẽ xóa tất cả tin nhắn trong phiên chat này.', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Hủy'),
+            child: Text('Hủy', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+            child: const Text('Xóa', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -150,16 +152,24 @@ class _AICoachPageState extends State<AICoachPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('AI Coach'),
+        title: Text('AI Coach', style: TextStyle(color: colorScheme.onSurface)),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
+          onPressed: () => Navigator.pop(context),
+        ),
         actions: [
           IconButton(
             onPressed: _clearHistory,
-            icon: const Icon(Icons.delete_outline),
+            icon: Icon(Icons.delete_outline, color: colorScheme.onSurface),
             tooltip: 'Xóa lịch sử',
           ),
         ],
@@ -188,20 +198,26 @@ class _AICoachPageState extends State<AICoachPage> {
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           padding: const EdgeInsets.all(12),
+                          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                           decoration: BoxDecoration(
                             color: isUser
-                                ? const Color(0xFF4A82FF)
-                                : Colors.white.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
+                                ? colorScheme.primary
+                                : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.05)),
+                            borderRadius: BorderRadius.only(
+                              topLeft: const Radius.circular(20),
+                              topRight: const Radius.circular(20),
+                              bottomLeft: Radius.circular(isUser ? 20 : 4),
+                              bottomRight: Radius.circular(isUser ? 4 : 20),
+                            ),
                             border: isUser
                                 ? null
                                 : Border.all(
-                                    color: Colors.white.withValues(alpha: 0.1)),
+                                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05)),
                           ),
                           child: Text(
                             msg['content']!,
                             style: TextStyle(
-                              color: isUser ? Colors.white : Colors.white,
+                              color: isUser ? Colors.white : colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -210,9 +226,9 @@ class _AICoachPageState extends State<AICoachPage> {
                   ),
                 ),
                 if (_isLoading)
-                  const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: CircularProgressIndicator(color: Colors.white70),
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: CircularProgressIndicator(color: colorScheme.primary),
                   ),
                 if (_contextActivity != null)
                   Padding(
@@ -220,23 +236,23 @@ class _AICoachPageState extends State<AICoachPage> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
+                        color: colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.description_outlined, color: Colors.white70, size: 18),
+                          Icon(Icons.description_outlined, color: colorScheme.primary, size: 18),
                           const SizedBox(width: 8),
                           Text(
                             'Hoạt động: ${_contextActivity!.distanceKm.toStringAsFixed(2)}km',
-                            style: const TextStyle(color: Colors.white70, fontSize: 13),
+                            style: TextStyle(color: colorScheme.primary, fontSize: 13, fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(width: 4),
                           IconButton(
                             onPressed: () => setState(() => _contextActivity = null),
-                            icon: const Icon(Icons.close, color: Colors.white70, size: 14),
+                            icon: Icon(Icons.close, color: colorScheme.primary, size: 14),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
@@ -251,12 +267,12 @@ class _AICoachPageState extends State<AICoachPage> {
                       Expanded(
                         child: TextField(
                           controller: _controller,
-                          style: const TextStyle(color: Colors.white),
+                          style: TextStyle(color: colorScheme.onSurface),
                           decoration: InputDecoration(
                             hintText: 'Hỏi HLV ảo hoặc yêu cầu lịch tập...',
-                            hintStyle: const TextStyle(color: Colors.white54),
+                            hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                             filled: true,
-                            fillColor: Colors.white.withValues(alpha: 0.08),
+                            fillColor: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(30),
                               borderSide: BorderSide.none,
@@ -269,9 +285,9 @@ class _AICoachPageState extends State<AICoachPage> {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Color(0xFF4A82FF),
+                          color: colorScheme.primary,
                         ),
                         child: IconButton(
                           onPressed: _sendMessage,

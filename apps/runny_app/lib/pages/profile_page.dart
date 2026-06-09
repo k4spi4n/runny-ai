@@ -290,7 +290,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildProfileHeader(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final colorScheme = theme.colorScheme;
 
     return glassCard(
       context: context,
@@ -308,18 +308,18 @@ class _ProfilePageState extends State<ProfilePage> {
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              color: colorScheme.onSurface,
             ),
             decoration: InputDecoration(
               hintText: 'Display Name',
-              hintStyle: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+              hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
               border: InputBorder.none,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             _supabase.auth.currentUser?.email ?? '',
-            style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -328,7 +328,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildMetricsSection(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final colorScheme = theme.colorScheme;
 
     return glassCard(
       context: context,
@@ -340,7 +340,7 @@ class _ProfilePageState extends State<ProfilePage> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 24),
@@ -353,7 +353,7 @@ class _ProfilePageState extends State<ProfilePage> {
               icon: Icons.monitor_weight,
             ),
             keyboardType: TextInputType.number,
-            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -365,7 +365,7 @@ class _ProfilePageState extends State<ProfilePage> {
               icon: Icons.height,
             ),
             keyboardType: TextInputType.number,
-            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 16),
           TextField(
@@ -377,7 +377,7 @@ class _ProfilePageState extends State<ProfilePage> {
               icon: Icons.favorite,
             ),
             keyboardType: TextInputType.number,
-            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 24),
           SizedBox(
@@ -397,7 +397,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildIntegrationsSection(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final colorScheme = theme.colorScheme;
 
     return glassCard(
       context: context,
@@ -409,7 +409,7 @@ class _ProfilePageState extends State<ProfilePage> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 24),
@@ -437,7 +437,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildMatchingSection(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final colorScheme = theme.colorScheme;
 
     return glassCard(
       context: context,
@@ -449,7 +449,7 @@ class _ProfilePageState extends State<ProfilePage> {
             style: TextStyle(
               fontSize: 18, 
               fontWeight: FontWeight.bold, 
-              color: isDark ? Colors.white : Colors.black87
+              color: colorScheme.onSurface
             ),
           ),
           const SizedBox(height: 12),
@@ -457,28 +457,28 @@ class _ProfilePageState extends State<ProfilePage> {
             contentPadding: EdgeInsets.zero,
             value: _lookingForPartner,
             onChanged: (v) => setState(() => _lookingForPartner = v),
-            title: Text('Find Running Partner', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+            title: Text('Find Running Partner', style: TextStyle(color: colorScheme.onSurface)),
             activeThumbColor: theme.primaryColor,
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _cityController,
             decoration: themedInputDecoration(context, 'City / Region', icon: Icons.place),
-            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _preferredPaceController,
             decoration: themedInputDecoration(context, 'Preferred Pace', suffixText: 'min/km', icon: Icons.speed),
             keyboardType: TextInputType.number,
-            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _bioController,
             maxLines: 3,
             decoration: themedInputDecoration(context, 'Short Bio', icon: Icons.notes),
-            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 24),
           SizedBox(
@@ -504,13 +504,16 @@ class _ProfilePageState extends State<ProfilePage> {
     required VoidCallback onConnect,
     required Color color,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05)),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
@@ -531,13 +534,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   name,
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87,
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 Text(
                   isConnected ? 'Connected' : 'Not Connected',
                   style: TextStyle(
-                    color: isConnected ? Colors.green : (isDark ? Colors.white54 : Colors.black45),
+                    color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
                     fontSize: 12,
                   ),
                 ),
@@ -548,7 +551,7 @@ class _ProfilePageState extends State<ProfilePage> {
             onPressed: onConnect,
             style: ElevatedButton.styleFrom(
               backgroundColor: isConnected ? (isDark ? Colors.white12 : Colors.black12) : color,
-              foregroundColor: isConnected ? (isDark ? Colors.white : Colors.black87) : Colors.white,
+              foregroundColor: isConnected ? colorScheme.onSurface : Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
