@@ -21,5 +21,9 @@
   "pace": "Pace",
   "ai_coach": "AI Coach",
   "community": "Community",
-  "training_plan": "Training Plan"
+  "training_plan": "Training Plan",
+  "weather_unavailable": "Weather data unavailable",
+  "allow_location": "Allow Location Access",
+  "location_needed_msg": "We need your location to provide accurate weather and air quality information.",
+  "retry": "Retry"
 }

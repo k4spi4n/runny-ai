@@ -21,5 +21,9 @@
   "pace": "Nhịp độ",
   "ai_coach": "HLV AI",
   "community": "Cộng đồng",
-  "training_plan": "Kế hoạch tập luyện"
+  "training_plan": "Kế hoạch tập luyện",
+  "weather_unavailable": "Dữ liệu thời tiết không khả dụng",
+  "allow_location": "Cho phép truy cập vị trí",
+  "location_needed_msg": "Chúng tôi cần vị trí của bạn để cung cấp thông tin thời tiết và chất lượng không khí chính xác.",
+  "retry": "Thử lại"
 }
