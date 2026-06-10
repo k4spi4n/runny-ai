@@ -119,45 +119,6 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  NavigationDestination _buildNavDestination({
-    required int index,
-    required IconData icon,
-    required IconData selectedIcon,
-    required String label,
-  }) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final sync = _navSyncs[index];
-
-    return NavigationDestination(
-      icon: HoverSyncWidget(
-        sync: sync,
-        builder: (context, isHovered) => AnimatedScale(
-          scale: isHovered ? 1.15 : 1.0,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOutCubic,
-          child: Icon(
-            icon,
-            color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ),
-      selectedIcon: HoverSyncWidget(
-        sync: sync,
-        builder: (context, isHovered) => AnimatedScale(
-          scale: isHovered ? 1.15 : 1.0,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOutCubic,
-          child: Icon(
-            selectedIcon,
-            color: colorScheme.primary,
-          ),
-        ),
-      ),
-      label: label,
-    );
-  }
-
   Future<void> _requestLocationOnEntry() async {
     final permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -173,6 +134,44 @@ class _DashboardPageState extends State<DashboardPage> {
     final isDesktop = width > 900;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    final navItems = [
+      (
+        icon: Icons.dashboard_outlined,
+        selectedIcon: Icons.dashboard,
+        label: context.translate('dashboard'),
+      ),
+      (
+        icon: Icons.restaurant_outlined,
+        selectedIcon: Icons.restaurant,
+        label: context.translate('nutrition'),
+      ),
+      (
+        icon: Icons.history_outlined,
+        selectedIcon: Icons.history,
+        label: context.translate('history'),
+      ),
+      (
+        icon: Icons.calendar_month_outlined,
+        selectedIcon: Icons.calendar_month,
+        label: context.translate('training_plan'),
+      ),
+      (
+        icon: Icons.psychology_outlined,
+        selectedIcon: Icons.psychology,
+        label: context.translate('ai_coach'),
+      ),
+      (
+        icon: Icons.groups_outlined,
+        selectedIcon: Icons.groups,
+        label: context.translate('community'),
+      ),
+      (
+        icon: Icons.person_outline,
+        selectedIcon: Icons.person,
+        label: context.translate('profile'),
+      ),
+    ];
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -219,64 +218,26 @@ class _DashboardPageState extends State<DashboardPage> {
                   MouseRegion(
                     onEnter: (_) => setState(() => _isRailHovered = true),
                     onExit: (_) => setState(() => _isRailHovered = false),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOutCubic,
-                      width: _isRailHovered ? 240 : 72,
-                      child: NavigationRail(
-                        extended: _isRailHovered,
-                        backgroundColor: theme.brightness == Brightness.dark
-                            ? Colors.white.withValues(alpha: 0.05)
-                            : Colors.black.withValues(alpha: 0.03),
-                        selectedIndex: _selectedIndex,
-                        onDestinationSelected: (index) =>
-                            setState(() => _selectedIndex = index),
-                        labelType: NavigationRailLabelType.none,
-                        destinations: [
-                          _buildRailDestination(
-                            index: 0,
-                            icon: Icons.dashboard_outlined,
-                            selectedIcon: Icons.dashboard,
-                            label: context.translate('dashboard'),
-                          ),
-                          _buildRailDestination(
-                            index: 1,
-                            icon: Icons.restaurant_outlined,
-                            selectedIcon: Icons.restaurant,
-                            label: context.translate('nutrition'),
-                          ),
-                          _buildRailDestination(
-                            index: 2,
-                            icon: Icons.history_outlined,
-                            selectedIcon: Icons.history,
-                            label: 'History',
-                          ),
-                          _buildRailDestination(
-                            index: 3,
-                            icon: Icons.calendar_month_outlined,
-                            selectedIcon: Icons.calendar_month,
-                            label: context.translate('training_plan'),
-                          ),
-                          _buildRailDestination(
-                            index: 4,
-                            icon: Icons.psychology_outlined,
-                            selectedIcon: Icons.psychology,
-                            label: context.translate('ai_coach'),
-                          ),
-                          _buildRailDestination(
-                            index: 5,
-                            icon: Icons.groups_outlined,
-                            selectedIcon: Icons.groups,
-                            label: context.translate('community'),
-                          ),
-                          _buildRailDestination(
-                            index: 6,
-                            icon: Icons.person_outline,
-                            selectedIcon: Icons.person,
-                            label: context.translate('profile'),
-                          ),
-                        ],
-                      ),
+                    child: NavigationRail(
+                      extended: _isRailHovered,
+                      minWidth: 72,
+                      minExtendedWidth: 240,
+                      backgroundColor: theme.brightness == Brightness.dark
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : Colors.black.withValues(alpha: 0.03),
+                      selectedIndex: _selectedIndex,
+                      onDestinationSelected: (index) =>
+                          setState(() => _selectedIndex = index),
+                      labelType: NavigationRailLabelType.none,
+                      destinations: List.generate(navItems.length, (index) {
+                        final item = navItems[index];
+                        return _buildRailDestination(
+                          index: index,
+                          icon: item.icon,
+                          selectedIcon: item.selectedIcon,
+                          label: item.label,
+                        );
+                      }),
                     ),
                   ),
                 if (isDesktop)
@@ -300,57 +261,83 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
       bottomNavigationBar: !isDesktop
-          ? NavigationBar(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (int index) {
-                setState(() {
-                  _selectedIndex = index;
-                });
-              },
-              destinations: [
-                _buildNavDestination(
-                  index: 0,
-                  icon: Icons.dashboard_outlined,
-                  selectedIcon: Icons.dashboard,
-                  label: context.translate('dashboard'),
+          ? SafeArea(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                height: 64,
+                child: glassCard(
+                  context: context,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Center(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(navItems.length, (index) {
+                          final isSelected = _selectedIndex == index;
+                          final item = navItems[index];
+
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedIndex = index),
+                            behavior: HitTestBehavior.opaque,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOutCubic,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isSelected ? 12 : 8,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? theme.primaryColor.withValues(alpha: 0.15)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      isSelected ? item.selectedIcon : item.icon,
+                                      size: 22,
+                                      color: isSelected
+                                          ? theme.primaryColor
+                                          : colorScheme.onSurfaceVariant,
+                                    ),
+                                    AnimatedSize(
+                                      duration: const Duration(milliseconds: 300),
+                                      curve: Curves.easeInOutCubic,
+                                      child: isSelected
+                                          ? Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  item.label,
+                                                  style: TextStyle(
+                                                    color: theme.primaryColor,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                  ),
                 ),
-                _buildNavDestination(
-                  index: 1,
-                  icon: Icons.restaurant_outlined,
-                  selectedIcon: Icons.restaurant,
-                  label: context.translate('nutrition'),
-                ),
-                _buildNavDestination(
-                  index: 2,
-                  icon: Icons.history_outlined,
-                  selectedIcon: Icons.history,
-                  label: 'History',
-                ),
-                _buildNavDestination(
-                  index: 3,
-                  icon: Icons.calendar_month_outlined,
-                  selectedIcon: Icons.calendar_month,
-                  label: context.translate('training_plan'),
-                ),
-                _buildNavDestination(
-                  index: 4,
-                  icon: Icons.psychology_outlined,
-                  selectedIcon: Icons.psychology,
-                  label: context.translate('ai_coach'),
-                ),
-                _buildNavDestination(
-                  index: 5,
-                  icon: Icons.groups_outlined,
-                  selectedIcon: Icons.groups,
-                  label: context.translate('community'),
-                ),
-                _buildNavDestination(
-                  index: 6,
-                  icon: Icons.person_outline,
-                  selectedIcon: Icons.person,
-                  label: context.translate('profile'),
-                ),
-              ],
+              ),
             )
           : null,
     );
