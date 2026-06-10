@@ -20,9 +20,9 @@ class ThemeToggle extends StatelessWidget {
           turns: anim,
           child: FadeTransition(opacity: anim, child: child),
         ),
-        child: Icon(
-          isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+        child: HoverZoomIcon(
           key: ValueKey(isDark),
+          icon: isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
           color: Theme.of(context).iconTheme.color,
         ),
       ),
@@ -41,7 +41,7 @@ class LanguageSwitcher extends StatelessWidget {
     final currentLocale = languageProvider.locale;
 
     return PopupMenuButton<Locale>(
-      icon: const Icon(Icons.language_rounded),
+      icon: const HoverZoomIcon(icon: Icons.language_rounded),
       tooltip: context.translate('language'),
       onSelected: (locale) => languageProvider.setLocale(locale),
       itemBuilder: (context) => [
@@ -306,6 +306,67 @@ class RunnyLogo extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class HoverZoomIcon extends StatefulWidget {
+  final IconData icon;
+  final Color? color;
+  final double size;
+
+  const HoverZoomIcon({
+    super.key,
+    required this.icon,
+    this.color,
+    this.size = 24,
+  });
+
+  @override
+  State<HoverZoomIcon> createState() => _HoverZoomIconState();
+}
+
+class _HoverZoomIconState extends State<HoverZoomIcon> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedScale(
+        scale: _isHovered ? 1.25 : 1.0,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutBack,
+        child: Icon(widget.icon, color: widget.color, size: widget.size),
+      ),
+    );
+  }
+}
+
+class HoverSync extends ValueNotifier<bool> {
+  HoverSync() : super(false);
+}
+
+class HoverSyncWidget extends StatelessWidget {
+  final HoverSync sync;
+  final Widget Function(BuildContext context, bool isHovered) builder;
+
+  const HoverSyncWidget({
+    super.key,
+    required this.sync,
+    required this.builder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => sync.value = true,
+      onExit: (_) => sync.value = false,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: sync,
+        builder: (context, isHovered, _) => builder(context, isHovered),
+      ),
     );
   }
 }

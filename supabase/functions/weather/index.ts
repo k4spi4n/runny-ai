@@ -13,13 +13,28 @@ serve(async (req) => {
   }
 
   try {
-    const url = new URL(req.url);
-    const lat = url.searchParams.get('lat');
-    const lon = url.searchParams.get('lon');
+    let lat: string | null = null;
+    let lon: string | null = null;
+
+    if (req.method === 'POST') {
+      try {
+        const body = await req.json();
+        lat = body.lat?.toString();
+        lon = body.lon?.toString();
+      } catch (e) {
+        console.error('Error parsing POST body:', e);
+      }
+    }
+
+    if (!lat || !lon) {
+      const url = new URL(req.url);
+      lat = url.searchParams.get('lat');
+      lon = url.searchParams.get('lon');
+    }
 
     if (!lat || !lon) {
       return new Response(
-        JSON.stringify({ error: 'Missing lat or lon query parameters' }),
+        JSON.stringify({ error: 'Missing lat or lon (checked body and query params)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -45,7 +60,10 @@ serve(async (req) => {
         const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${openWeatherApiKey}&units=metric&lang=vi`;
         const weatherResponse = await fetch(weatherUrl);
         if (weatherResponse.ok) {
-          weatherData = await weatherResponse.ok ? await weatherResponse.json() : null;
+          weatherData = await weatherResponse.json();
+        } else {
+          const errorText = await weatherResponse.text();
+          console.error(`OpenWeatherMap error: ${weatherResponse.status} ${errorText}`);
         }
       } catch (e) {
         console.error('OpenWeather weather error in proxy:', e);
