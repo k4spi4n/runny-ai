@@ -39,8 +39,10 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
       appBar: AppBar(title: const Text('Theo dõi cân nặng')),
       body: Stack(
         children: [
-          const SizedBox.expand(
-            child: DecoratedBox(decoration: BoxDecoration(gradient: sportPlatformGradient)),
+          SizedBox.expand(
+            child: DecoratedBox(
+              decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
+            ),
           ),
           SafeArea(
             child: FutureBuilder<_WeightData>(
@@ -55,11 +57,12 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
                       padding: const EdgeInsets.all(24),
                       child: Text('Lỗi: ${snapshot.error}',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white70)),
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                     ),
                   );
                 }
                 final data = snapshot.data!;
+                final onSurface = Theme.of(context).colorScheme.onSurface;
                 return SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -71,34 +74,36 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: _logWeight,
-                          style: primaryActionButton(),
+                          style: primaryActionButton(context),
                           icon: const Icon(Icons.add, size: 20),
                           label: const Text('Ghi nhận cân nặng hôm nay'),
                         ),
                       ),
                       const SizedBox(height: 24),
                       if (data.logs.length >= 2) ...[
-                        const Text('Diễn biến cân nặng',
+                        Text('Diễn biến cân nặng',
                             style: TextStyle(
-                                color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                                color: onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
                         _WeightChart(logs: data.logs, target: data.goal.target),
                         const SizedBox(height: 24),
                       ],
-                      const Text('Lịch sử',
+                      Text('Lịch sử',
                           style: TextStyle(
-                              color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                              color: onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
                       if (data.logs.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 20),
                           child: Center(
                             child: Text('Chưa có dữ liệu. Hãy ghi nhận cân nặng đầu tiên!',
-                                style: TextStyle(color: Colors.white60)),
+                                style: TextStyle(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
                           ),
                         )
                       else
-                        ...data.logs.reversed.map((log) => _LogTile(log: log, onDelete: () => _deleteLog(log))),
+                        ...data.logs.reversed
+                            .map((log) => _LogTile(log: log, onDelete: () => _deleteLog(log))),
                       const SizedBox(height: 24),
                     ],
                   ),
@@ -153,19 +158,18 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
     return showDialog<double>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF0D1230),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
+        title: Text(title),
         content: TextField(
           controller: controller,
           autofocus: true,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          style: const TextStyle(color: Colors.white),
-          decoration: themedInputDecoration(label, suffixText: 'kg', icon: Icons.monitor_weight),
+          decoration:
+              themedInputDecoration(context, label, suffixText: 'kg', icon: Icons.monitor_weight),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Huỷ')),
           ElevatedButton(
-            style: primaryActionButton(),
+            style: primaryActionButton(context),
             onPressed: () => Navigator.pop(context, double.tryParse(controller.text)),
             child: const Text('Lưu'),
           ),
@@ -176,23 +180,20 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
 
   /// Trả về (target, start?) — start có thể null nếu giữ nguyên.
   Future<(double, double?)?> _showGoalDialog(WeightGoal goal) {
-    final targetController =
-        TextEditingController(text: goal.target?.toStringAsFixed(1) ?? '');
-    final startController = TextEditingController(
-        text: (goal.start ?? goal.current)?.toStringAsFixed(1) ?? '');
+    final targetController = TextEditingController(text: goal.target?.toStringAsFixed(1) ?? '');
+    final startController =
+        TextEditingController(text: (goal.start ?? goal.current)?.toStringAsFixed(1) ?? '');
     return showDialog<(double, double?)>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF0D1230),
-        title: const Text('Mục tiêu cân nặng', style: TextStyle(color: Colors.white)),
+        title: const Text('Mục tiêu cân nặng'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: startController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: const TextStyle(color: Colors.white),
-              decoration: themedInputDecoration('Cân nặng bắt đầu',
+              decoration: themedInputDecoration(context, 'Cân nặng bắt đầu',
                   suffixText: 'kg', icon: Icons.flag),
             ),
             const SizedBox(height: 16),
@@ -200,8 +201,7 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
               controller: targetController,
               autofocus: true,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: const TextStyle(color: Colors.white),
-              decoration: themedInputDecoration('Cân nặng mục tiêu',
+              decoration: themedInputDecoration(context, 'Cân nặng mục tiêu',
                   suffixText: 'kg', icon: Icons.emoji_events),
             ),
           ],
@@ -209,7 +209,7 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Huỷ')),
           ElevatedButton(
-            style: primaryActionButton(),
+            style: primaryActionButton(context),
             onPressed: () {
               final target = double.tryParse(targetController.text);
               final start = double.tryParse(startController.text);
@@ -241,22 +241,25 @@ class _GoalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     if (!goal.hasGoal) {
       return glassCard(
+        context: context,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Chưa có mục tiêu cân nặng',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('Chưa có mục tiêu cân nặng',
+                style: TextStyle(
+                    color: cs.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            const Text('Đặt mục tiêu để theo dõi tiến trình của bạn.',
-                style: TextStyle(color: Colors.white60)),
+            Text('Đặt mục tiêu để theo dõi tiến trình của bạn.',
+                style: TextStyle(color: cs.onSurfaceVariant)),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () => onEditGoal(goal),
-                style: primaryActionButton(),
+                style: primaryActionButton(context),
                 icon: const Icon(Icons.flag, size: 18),
                 label: const Text('Tạo mục tiêu'),
               ),
@@ -268,19 +271,20 @@ class _GoalCard extends StatelessWidget {
 
     final reached = goal.reached;
     return glassCard(
+      context: context,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text('Tiến trình mục tiêu',
                     style: TextStyle(
-                        color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        color: cs.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
               ),
               IconButton(
                 onPressed: () => onEditGoal(goal),
-                icon: const Icon(Icons.edit, color: Colors.white70, size: 20),
+                icon: Icon(Icons.edit, color: cs.onSurfaceVariant, size: 20),
                 tooltip: 'Sửa mục tiêu',
               ),
             ],
@@ -289,9 +293,9 @@ class _GoalCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _stat('Bắt đầu', '${goal.start!.toStringAsFixed(1)} kg'),
-              _stat('Hiện tại', '${goal.current!.toStringAsFixed(1)} kg', highlight: true),
-              _stat('Mục tiêu', '${goal.target!.toStringAsFixed(1)} kg'),
+              _stat(context, 'Bắt đầu', '${goal.start!.toStringAsFixed(1)} kg'),
+              _stat(context, 'Hiện tại', '${goal.current!.toStringAsFixed(1)} kg', highlight: true),
+              _stat(context, 'Mục tiêu', '${goal.target!.toStringAsFixed(1)} kg'),
             ],
           ),
           const SizedBox(height: 20),
@@ -299,7 +303,11 @@ class _GoalCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             child: Stack(
               children: [
-                Container(height: 16, color: Colors.white.withValues(alpha: 0.1)),
+                Container(
+                    height: 16,
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.black.withValues(alpha: 0.06)),
                 FractionallySizedBox(
                   widthFactor: goal.progress == 0 ? 0.02 : goal.progress,
                   child: Container(
@@ -314,7 +322,7 @@ class _GoalCard extends StatelessWidget {
           Row(
             children: [
               Text('${(goal.progress * 100).toStringAsFixed(0)}% hoàn thành',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w700)),
               const Spacer(),
               if (reached)
                 Row(
@@ -329,7 +337,7 @@ class _GoalCard extends StatelessWidget {
               else
                 Text(
                   'Còn ${goal.remaining.toStringAsFixed(1)} kg ${goal.isLosing ? "cần giảm" : "cần tăng"}',
-                  style: const TextStyle(color: Colors.white70),
+                  style: TextStyle(color: cs.onSurfaceVariant),
                 ),
             ],
           ),
@@ -338,14 +346,15 @@ class _GoalCard extends StatelessWidget {
     );
   }
 
-  Widget _stat(String label, String value, {bool highlight = false}) {
+  Widget _stat(BuildContext context, String label, String value, {bool highlight = false}) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 12)),
+        Text(label, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
         const SizedBox(height: 4),
         Text(value,
             style: TextStyle(
-                color: highlight ? const Color(0xFFFFC66A) : Colors.white,
+                color: highlight ? const Color(0xFFFF9D45) : cs.onSurface,
                 fontSize: highlight ? 22 : 18,
                 fontWeight: FontWeight.w900)),
       ],
@@ -364,6 +373,7 @@ class _WeightChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final axisColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5);
     final spots = <FlSpot>[];
     for (var i = 0; i < logs.length; i++) {
       spots.add(FlSpot(i.toDouble(), logs[i].weightKg));
@@ -381,6 +391,7 @@ class _WeightChart extends StatelessWidget {
     maxY += pad;
 
     return glassCard(
+      context: context,
       padding: const EdgeInsets.fromLTRB(8, 24, 20, 12),
       child: SizedBox(
         height: 200,
@@ -392,7 +403,7 @@ class _WeightChart extends StatelessWidget {
               show: true,
               drawVerticalLine: false,
               getDrawingHorizontalLine: (v) =>
-                  FlLine(color: Colors.white.withValues(alpha: 0.1), strokeWidth: 1),
+                  FlLine(color: axisColor.withValues(alpha: 0.2), strokeWidth: 1),
             ),
             titlesData: FlTitlesData(
               rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -409,8 +420,7 @@ class _WeightChart extends StatelessWidget {
                     return SideTitleWidget(
                       axisSide: meta.axisSide,
                       child: Text('${d.day}/${d.month}',
-                          style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.5), fontSize: 10)),
+                          style: TextStyle(color: axisColor, fontSize: 10)),
                     );
                   },
                 ),
@@ -423,8 +433,7 @@ class _WeightChart extends StatelessWidget {
                   getTitlesWidget: (value, meta) => SideTitleWidget(
                     axisSide: meta.axisSide,
                     child: Text(value.toStringAsFixed(0),
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5), fontSize: 10)),
+                        style: TextStyle(color: axisColor, fontSize: 10)),
                   ),
                 ),
               ),
@@ -495,20 +504,25 @@ class _LogTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final d = log.loggedAt;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: glassCard(
+        context: context,
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.monitor_weight, color: Colors.white70, size: 22),
+              child: Icon(Icons.monitor_weight, color: cs.onSurfaceVariant, size: 22),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -516,18 +530,19 @@ class _LogTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('${log.weightKg.toStringAsFixed(1)} kg',
-                      style: const TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+                      style: TextStyle(
+                          color: cs.onSurface, fontWeight: FontWeight.w800, fontSize: 16)),
                   Text(
                     '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}',
-                    style: const TextStyle(color: Colors.white60, fontSize: 12),
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
                   ),
                 ],
               ),
             ),
             IconButton(
               onPressed: onDelete,
-              icon: const Icon(Icons.delete_outline, color: Colors.white38, size: 20),
+              icon: Icon(Icons.delete_outline,
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.7), size: 20),
               tooltip: 'Xoá',
             ),
           ],

@@ -7,7 +7,7 @@ class TrainingService {
 
   void _ensureGeminiReady() {
     if (!_gemini.isConfigured) {
-      throw Exception('GEMINI_API_KEY not found in .env');
+      throw Exception('OPENROUTER_API_KEY not found in .env');
     }
   }
 

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/ui_components.dart';
 import '../services/integration_service.dart';
 import '../services/social_service.dart';
+import '../l10n/app_localizations.dart';
 import 'weight_tracking_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -78,7 +79,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi khi tải hồ sơ: $e')));
+        ).showSnackBar(SnackBar(content: Text('Error loading profile: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -92,7 +93,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (weightStr.isEmpty || heightStr.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng nhập cân nặng và chiều cao')),
+        const SnackBar(content: Text('Please enter weight and height')),
       );
       return;
     }
@@ -103,7 +104,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (weight == null || height == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cân nặng hoặc chiều cao không hợp lệ')),
+        const SnackBar(content: Text('Invalid weight or height')),
       );
       return;
     }
@@ -137,14 +138,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã cập nhật hồ sơ thành công!')),
+          const SnackBar(content: Text('Profile updated successfully!')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Lỗi khi cập nhật: $e')));
+        ).showSnackBar(SnackBar(content: Text('Update error: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -162,13 +163,13 @@ class _ProfilePageState extends State<ProfilePage> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã lưu thiết lập ghép đôi!')),
+          const SnackBar(content: Text('Matching settings saved!')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text('Error: $e')),
         );
       }
     } finally {
@@ -182,7 +183,7 @@ class _ProfilePageState extends State<ProfilePage> {
         await _integrationService.disconnectStrava();
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Đã ngắt kết nối Strava')));
+        ).showSnackBar(const SnackBar(content: Text('Disconnected from Strava')));
       } else {
         await _integrationService.connectStrava();
       }
@@ -190,7 +191,7 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -200,7 +201,7 @@ class _ProfilePageState extends State<ProfilePage> {
         await _integrationService.disconnectGarmin();
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Đã ngắt kết nối Garmin')));
+        ).showSnackBar(const SnackBar(content: Text('Disconnected from Garmin')));
       } else {
         await _integrationService.connectGarmin();
       }
@@ -208,7 +209,7 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -222,115 +223,179 @@ class _ProfilePageState extends State<ProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildProfileHeader(),
+          _buildProfileHeader(context),
           const SizedBox(height: 24),
-          _buildMetricsSection(),
+          _buildMetricsSection(context),
           const SizedBox(height: 24),
-          _buildIntegrationsSection(),
+          _buildIntegrationsSection(context),
           const SizedBox(height: 24),
-          _buildMatchingSection(),
-          const SizedBox(height: 40),
+          _buildMatchingSection(context),
+          const SizedBox(height: 32),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: OutlinedButton.icon(
+              onPressed: () => _showLogoutDialog(context),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.redAccent,
+                side: const BorderSide(color: Colors.redAccent),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              icon: const Icon(Icons.logout),
+              label: Text(
+                context.translate('Logout'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+          const SizedBox(height: 60),
         ],
       ),
     );
   }
 
-  Widget _buildProfileHeader() {
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await _supabase.auth.signOut();
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Logout error: $e')),
+                );
+              }
+            },
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return glassCard(
+      context: context,
       child: Column(
         children: [
           CircleAvatar(
             radius: 50,
-            backgroundColor: const Color(0xFFFA6B27),
+            backgroundColor: theme.primaryColor,
             child: const Icon(Icons.person, size: 60, color: Colors.white),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _displayNameController,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: colorScheme.onSurface,
             ),
-            decoration: const InputDecoration(
-              hintText: 'Tên hiển thị',
-              hintStyle: TextStyle(color: Colors.white38),
+            decoration: InputDecoration(
+              hintText: 'Display Name',
+              hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
               border: InputBorder.none,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             _supabase.auth.currentUser?.email ?? '',
-            style: const TextStyle(color: Colors.white70),
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMetricsSection() {
+  Widget _buildMetricsSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return glassCard(
+      context: context,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Chỉ số Thể trạng',
+          Text(
+            'Body Metrics',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 24),
           TextField(
             controller: _weightController,
             decoration: themedInputDecoration(
-              'Cân nặng',
+              context,
+              'Weight',
               suffixText: 'kg',
               icon: Icons.monitor_weight,
             ),
             keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _heightController,
             decoration: themedInputDecoration(
-              'Chiều cao',
+              context,
+              'Height',
               suffixText: 'cm',
               icon: Icons.height,
             ),
             keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _maxHrController,
             decoration: themedInputDecoration(
-              'Nhịp tim tối đa',
+              context,
+              'Max HR',
               suffixText: 'bpm',
               icon: Icons.favorite,
             ),
             keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _isSaving ? null : _saveProfile,
-              style: primaryActionButton(),
+              style: primaryActionButton(context),
               child: _isSaving
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Cập nhật chỉ số'),
+                  : const Text('Update Metrics'),
             ),
           ),
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              style: secondaryActionButton(),
+              style: secondaryActionButton(context),
               icon: const Icon(Icons.timeline, size: 18),
               label: const Text('Theo dõi cân nặng & mục tiêu'),
               onPressed: () {
@@ -346,21 +411,26 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildIntegrationsSection() {
+  Widget _buildIntegrationsSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return glassCard(
+      context: context,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Kết nối Nền tảng',
+          Text(
+            'Integrations',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 24),
           _buildIntegrationTile(
+            context: context,
             name: 'Strava',
             icon: Icons.directions_run,
             isConnected: _stravaId != null,
@@ -369,6 +439,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           const SizedBox(height: 16),
           _buildIntegrationTile(
+            context: context,
             name: 'Garmin',
             icon: Icons.watch,
             isConnected: _garminId != null,
@@ -380,57 +451,60 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildMatchingSection() {
+  Widget _buildMatchingSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return glassCard(
+      context: context,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Ghép đôi Bạn chạy (Requirement 4.3)',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Bật để xuất hiện trong gợi ý của người chạy khác và nhận lời mời chạy cùng.',
-            style: TextStyle(color: Colors.white60, fontSize: 13),
+          Text(
+            'Partner Matching',
+            style: TextStyle(
+              fontSize: 18, 
+              fontWeight: FontWeight.bold, 
+              color: colorScheme.onSurface
+            ),
           ),
           const SizedBox(height: 12),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: _lookingForPartner,
             onChanged: (v) => setState(() => _lookingForPartner = v),
-            title: const Text('Tìm bạn chạy', style: TextStyle(color: Colors.white)),
-            activeThumbColor: const Color(0xFFFA6B27),
+            title: Text('Find Running Partner', style: TextStyle(color: colorScheme.onSurface)),
+            activeThumbColor: theme.primaryColor,
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _cityController,
-            decoration: themedInputDecoration('Khu vực / Thành phố', icon: Icons.place),
-            style: const TextStyle(color: Colors.white),
+            decoration: themedInputDecoration(context, 'City / Region', icon: Icons.place),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _preferredPaceController,
-            decoration: themedInputDecoration('Pace mong muốn', suffixText: 'phút/km', icon: Icons.speed),
+            decoration: themedInputDecoration(context, 'Preferred Pace', suffixText: 'min/km', icon: Icons.speed),
             keyboardType: TextInputType.number,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _bioController,
             maxLines: 3,
-            decoration: themedInputDecoration('Giới thiệu ngắn', icon: Icons.notes),
-            style: const TextStyle(color: Colors.white),
+            decoration: themedInputDecoration(context, 'Short Bio', icon: Icons.notes),
+            style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _isSavingMatching ? null : _saveMatching,
-              style: primaryActionButton(),
+              style: primaryActionButton(context),
               child: _isSavingMatching
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Lưu thiết lập ghép đôi'),
+                  : const Text('Save Settings'),
             ),
           ),
         ],
@@ -439,18 +513,23 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildIntegrationTile({
+    required BuildContext context,
     required String name,
     required IconData icon,
     required bool isConnected,
     required VoidCallback onConnect,
     required Color color,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
@@ -469,15 +548,15 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 Text(
                   name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 Text(
-                  isConnected ? 'Đã kết nối' : 'Chưa kết nối',
+                  isConnected ? 'Connected' : 'Not Connected',
                   style: TextStyle(
-                    color: isConnected ? Colors.green : Colors.white54,
+                    color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
                     fontSize: 12,
                   ),
                 ),
@@ -487,13 +566,13 @@ class _ProfilePageState extends State<ProfilePage> {
           ElevatedButton(
             onPressed: onConnect,
             style: ElevatedButton.styleFrom(
-              backgroundColor: isConnected ? Colors.white12 : color,
-              foregroundColor: Colors.white,
+              backgroundColor: isConnected ? (isDark ? Colors.white12 : Colors.black12) : color,
+              foregroundColor: isConnected ? colorScheme.onSurface : Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: Text(isConnected ? 'Ngắt kết nối' : 'Kết nối'),
+            child: Text(isConnected ? 'Disconnect' : 'Connect'),
           ),
         ],
       ),

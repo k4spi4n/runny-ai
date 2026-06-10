@@ -1,8 +1,9 @@
 import 'dart:convert';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class WeatherSnapshot {
   final double? temperatureC;
@@ -49,7 +50,7 @@ class WeatherSnapshot {
     if (aqi! <= 150) return Colors.orange;
     if (aqi! <= 200) return Colors.red;
     if (aqi! <= 300) return Colors.purple;
-    return const Color(0xFF7E0023); // Maroon/Dark Red
+    return const Color(0xFF7E0023);
   }
 
   Map<String, dynamic> toJson() {
@@ -84,6 +85,11 @@ class WeatherSnapshot {
 class WeatherService {
   WeatherService();
 
+  bool get _shouldUseProxy =>
+      kIsWeb ||
+      dotenv.env['OPENWEATHER_API_KEY'] == null ||
+      dotenv.env['OPENWEATHER_API_KEY']!.isEmpty;
+
   String get _openWeatherApiKey {
     final apiKey = dotenv.env['OPENWEATHER_API_KEY'];
     if (apiKey == null || apiKey.isEmpty) {
@@ -100,49 +106,215 @@ class WeatherService {
     required double lat,
     required double lon,
   }) async {
-    final weatherUri =
-        Uri.https('api.openweathermap.org', '/data/2.5/weather', {
-          'lat': lat.toString(),
-          'lon': lon.toString(),
-          'appid': _openWeatherApiKey,
-          'units': 'metric',
-          'lang': 'vi',
-        });
+    // Luôn thử qua Proxy trước nếu đang ở môi trường Web hoặc thiếu Key trực tiếp
+    if (_shouldUseProxy) {
+      try {
+        final response = await Supabase.instance.client.functions.invoke(
+          'weather',
+          body: {'lat': lat, 'lon': lon},
+          method: HttpMethod.post,
+        );
 
-    final weatherResponse = await http.get(weatherUri);
-    if (weatherResponse.statusCode != 200) {
-      debugPrint('OpenWeather weather error: ${weatherResponse.statusCode}');
-      throw Exception('Failed to fetch weather');
+        if (response.status == 200 && response.data != null) {
+          return _parseProxyResponse(response.data!);
+        }
+        
+        // Nếu không phải 200, ném lỗi để nhảy vào catch và thử fallback trực tiếp
+        throw Exception('Proxy status: ${response.status}');
+      } catch (e) {
+        debugPrint('Weather proxy failed ($e). Attempting direct fallback...');
+        // Tiếp tục xuống phần gọi trực tiếp bên dưới nếu proxy lỗi
+      }
     }
 
-    final weatherBody =
-        jsonDecode(weatherResponse.body) as Map<String, dynamic>;
-    final weatherList = (weatherBody['weather'] as List?) ?? [];
-    final weatherMain = weatherBody['main'] as Map<String, dynamic>?;
-    final wind = weatherBody['wind'] as Map<String, dynamic>?;
+    // PHẦN GỌI TRỰC TIẾP (FALLBACK HOẶC DEFAULT)
+    return _fetchDirectly(lat: lat, lon: lon);
+  }
+
+  WeatherSnapshot _parseProxyResponse(dynamic data) {
+    final Map<String, dynamic> body;
+    try {
+      if (data is String) {
+        body = Map<String, dynamic>.from(jsonDecode(data));
+      } else if (data is Map) {
+        body = Map<String, dynamic>.from(data);
+      } else {
+        throw Exception('Unexpected response format: ${data.runtimeType}');
+      }
+    } catch (e) {
+      debugPrint('Error parsing weather proxy response: $e');
+      throw Exception('Failed to parse weather data');
+    }
+
+    final weatherBody = body['weather'] as Map<String, dynamic>?;
+    final waqiBody = body['waqi'] as Map<String, dynamic>?;
+    final owmAirBody = body['owm_aqi'] as Map<String, dynamic>?;
+
+    final weatherList = (weatherBody?['weather'] as List?) ?? [];
+    final weatherMain = weatherBody?['main'] as Map<String, dynamic>?;
+    final wind = weatherBody?['wind'] as Map<String, dynamic>?;
 
     int? aqi;
+    double? temp = (weatherMain?['temp'] as num?)?.toDouble();
+    int? humidity = weatherMain?['humidity'] as int?;
+    double? windKph = (wind?['speed'] as num?)?.toDouble() != null
+        ? ((wind?['speed'] as num).toDouble() * 3.6)
+        : null;
+    String? locationName = weatherBody?['name'] as String?;
 
-    // Try WAQI first if key is available
-    if (_waqiApiKey != null && _waqiApiKey!.isNotEmpty) {
+    final weatherEntry = weatherList.isNotEmpty
+        ? weatherList.first as Map<String, dynamic>
+        : null;
+    String? description = weatherEntry?['description'] as String?;
+    String? icon = weatherEntry?['icon'] as String?;
+
+    // Parse WAQI
+    if (waqiBody != null && waqiBody['status'] == 'ok') {
+      final data = waqiBody['data'] as Map<String, dynamic>;
+      aqi = data['aqi'] as int?;
+
+      if (temp == null ||
+          humidity == null ||
+          windKph == null ||
+          locationName == null) {
+        final iaqi = data['iaqi'] as Map<String, dynamic>?;
+        temp ??= (iaqi?['t']?['v'] as num?)?.toDouble();
+        humidity ??= (iaqi?['h']?['v'] as num?)?.toInt();
+        final wValue = (iaqi?['w']?['v'] as num?)?.toDouble();
+        if (wValue != null && windKph == null) {
+          windKph = wValue * 3.6;
+        }
+        locationName ??= data['city']?['name'] as String?;
+        description ??= 'Dữ liệu từ WAQI';
+      }
+    }
+
+    // Fallback to OWM AQI
+    if (aqi == null && owmAirBody != null) {
+      final list = (owmAirBody['list'] as List?) ?? [];
+      if (list.isNotEmpty) {
+        final main =
+            (list.first as Map<String, dynamic>)['main']
+                as Map<String, dynamic>?;
+        final owmAqi = main?['aqi'] as int?;
+        if (owmAqi != null) {
+          aqi = owmAqi * 40;
+        }
+      }
+    }
+
+    if (temp == null) {
+      throw Exception('No temperature data available from Proxy');
+    }
+
+    return WeatherSnapshot(
+      fetchedAt: DateTime.now(),
+      temperatureC: temp,
+      feelsLikeC: temp,
+      humidity: humidity,
+      windKph: windKph,
+      description: description ?? 'Không có thông tin thời tiết',
+      icon: icon,
+      aqi: aqi,
+      locationName: locationName ?? 'Vị trí không xác định',
+    );
+  }
+
+  Future<WeatherSnapshot> _fetchDirectly({
+    required double lat,
+    required double lon,
+  }) async {
+    final hasOwm =
+        dotenv.env['OPENWEATHER_API_KEY'] != null &&
+        dotenv.env['OPENWEATHER_API_KEY']!.isNotEmpty;
+    final hasWaqi = _waqiApiKey != null && _waqiApiKey!.isNotEmpty;
+
+    if (!hasOwm && !hasWaqi) {
+      throw Exception(
+        'Neither OpenWeatherMap nor WAQI API keys are configured',
+      );
+    }
+
+    int? aqi;
+    double? temp;
+    int? humidity;
+    double? windKph;
+    String? locationName;
+    String? description;
+    String? icon;
+
+    if (hasOwm) {
+      try {
+        final weatherUri =
+            Uri.https('api.openweathermap.org', '/data/2.5/weather', {
+              'lat': lat.toString(),
+              'lon': lon.toString(),
+              'appid': _openWeatherApiKey,
+              'units': 'metric',
+              'lang': 'vi',
+            });
+
+        final weatherResponse = await http.get(weatherUri);
+        if (weatherResponse.statusCode == 200) {
+          final weatherBody =
+              jsonDecode(weatherResponse.body) as Map<String, dynamic>;
+          final weatherList = (weatherBody['weather'] as List?) ?? [];
+          final weatherMain = weatherBody['main'] as Map<String, dynamic>?;
+          final wind = weatherBody['wind'] as Map<String, dynamic>?;
+
+          temp = (weatherMain?['temp'] as num?)?.toDouble();
+          humidity = weatherMain?['humidity'] as int?;
+          windKph = (wind?['speed'] as num?)?.toDouble() != null
+              ? ((wind?['speed'] as num).toDouble() * 3.6)
+              : null;
+          locationName = weatherBody['name'] as String?;
+
+          final weatherEntry = weatherList.isNotEmpty
+              ? weatherList.first as Map<String, dynamic>
+              : null;
+          description = weatherEntry?['description'] as String?;
+          icon = weatherEntry?['icon'] as String?;
+        }
+      } catch (e) {
+        debugPrint('OpenWeatherMap direct call error: $e');
+      }
+    }
+
+    if (hasWaqi) {
       try {
         final waqiUri = Uri.parse(
           'https://api.waqi.info/feed/geo:$lat;$lon/?token=$_waqiApiKey',
         );
         final waqiResponse = await http.get(waqiUri);
         if (waqiResponse.statusCode == 200) {
-          final waqiBody = jsonDecode(waqiResponse.body) as Map<String, dynamic>;
+          final waqiBody =
+              jsonDecode(waqiResponse.body) as Map<String, dynamic>;
           if (waqiBody['status'] == 'ok') {
-            aqi = waqiBody['data']['aqi'] as int?;
+            final data = waqiBody['data'] as Map<String, dynamic>;
+            aqi = data['aqi'] as int?;
+
+            if (temp == null ||
+                humidity == null ||
+                windKph == null ||
+                locationName == null) {
+              final iaqi = data['iaqi'] as Map<String, dynamic>?;
+              temp ??= (iaqi?['t']?['v'] as num?)?.toDouble();
+              humidity ??= (iaqi?['h']?['v'] as num?)?.toInt();
+              final wValue = (iaqi?['w']?['v'] as num?)?.toDouble();
+              if (wValue != null && windKph == null) {
+                windKph = wValue * 3.6;
+              }
+              locationName ??= data['city']?['name'] as String?;
+              description ??= 'Dữ liệu từ WAQI';
+            }
           }
         }
       } catch (e) {
-        debugPrint('WAQI error: $e');
+        debugPrint('WAQI direct call error: $e');
       }
     }
 
-    // Fallback to OpenWeather AQI if WAQI failed or not available
-    if (aqi == null) {
+    if (aqi == null && hasOwm) {
       try {
         final owmAirUri = Uri.https(
           'api.openweathermap.org',
@@ -164,35 +336,29 @@ class WeatherService {
                     as Map<String, dynamic>?;
             final owmAqi = main?['aqi'] as int?;
             if (owmAqi != null) {
-              // Map 1-5 to 0-500 scale roughly for consistency
-              // 1: 0-50, 2: 51-100, 3: 101-150, 4: 151-200, 5: 201+
-              aqi = owmAqi * 40; // Simple mapping: 1->40, 2->80, 3->120, 4->160, 5->200
+              aqi = owmAqi * 40;
             }
           }
         }
       } catch (e) {
-        debugPrint('OpenWeather AQI error: $e');
+        debugPrint('OpenWeather AQI fallback error: $e');
       }
     }
 
-    final weatherEntry = weatherList.isNotEmpty
-        ? weatherList.first as Map<String, dynamic>
-        : null;
-    final description = weatherEntry?['description'] as String?;
-    final icon = weatherEntry?['icon'] as String?;
+    if (temp == null) {
+      throw Exception('No temperature data available (Direct Fallback)');
+    }
 
     return WeatherSnapshot(
       fetchedAt: DateTime.now(),
-      temperatureC: (weatherMain?['temp'] as num?)?.toDouble(),
-      feelsLikeC: (weatherMain?['feels_like'] as num?)?.toDouble(),
-      humidity: weatherMain?['humidity'] as int?,
-      windKph: (wind?['speed'] as num?)?.toDouble() != null
-          ? ((wind?['speed'] as num).toDouble() * 3.6)
-          : null,
-      description: description,
+      temperatureC: temp,
+      feelsLikeC: temp,
+      humidity: humidity,
+      windKph: windKph,
+      description: description ?? 'Không có thông tin thời tiết',
       icon: icon,
       aqi: aqi,
-      locationName: weatherBody['name'] as String?,
+      locationName: locationName ?? 'Vị trí không xác định',
     );
   }
 }

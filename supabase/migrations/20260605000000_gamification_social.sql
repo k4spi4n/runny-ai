@@ -5,6 +5,9 @@
 --   4.3 Kết nối Cộng đồng - ghép đôi bạn chạy (Matching)
 -- =====================================================================
 
+-- Suppress notices for "IF EXISTS" drops that don't find anything
+set client_min_messages = warning;
+
 -- ---------------------------------------------------------------------
 -- 4.1 HUY HIỆU THÀNH TÍCH
 -- ---------------------------------------------------------------------
@@ -140,7 +143,7 @@ as $$
   from public.profiles p
   left join public.activities a on a.user_id = p.id
   group by p.id, p.display_name
-  order by total_distance_km desc
+  order by total_distance_km desc, p.id asc
   limit p_limit;
 $$;
 
@@ -161,12 +164,15 @@ create table if not exists public.run_matches (
   id uuid primary key default gen_random_uuid(),
   requester_id uuid not null constraint run_matches_requester_id_fkey references public.profiles(id) on delete cascade,
   addressee_id uuid not null constraint run_matches_addressee_id_fkey references public.profiles(id) on delete cascade,
-  status text not null default 'pending', -- pending, accepted, declined
+  status text not null default 'pending' constraint run_matches_status_check check (status in ('pending', 'accepted', 'declined')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint run_matches_distinct check (requester_id <> addressee_id),
-  constraint run_matches_unique_pair unique (requester_id, addressee_id)
+  constraint run_matches_distinct check (requester_id <> addressee_id)
 );
+
+-- Đảm bảo mỗi cặp chỉ có một lời mời, không phân biệt ai là requester.
+create unique index if not exists run_matches_unique_pair_symmetrical
+  on public.run_matches (least(requester_id, addressee_id), greatest(requester_id, addressee_id));
 
 alter table public.run_matches enable row level security;
 
@@ -251,6 +257,6 @@ as $$
       where (m.requester_id = auth.uid() and m.addressee_id = p.id)
          or (m.addressee_id = auth.uid() and m.requester_id = p.id)
     )
-  order by same_city desc, pace_diff asc nulls last
+  order by same_city desc, pace_diff asc nulls last, p.id asc
   limit p_limit;
 $$;

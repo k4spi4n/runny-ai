@@ -1,16 +1,94 @@
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../theme/theme_provider.dart';
+import '../l10n/language_provider.dart';
+import '../l10n/app_localizations.dart';
 
-const sportPlatformGradient = LinearGradient(
-  begin: Alignment.topCenter,
-  end: Alignment.bottomCenter,
-  colors: [
-    Color(0xFF050814),
-    Color(0xFF101233),
-    Color(0xFF1C1452),
-  ],
-);
+class ThemeToggle extends StatelessWidget {
+  const ThemeToggle({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    final isDark = themeProvider.isDarkMode;
+
+    return IconButton(
+      icon: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        transitionBuilder: (child, anim) => RotationTransition(
+          turns: anim,
+          child: FadeTransition(opacity: anim, child: child),
+        ),
+        child: HoverZoomIcon(
+          key: ValueKey(isDark),
+          icon: isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+          color: Theme.of(context).iconTheme.color,
+        ),
+      ),
+      onPressed: () => themeProvider.toggleTheme(),
+      tooltip: context.translate('theme_mode'),
+    );
+  }
+}
+
+class LanguageSwitcher extends StatelessWidget {
+  const LanguageSwitcher({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final languageProvider = context.watch<LanguageProvider>();
+    final currentLocale = languageProvider.locale;
+
+    return PopupMenuButton<Locale>(
+      icon: const HoverZoomIcon(icon: Icons.language_rounded),
+      tooltip: context.translate('language'),
+      onSelected: (locale) => languageProvider.setLocale(locale),
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: const Locale('en'),
+          child: Row(
+            children: [
+              Text('🇺🇸', style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 12),
+              Text(context.translate('english')),
+              if (currentLocale.languageCode == 'en') ...[
+                const Spacer(),
+                Icon(Icons.check_rounded, color: Theme.of(context).primaryColor, size: 18),
+              ],
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: const Locale('vi'),
+          child: Row(
+            children: [
+              Text('🇻🇳', style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 12),
+              Text(context.translate('vietnamese')),
+              if (currentLocale.languageCode == 'vi') ...[
+                const Spacer(),
+                Icon(Icons.check_rounded, color: Theme.of(context).primaryColor, size: 18),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Updated Gradients
+LinearGradient sportPlatformGradient(BuildContext context) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: isDark 
+      ? [const Color(0xFF050814), const Color(0xFF101233), const Color(0xFF1C1452)]
+      : [const Color(0xFFF8FAFC), const Color(0xFFF1F5F9), const Color(0xFFE2E8F0)],
+  );
+}
 
 const accentPulseGradient = LinearGradient(
   begin: Alignment.topLeft,
@@ -30,14 +108,18 @@ const secondaryPulseGradient = LinearGradient(
   ],
 );
 
-BoxDecoration glassDecoration({BorderRadius borderRadius = const BorderRadius.all(Radius.circular(24))}) {
+BoxDecoration glassDecoration(BuildContext context, {BorderRadius borderRadius = const BorderRadius.all(Radius.circular(24))}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   return BoxDecoration(
-    color: Colors.white.withValues(alpha: 0.08),
+    color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.7),
     borderRadius: borderRadius,
-    border: Border.all(color: Colors.white.withValues(alpha: 0.16), width: 1.2),
+    border: Border.all(
+      color: isDark ? Colors.white.withValues(alpha: 0.16) : Colors.black.withValues(alpha: 0.08), 
+      width: 1.2
+    ),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withValues(alpha: 0.28),
+        color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.08),
         blurRadius: 24,
         offset: const Offset(0, 16),
       ),
@@ -46,6 +128,7 @@ BoxDecoration glassDecoration({BorderRadius borderRadius = const BorderRadius.al
 }
 
 Widget glassCard({
+  required BuildContext context,
   required Widget child,
   EdgeInsetsGeometry padding = const EdgeInsets.all(24),
   BorderRadius borderRadius = const BorderRadius.all(Radius.circular(24)),
@@ -55,7 +138,7 @@ Widget glassCard({
     child: BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
       child: Container(
-        decoration: glassDecoration(borderRadius: borderRadius),
+        decoration: glassDecoration(context, borderRadius: borderRadius),
         child: Material(
           color: Colors.transparent,
           child: Padding(
@@ -68,8 +151,8 @@ Widget glassCard({
   );
 }
 
-ButtonStyle primaryActionButton({Color? backgroundColor}) => ElevatedButton.styleFrom(
-      backgroundColor: backgroundColor ?? const Color(0xFFFA6B27),
+ButtonStyle primaryActionButton(BuildContext context, {Color? backgroundColor}) => ElevatedButton.styleFrom(
+      backgroundColor: backgroundColor ?? Theme.of(context).primaryColor,
       foregroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
@@ -78,46 +161,54 @@ ButtonStyle primaryActionButton({Color? backgroundColor}) => ElevatedButton.styl
       textStyle: const TextStyle(fontWeight: FontWeight.w700),
     );
 
-ButtonStyle secondaryActionButton() => OutlinedButton.styleFrom(
-      foregroundColor: Colors.white,
-      side: BorderSide(color: Colors.white.withValues(alpha: 0.18), width: 1.3),
+ButtonStyle secondaryActionButton(BuildContext context) => OutlinedButton.styleFrom(
+      foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
+      side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.18), width: 1.3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
       textStyle: const TextStyle(fontWeight: FontWeight.w600),
     );
 
-InputDecoration themedInputDecoration(String label,
+InputDecoration themedInputDecoration(BuildContext context, String label,
     {String? hint, IconData? icon, String? suffixText}) {
+  final theme = Theme.of(context);
   return InputDecoration(
     labelText: label,
     hintText: hint,
     suffixText: suffixText,
-    prefixIcon: icon != null ? Icon(icon, color: Colors.white70) : null,
+    prefixIcon: icon != null ? Icon(icon, color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7)) : null,
     filled: true,
-    fillColor: Colors.white.withValues(alpha: 0.08),
+    fillColor: theme.brightness == Brightness.dark 
+        ? Colors.white.withValues(alpha: 0.08) 
+        : Colors.black.withValues(alpha: 0.04),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.18), width: 1.2),
+      borderSide: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18), width: 1.2),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(color: Color(0xFFFA6B27), width: 1.6),
+      borderSide: BorderSide(color: theme.primaryColor, width: 1.6),
     ),
-    labelStyle: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
-    hintStyle: const TextStyle(color: Colors.white38),
+    labelStyle: TextStyle(color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7), fontWeight: FontWeight.w600),
+    hintStyle: TextStyle(color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.4)),
   );
 }
 
-Widget badgeLabel(String text, {Color background = const Color(0xFF262F57)}) {
+Widget badgeLabel(BuildContext context, String text, {Color? background}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     decoration: BoxDecoration(
-      color: background,
+      color: background ?? (isDark ? const Color(0xFF262F57) : const Color(0xFFE2E8F0)),
       borderRadius: BorderRadius.circular(18),
     ),
     child: Text(
       text,
-      style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700),
+      style: TextStyle(
+        color: isDark ? Colors.white70 : Colors.black87, 
+        fontSize: 12, 
+        fontWeight: FontWeight.w700
+      ),
     ),
   );
 }
@@ -136,6 +227,10 @@ class RunnyLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final effectiveTextColor = textColor ?? (isDark ? Colors.white : Colors.black);
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -181,7 +276,7 @@ class RunnyLogo extends StatelessWidget {
                     style: TextStyle(
                       fontSize: fontSize,
                       fontWeight: FontWeight.w900,
-                      color: textColor ?? Colors.white,
+                      color: effectiveTextColor,
                       letterSpacing: -0.5,
                       height: 1,
                     ),
@@ -191,7 +286,7 @@ class RunnyLogo extends StatelessWidget {
                     style: TextStyle(
                       fontSize: fontSize,
                       fontWeight: FontWeight.w300,
-                      color: (textColor ?? Colors.white).withValues(alpha: 0.7),
+                      color: effectiveTextColor.withValues(alpha: 0.7),
                       letterSpacing: -0.5,
                       height: 1,
                     ),
@@ -211,6 +306,67 @@ class RunnyLogo extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class HoverZoomIcon extends StatefulWidget {
+  final IconData icon;
+  final Color? color;
+  final double size;
+
+  const HoverZoomIcon({
+    super.key,
+    required this.icon,
+    this.color,
+    this.size = 24,
+  });
+
+  @override
+  State<HoverZoomIcon> createState() => _HoverZoomIconState();
+}
+
+class _HoverZoomIconState extends State<HoverZoomIcon> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedScale(
+        scale: _isHovered ? 1.25 : 1.0,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutBack,
+        child: Icon(widget.icon, color: widget.color, size: widget.size),
+      ),
+    );
+  }
+}
+
+class HoverSync extends ValueNotifier<bool> {
+  HoverSync() : super(false);
+}
+
+class HoverSyncWidget extends StatelessWidget {
+  final HoverSync sync;
+  final Widget Function(BuildContext context, bool isHovered) builder;
+
+  const HoverSyncWidget({
+    super.key,
+    required this.sync,
+    required this.builder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => sync.value = true,
+      onExit: (_) => sync.value = false,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: sync,
+        builder: (context, isHovered, _) => builder(context, isHovered),
+      ),
     );
   }
 }

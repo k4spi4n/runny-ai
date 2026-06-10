@@ -51,6 +51,7 @@ class ActivityChart extends StatelessWidget {
           ),
         ),
         glassCard(
+          context: context,
           padding: const EdgeInsets.fromLTRB(16, 24, 24, 16),
           child: SizedBox(
             height: 200,
