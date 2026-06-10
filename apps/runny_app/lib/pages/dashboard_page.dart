@@ -7,11 +7,15 @@ import 'import_activity_page.dart';
 import 'activity_details_page.dart';
 import 'profile_page.dart';
 import 'community_page.dart';
+import 'nutrition_page.dart';
 import '../widgets/ui_components.dart';
+import '../widgets/nutrition_components.dart';
+import '../services/nutrition_service.dart';
 import '../models/workout_models.dart';
 import '../services/weather_service.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -30,9 +34,10 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    _navSyncs = List.generate(6, (_) => HoverSync());
+    _navSyncs = List.generate(7, (_) => HoverSync());
     _pages = [
       const OverviewContent(),
+      const NutritionPage(),
       Center(
         child: Builder(
           builder: (context) => Text(
@@ -236,30 +241,36 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                           _buildRailDestination(
                             index: 1,
+                            icon: Icons.restaurant_outlined,
+                            selectedIcon: Icons.restaurant,
+                            label: context.translate('nutrition'),
+                          ),
+                          _buildRailDestination(
+                            index: 2,
                             icon: Icons.history_outlined,
                             selectedIcon: Icons.history,
                             label: 'History',
                           ),
                           _buildRailDestination(
-                            index: 2,
+                            index: 3,
                             icon: Icons.calendar_month_outlined,
                             selectedIcon: Icons.calendar_month,
                             label: context.translate('training_plan'),
                           ),
                           _buildRailDestination(
-                            index: 3,
+                            index: 4,
                             icon: Icons.psychology_outlined,
                             selectedIcon: Icons.psychology,
                             label: context.translate('ai_coach'),
                           ),
                           _buildRailDestination(
-                            index: 4,
+                            index: 5,
                             icon: Icons.groups_outlined,
                             selectedIcon: Icons.groups,
                             label: context.translate('community'),
                           ),
                           _buildRailDestination(
-                            index: 5,
+                            index: 6,
                             icon: Icons.person_outline,
                             selectedIcon: Icons.person,
                             label: context.translate('profile'),
@@ -305,30 +316,36 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
                 _buildNavDestination(
                   index: 1,
+                  icon: Icons.restaurant_outlined,
+                  selectedIcon: Icons.restaurant,
+                  label: context.translate('nutrition'),
+                ),
+                _buildNavDestination(
+                  index: 2,
                   icon: Icons.history_outlined,
                   selectedIcon: Icons.history,
                   label: 'History',
                 ),
                 _buildNavDestination(
-                  index: 2,
+                  index: 3,
                   icon: Icons.calendar_month_outlined,
                   selectedIcon: Icons.calendar_month,
                   label: context.translate('training_plan'),
                 ),
                 _buildNavDestination(
-                  index: 3,
+                  index: 4,
                   icon: Icons.psychology_outlined,
                   selectedIcon: Icons.psychology,
                   label: context.translate('ai_coach'),
                 ),
                 _buildNavDestination(
-                  index: 4,
+                  index: 5,
                   icon: Icons.groups_outlined,
                   selectedIcon: Icons.groups,
                   label: context.translate('community'),
                 ),
                 _buildNavDestination(
-                  index: 5,
+                  index: 6,
                   icon: Icons.person_outline,
                   selectedIcon: Icons.person,
                   label: context.translate('profile'),
@@ -789,6 +806,24 @@ class _OverviewContentState extends State<OverviewContent> {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'Nutrition Status',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Consumer<NutritionService>(
+            builder: (context, nutrition, _) {
+              final summary = nutrition.getDailySummary(DateTime.now());
+              return NutritionOverviewCard(summary: summary);
+            },
           ),
           const SizedBox(height: 24),
           Padding(
