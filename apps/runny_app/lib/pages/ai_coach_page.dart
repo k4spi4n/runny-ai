@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/training_service.dart';
 import '../services/gemini_service.dart';
 import '../services/chat_service.dart';
+import '../services/speech_service.dart';
 import '../widgets/ui_components.dart';
 import '../models/workout_models.dart';
 
@@ -18,8 +19,11 @@ class _AICoachPageState extends State<AICoachPage> {
   final TrainingService _trainingService = TrainingService();
   final GeminiService _geminiService = GeminiService();
   final ChatService _chatService = ChatService();
+  final SpeechService _speech = SpeechService();
   final List<Map<String, String>> _messages = [];
   bool _isLoading = false;
+  bool _isRecording = false;
+  String _baseText = '';
   Activity? _contextActivity;
 
   @override
@@ -151,6 +155,83 @@ class _AICoachPageState extends State<AICoachPage> {
   }
 
   @override
+  void dispose() {
+    _speech.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  // ----- Speech-to-Text (Issue #29) -----
+
+  void _toggleRecording() {
+    if (_isRecording) {
+      _speech.stop();
+      return;
+    }
+    if (!_speech.isSupported) {
+      _showToast('Trình duyệt không hỗ trợ nhập liệu bằng giọng nói.');
+      return;
+    }
+    _baseText = _controller.text;
+    setState(() => _isRecording = true);
+    _speech.start(
+      localeId: 'vi-VN',
+      onResult: (text, isFinal) {
+        if (!mounted) return;
+        final sep = (_baseText.isEmpty || _baseText.endsWith(' ')) ? '' : ' ';
+        final combined = '$_baseText$sep$text';
+        setState(() {
+          _controller.text = combined;
+          _controller.selection =
+              TextSelection.collapsed(offset: combined.length);
+        });
+        if (isFinal) _baseText = combined;
+      },
+      onError: (code) {
+        if (!mounted) return;
+        setState(() => _isRecording = false);
+        _showToast(_mapSpeechError(code));
+      },
+      onEnd: () {
+        if (mounted) setState(() => _isRecording = false);
+      },
+    );
+  }
+
+  void _cancelRecording() {
+    _speech.cancel();
+    setState(() {
+      _isRecording = false;
+      _controller.text = _baseText;
+      _controller.selection =
+          TextSelection.collapsed(offset: _baseText.length);
+    });
+  }
+
+  String _mapSpeechError(String code) {
+    switch (code) {
+      case 'not-allowed':
+      case 'service-not-allowed':
+        return 'Bạn đã từ chối quyền truy cập Micro. Hãy cấp quyền trong trình duyệt để dùng nhập giọng nói.';
+      case 'no-speech':
+        return 'Không nhận diện được giọng nói. Hãy thử lại ở nơi yên tĩnh hơn.';
+      case 'audio-capture':
+        return 'Không tìm thấy Micro. Vui lòng kiểm tra thiết bị của bạn.';
+      case 'network':
+        return 'Lỗi mạng khi nhận diện giọng nói. Vui lòng thử lại.';
+      case 'unsupported':
+        return 'Trình duyệt không hỗ trợ nhập liệu bằng giọng nói.';
+      default:
+        return 'Đã xảy ra lỗi khi ghi âm ($code). Vui lòng thử lại.';
+    }
+  }
+
+  void _showToast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -260,16 +341,28 @@ class _AICoachPageState extends State<AICoachPage> {
                       ),
                     ),
                   ),
+                if (_isRecording) _buildListeningIndicator(context),
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
                     children: [
+                      if (_isRecording)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: IconButton(
+                            onPressed: _cancelRecording,
+                            tooltip: 'Huỷ ghi âm',
+                            icon: Icon(Icons.close, color: colorScheme.onSurfaceVariant),
+                          ),
+                        ),
                       Expanded(
                         child: TextField(
                           controller: _controller,
                           style: TextStyle(color: colorScheme.onSurface),
                           decoration: InputDecoration(
-                            hintText: 'Hỏi HLV ảo hoặc yêu cầu lịch tập...',
+                            hintText: _isRecording
+                                ? 'Đang nghe...'
+                                : 'Hỏi HLV ảo hoặc yêu cầu lịch tập...',
                             hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                             filled: true,
                             fillColor: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
@@ -282,6 +375,12 @@ class _AICoachPageState extends State<AICoachPage> {
                           ),
                           onSubmitted: (_) => _sendMessage(),
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      _MicButton(
+                        isRecording: _isRecording,
+                        color: colorScheme.primary,
+                        onTap: _toggleRecording,
                       ),
                       const SizedBox(width: 8),
                       Container(
@@ -301,6 +400,177 @@ class _AICoachPageState extends State<AICoachPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildListeningIndicator(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.redAccent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            _PulsingDot(),
+            SizedBox(width: 10),
+            Text(
+              'Đang nghe... Hãy nói câu hỏi của bạn',
+              style: TextStyle(
+                  color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            SizedBox(width: 10),
+            _AudioWave(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Nút Micro với hiệu ứng nhấp nháy đỏ + quầng sáng khi đang ghi âm.
+class _MicButton extends StatefulWidget {
+  final bool isRecording;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _MicButton({
+    required this.isRecording,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_MicButton> createState() => _MicButtonState();
+}
+
+class _MicButtonState extends State<_MicButton> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recording = widget.isRecording;
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final pulse = recording ? (0.4 + _controller.value * 0.6) : 0.0;
+        return Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: recording ? Colors.redAccent : widget.color,
+            boxShadow: recording
+                ? [
+                    BoxShadow(
+                      color: Colors.redAccent.withValues(alpha: pulse),
+                      blurRadius: 16,
+                      spreadRadius: 2 + _controller.value * 3,
+                    ),
+                  ]
+                : null,
+          ),
+          child: IconButton(
+            onPressed: widget.onTap,
+            tooltip: recording ? 'Dừng ghi âm' : 'Nhập bằng giọng nói',
+            icon: Icon(recording ? Icons.stop : Icons.mic, color: Colors.white),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Chấm tròn nhấp nháy báo hiệu đang lắng nghe.
+class _PulsingDot extends StatefulWidget {
+  const _PulsingDot();
+
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.3, end: 1).animate(_controller),
+      child: Container(
+        width: 10,
+        height: 10,
+        decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+      ),
+    );
+  }
+}
+
+/// Hiệu ứng sóng âm (audio visualizer) đơn giản.
+class _AudioWave extends StatefulWidget {
+  const _AudioWave();
+
+  @override
+  State<_AudioWave> createState() => _AudioWaveState();
+}
+
+class _AudioWaveState extends State<_AudioWave> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 32,
+      height: 18,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: List.generate(4, (i) {
+              final phase = (_controller.value + i * 0.25) % 1.0;
+              final height = 6 + (1 - (2 * phase - 1).abs()) * 12;
+              return Container(
+                width: 4,
+                height: height,
+                decoration: BoxDecoration(
+                  color: Colors.redAccent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              );
+            }),
+          );
+        },
       ),
     );
   }
