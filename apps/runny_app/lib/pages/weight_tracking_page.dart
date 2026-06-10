@@ -28,7 +28,9 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
     return _WeightData(goal: results[0] as WeightGoal, logs: results[1] as List<WeightLog>);
   }
 
-  void _refresh() => setState(() => _future = _load());
+  void _refresh() => setState(() {
+        _future = _load();
+      });
 
   @override
   Widget build(BuildContext context) {
