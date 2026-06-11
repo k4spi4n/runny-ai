@@ -7,10 +7,15 @@ import 'import_activity_page.dart';
 import 'activity_details_page.dart';
 import 'profile_page.dart';
 import 'community_page.dart';
+import 'nutrition_page.dart';
 import '../widgets/ui_components.dart';
+import '../widgets/nutrition_components.dart';
+import '../services/nutrition_service.dart';
 import '../models/workout_models.dart';
 import '../services/weather_service.dart';
 import '../l10n/app_localizations.dart';
+import 'package:flutter/foundation.dart';
+import 'package:provider/provider.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -21,19 +26,23 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 0;
+  bool _isRailHovered = false;
 
   late final List<Widget> _pages;
+  late final List<HoverSync> _navSyncs;
 
   @override
   void initState() {
     super.initState();
+    _navSyncs = List.generate(7, (_) => HoverSync());
     _pages = [
       const OverviewContent(),
+      const NutritionPage(),
       Center(
         child: Builder(
           builder: (context) => Text(
-            context.translate('history'), 
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurface)
+            'Activity History',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
           ),
         ),
       ),
@@ -42,6 +51,81 @@ class _DashboardPageState extends State<DashboardPage> {
       const CommunityPage(),
       const ProfilePage(),
     ];
+
+    // Request location on entry to ensure weather can be fetched.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestLocationOnEntry();
+    });
+  }
+
+  @override
+  void dispose() {
+    for (var sync in _navSyncs) {
+      sync.dispose();
+    }
+    super.dispose();
+  }
+
+  NavigationRailDestination _buildRailDestination({
+    required int index,
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sync = _navSyncs[index];
+
+    return NavigationRailDestination(
+      icon: HoverSyncWidget(
+        sync: sync,
+        builder: (context, isHovered) => AnimatedScale(
+          scale: isHovered ? 1.15 : 1.0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          child: Icon(
+            icon,
+            color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+      selectedIcon: HoverSyncWidget(
+        sync: sync,
+        builder: (context, isHovered) => AnimatedScale(
+          scale: isHovered ? 1.15 : 1.0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          child: Icon(
+            selectedIcon,
+            color: colorScheme.primary,
+          ),
+        ),
+      ),
+      label: HoverSyncWidget(
+        sync: sync,
+        builder: (context, isHovered) => AnimatedScale(
+          scale: isHovered ? 1.05 : 1.0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: isHovered ? colorScheme.primary : colorScheme.onSurface,
+              fontWeight: isHovered ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _requestLocationOnEntry() async {
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      await Geolocator.requestPermission();
+      // If permission is granted, OverviewContent will fetch weather on its own
+      // or the user can manually trigger it.
+    }
   }
 
   @override
@@ -50,6 +134,44 @@ class _DashboardPageState extends State<DashboardPage> {
     final isDesktop = width > 900;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    final navItems = [
+      (
+        icon: Icons.dashboard_outlined,
+        selectedIcon: Icons.dashboard,
+        label: context.translate('dashboard'),
+      ),
+      (
+        icon: Icons.restaurant_outlined,
+        selectedIcon: Icons.restaurant,
+        label: context.translate('nutrition'),
+      ),
+      (
+        icon: Icons.history_outlined,
+        selectedIcon: Icons.history,
+        label: context.translate('history'),
+      ),
+      (
+        icon: Icons.calendar_month_outlined,
+        selectedIcon: Icons.calendar_month,
+        label: context.translate('training_plan'),
+      ),
+      (
+        icon: Icons.psychology_outlined,
+        selectedIcon: Icons.psychology,
+        label: context.translate('ai_coach'),
+      ),
+      (
+        icon: Icons.groups_outlined,
+        selectedIcon: Icons.groups,
+        label: context.translate('community'),
+      ),
+      (
+        icon: Icons.person_outline,
+        selectedIcon: Icons.person,
+        label: context.translate('profile'),
+      ),
+    ];
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -83,7 +205,9 @@ class _DashboardPageState extends State<DashboardPage> {
         children: [
           SizedBox.expand(
             child: DecoratedBox(
-              decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
+              decoration: BoxDecoration(
+                gradient: sportPlatformGradient(context),
+              ),
             ),
           ),
           SafeArea(
@@ -91,49 +215,30 @@ class _DashboardPageState extends State<DashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (isDesktop)
-                  NavigationRail(
-                    extended: width > 1100,
-                    backgroundColor: theme.brightness == Brightness.dark 
-                        ? Colors.white.withValues(alpha: 0.05) 
-                        : Colors.black.withValues(alpha: 0.03),
-                    selectedIndex: _selectedIndex,
-                    onDestinationSelected: (index) =>
-                        setState(() => _selectedIndex = index),
-                    labelType: width > 1100
-                        ? NavigationRailLabelType.none
-                        : NavigationRailLabelType.all,
-                    destinations: [
-                      NavigationRailDestination(
-                        icon: const Icon(Icons.dashboard_outlined),
-                        selectedIcon: const Icon(Icons.dashboard),
-                        label: Text(context.translate('dashboard')),
-                      ),
-                      NavigationRailDestination(
-                        icon: const Icon(Icons.history_outlined),
-                        selectedIcon: const Icon(Icons.history),
-                        label: Text(context.translate('history')),
-                      ),
-                      NavigationRailDestination(
-                        icon: const Icon(Icons.calendar_month_outlined),
-                        selectedIcon: const Icon(Icons.calendar_month),
-                        label: Text(context.translate('training_plan')),
-                      ),
-                      NavigationRailDestination(
-                        icon: const Icon(Icons.psychology_outlined),
-                        selectedIcon: const Icon(Icons.psychology),
-                        label: Text(context.translate('ai_coach')),
-                      ),
-                      NavigationRailDestination(
-                        icon: const Icon(Icons.groups_outlined),
-                        selectedIcon: const Icon(Icons.groups),
-                        label: Text(context.translate('community')),
-                      ),
-                      NavigationRailDestination(
-                        icon: const Icon(Icons.person_outline),
-                        selectedIcon: const Icon(Icons.person),
-                        label: Text(context.translate('profile')),
-                      ),
-                    ],
+                  MouseRegion(
+                    onEnter: (_) => setState(() => _isRailHovered = true),
+                    onExit: (_) => setState(() => _isRailHovered = false),
+                    child: NavigationRail(
+                      extended: _isRailHovered,
+                      minWidth: 72,
+                      minExtendedWidth: 240,
+                      backgroundColor: theme.brightness == Brightness.dark
+                          ? Colors.white.withValues(alpha: 0.05)
+                          : Colors.black.withValues(alpha: 0.03),
+                      selectedIndex: _selectedIndex,
+                      onDestinationSelected: (index) =>
+                          setState(() => _selectedIndex = index),
+                      labelType: NavigationRailLabelType.none,
+                      destinations: List.generate(navItems.length, (index) {
+                        final item = navItems[index];
+                        return _buildRailDestination(
+                          index: index,
+                          icon: item.icon,
+                          selectedIcon: item.selectedIcon,
+                          label: item.label,
+                        );
+                      }),
+                    ),
                   ),
                 if (isDesktop)
                   VerticalDivider(
@@ -156,39 +261,83 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
       bottomNavigationBar: !isDesktop
-          ? NavigationBar(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (int index) {
-                setState(() {
-                  _selectedIndex = index;
-                });
-              },
-              destinations: [
-                NavigationDestination(
-                  icon: const Icon(Icons.dashboard),
-                  label: context.translate('dashboard'),
+          ? SafeArea(
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                height: 64,
+                child: glassCard(
+                  context: context,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Center(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(navItems.length, (index) {
+                          final isSelected = _selectedIndex == index;
+                          final item = navItems[index];
+
+                          return GestureDetector(
+                            onTap: () => setState(() => _selectedIndex = index),
+                            behavior: HitTestBehavior.opaque,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOutCubic,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isSelected ? 12 : 8,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? theme.primaryColor.withValues(alpha: 0.15)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      isSelected ? item.selectedIcon : item.icon,
+                                      size: 22,
+                                      color: isSelected
+                                          ? theme.primaryColor
+                                          : colorScheme.onSurfaceVariant,
+                                    ),
+                                    AnimatedSize(
+                                      duration: const Duration(milliseconds: 300),
+                                      curve: Curves.easeInOutCubic,
+                                      child: isSelected
+                                          ? Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  item.label,
+                                                  style: TextStyle(
+                                                    color: theme.primaryColor,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            )
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                  ),
                 ),
-                NavigationDestination(
-                  icon: const Icon(Icons.history),
-                  label: context.translate('history'),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.calendar_month),
-                  label: context.translate('training_plan'),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.psychology),
-                  label: context.translate('ai_coach'),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.groups),
-                  label: context.translate('community'),
-                ),
-                NavigationDestination(
-                  icon: const Icon(Icons.person),
-                  label: context.translate('profile'),
-                ),
-              ],
+              ),
             )
           : null,
     );
@@ -200,12 +349,18 @@ class _DashboardPageState extends State<DashboardPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: colorScheme.surface,
-        title: Text(context.translate('logout'), style: TextStyle(color: colorScheme.onSurface)),
-        content: Text(context.translate('logout_confirm'), style: TextStyle(color: colorScheme.onSurfaceVariant)),
+        title: Text('Logout', style: TextStyle(color: colorScheme.onSurface)),
+        content: Text(
+          'Are you sure you want to logout from Runny AI?',
+          style: TextStyle(color: colorScheme.onSurfaceVariant),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(context.translate('cancel'), style: TextStyle(color: colorScheme.onSurfaceVariant)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -225,9 +380,12 @@ class _DashboardPageState extends State<DashboardPage> {
                 );
               }
             },
-            child: Text(
-              context.translate('logout'),
-              style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+            child: const Text(
+              'Logout',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -244,7 +402,7 @@ class OverviewContent extends StatefulWidget {
 }
 
 class _OverviewContentState extends State<OverviewContent> {
-  late final Future<WeatherSnapshot?> _weatherFuture;
+  late Future<WeatherSnapshot?> _weatherFuture;
 
   @override
   void initState() {
@@ -252,40 +410,81 @@ class _OverviewContentState extends State<OverviewContent> {
     _weatherFuture = _fetchLatestWeather();
   }
 
-  Future<Position?> _getCurrentPosition() async {
+  Future<void> _retryWeather({bool forceRequest = false}) async {
+    setState(() {
+      _weatherFuture = _fetchLatestWeather(forceRequest: forceRequest);
+    });
+  }
+
+  Future<Position?> _getCurrentPosition({bool forceRequest = false}) async {
     final enabled = await Geolocator.isLocationServiceEnabled();
-    if (!enabled) return null;
+    if (!enabled) {
+      debugPrint('Location services are disabled.');
+      return null;
+    }
 
     var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
+    if (permission == LocationPermission.denied || forceRequest) {
       permission = await Geolocator.requestPermission();
     }
+
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
+      debugPrint('Location permissions are denied: $permission');
       return null;
     }
 
     try {
       return await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.low,
+        timeLimit: const Duration(seconds: 15),
       );
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error getting current position: $e');
+      if (kIsWeb || kDebugMode) {
+        // Fallback to a default location (Hanoi) if geolocation fails on Web/Debug
+        debugPrint('Using fallback location (Hanoi)');
+        return Position(
+          latitude: 21.0285,
+          longitude: 105.8342,
+          timestamp: DateTime.now(),
+          accuracy: 0,
+          altitude: 0,
+          altitudeAccuracy: 0,
+          heading: 0,
+          headingAccuracy: 0,
+          speed: 0,
+          speedAccuracy: 0,
+        );
+      }
       return Geolocator.getLastKnownPosition();
     }
   }
 
-  Future<WeatherSnapshot?> _fetchLatestWeather() async {
+  Future<WeatherSnapshot?> _fetchLatestWeather({
+    bool forceRequest = false,
+  }) async {
+    Object? lastError;
     try {
-      final position = await _getCurrentPosition();
+      final position = await _getCurrentPosition(forceRequest: forceRequest);
       if (position != null) {
         final weatherService = WeatherService();
-        return weatherService.fetchWeatherSnapshot(
+        return await weatherService.fetchWeatherSnapshot(
           lat: position.latitude,
           lon: position.longitude,
         );
+      } else {
+        lastError =
+            'Không thể lấy vị trí hiện tại. Vui lòng bật định vị hoặc kiểm tra quyền truy cập browser.';
       }
-    } catch (_) {
-      // Fallback to latest activity weather.
+    } catch (e) {
+      debugPrint('Weather fetch error: $e');
+      if (e.toString().contains('503')) {
+        lastError =
+            'Lỗi kết nối Server (503). Vui lòng kiểm tra "supabase status" và đảm bảo Function "weather" đã được serve.';
+      } else {
+        lastError = e;
+      }
     }
 
     try {
@@ -295,23 +494,26 @@ class _OverviewContentState extends State<OverviewContent> {
           .order('started_at', ascending: false)
           .limit(1);
 
-      if (response.isEmpty) return null;
+      if (response.isNotEmpty) {
+        final activity = response.first;
+        final weatherJson = activity['weather_json'];
+        if (weatherJson is Map<String, dynamic>) {
+          return WeatherSnapshot.fromJson(weatherJson);
+        }
 
-      final activity = response.first;
-      final weatherJson = activity['weather_json'];
-      if (weatherJson is Map<String, dynamic>) {
-        return WeatherSnapshot.fromJson(weatherJson);
+        final lat = (activity['start_lat'] as num?)?.toDouble();
+        final lon = (activity['start_lon'] as num?)?.toDouble();
+        if (lat != null && lon != null) {
+          final weatherService = WeatherService();
+          return await weatherService.fetchWeatherSnapshot(lat: lat, lon: lon);
+        }
       }
-
-      final lat = (activity['start_lat'] as num?)?.toDouble();
-      final lon = (activity['start_lon'] as num?)?.toDouble();
-      if (lat == null || lon == null) return null;
-
-      final weatherService = WeatherService();
-      return weatherService.fetchWeatherSnapshot(lat: lat, lon: lon);
-    } catch (_) {
-      return null;
+    } catch (e) {
+      debugPrint('Weather fallback error: $e');
     }
+
+    throw lastError;
+    return null;
   }
 
   Future<List<Activity>> _fetchLatestActivities() async {
@@ -397,17 +599,67 @@ class _OverviewContentState extends State<OverviewContent> {
                                   height: 32,
                                   child: Align(
                                     alignment: Alignment.centerLeft,
-                                    child: CircularProgressIndicator(),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   ),
                                 );
                               }
 
                               final weather = snapshot.data;
+                              final error = snapshot.error;
+
                               if (weather == null) {
-                                return Text(
-                                  context.translate('weather_unavailable'),
-                                  style: theme.textTheme.bodyMedium
-                                      ?.copyWith(color: colorScheme.onSurfaceVariant),
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      error != null
+                                          ? 'Lỗi: $error'
+                                          : context.translate(
+                                              'weather_unavailable',
+                                            ),
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Wrap(
+                                      spacing: 8,
+                                      children: [
+                                        OutlinedButton.icon(
+                                          onPressed: () =>
+                                              _retryWeather(forceRequest: true),
+                                          icon: const Icon(
+                                            Icons.location_on,
+                                            size: 16,
+                                          ),
+                                          label: Text(
+                                            context.translate('allow_location'),
+                                          ),
+                                          style: OutlinedButton.styleFrom(
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          ),
+                                        ),
+                                        TextButton.icon(
+                                          onPressed: () => _retryWeather(),
+                                          icon: const Icon(
+                                            Icons.refresh,
+                                            size: 16,
+                                          ),
+                                          label: Text(
+                                            context.translate('retry'),
+                                          ),
+                                          style: TextButton.styleFrom(
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 );
                               }
 
@@ -425,6 +677,12 @@ class _OverviewContentState extends State<OverviewContent> {
                                       'https://openweathermap.org/img/wn/${weather.icon}@2x.png',
                                       width: 56,
                                       height: 56,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              const Icon(
+                                                Icons.cloud_queue,
+                                                size: 32,
+                                              ),
                                     ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -435,17 +693,25 @@ class _OverviewContentState extends State<OverviewContent> {
                                         Text(
                                           '$tempText • ${weather.summary ?? 'Clear'}',
                                           style: theme.textTheme.titleLarge
-                                              ?.copyWith(color: colorScheme.onSurface),
+                                              ?.copyWith(
+                                                color: colorScheme.onSurface,
+                                              ),
                                         ),
                                         const SizedBox(height: 6),
                                         Row(
                                           children: [
-                                            Text(
-                                              '$location • ',
-                                              style: theme.textTheme.bodyMedium
-                                                  ?.copyWith(
-                                                    color: colorScheme.onSurfaceVariant,
-                                                  ),
+                                            Flexible(
+                                              child: Text(
+                                                '$location • ',
+                                                style: theme
+                                                    .textTheme
+                                                    .bodyMedium
+                                                    ?.copyWith(
+                                                      color: colorScheme
+                                                          .onSurfaceVariant,
+                                                    ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
                                             ),
                                             Container(
                                               padding:
@@ -505,18 +771,18 @@ class _OverviewContentState extends State<OverviewContent> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                context.translate('streak'),
-                                style: theme.textTheme.bodySmall
-                                    ?.copyWith(color: Colors.white70),
+                                'Streak',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: Colors.white70,
+                                ),
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                '7 ${context.translate('days')}',
-                                style: theme.textTheme.headlineSmall
-                                    ?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w900,
-                                    ),
+                                '7 Days',
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
                             ],
                           ),
@@ -532,7 +798,25 @@ class _OverviewContentState extends State<OverviewContent> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              context.translate('performance_stats'),
+              'Nutrition Status',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Consumer<NutritionService>(
+            builder: (context, nutrition, _) {
+              final summary = nutrition.getDailySummary(DateTime.now());
+              return NutritionOverviewCard(summary: summary);
+            },
+          ),
+          const SizedBox(height: 24),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              'Performance Stats',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
@@ -615,10 +899,7 @@ class _OverviewContentState extends State<OverviewContent> {
                     ),
                   ),
                 ),
-                TextButton(
-                  onPressed: () {}, 
-                  child: Text(context.translate('view_all')),
-                ),
+                TextButton(onPressed: () {}, child: const Text('View All')),
               ],
             ),
           ),

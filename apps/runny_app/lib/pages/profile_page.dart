@@ -3,7 +3,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/ui_components.dart';
 import '../services/integration_service.dart';
 import '../services/social_service.dart';
+import '../services/subscription_service.dart';
+import '../models/subscription_models.dart';
 import '../l10n/app_localizations.dart';
+import 'weight_tracking_page.dart';
+import 'subscription_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -16,6 +20,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _supabase = Supabase.instance.client;
   final _integrationService = IntegrationService();
   final _socialService = SocialService();
+  final _subscriptionService = SubscriptionService();
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -31,6 +36,7 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _garminId;
   bool _lookingForPartner = false;
   bool _isSavingMatching = false;
+  UserSubscription? _activeSubscription;
 
   @override
   void initState() {
@@ -56,12 +62,13 @@ class _ProfilePageState extends State<ProfilePage> {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      final data = await _supabase
-          .from('profiles')
-          .select()
-          .eq('id', user.id)
-          .single();
+      final results = await Future.wait<dynamic>([
+        _supabase.from('profiles').select().eq('id', user.id).single(),
+        _subscriptionService.getActiveSubscription(),
+      ]);
 
+      final data = results[0] as Map<String, dynamic>;
+      
       setState(() {
         _displayNameController.text = data['display_name'] ?? '';
         _weightController.text = (data['weight_kg'] ?? '').toString();
@@ -73,6 +80,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _bioController.text = data['bio'] ?? '';
         _preferredPaceController.text = (data['preferred_pace_min_per_km'] ?? '').toString();
         _lookingForPartner = data['looking_for_partner'] == true;
+        _activeSubscription = results[1] as UserSubscription?;
       });
     } catch (e) {
       if (mounted) {
@@ -224,6 +232,8 @@ class _ProfilePageState extends State<ProfilePage> {
         children: [
           _buildProfileHeader(context),
           const SizedBox(height: 24),
+          _buildSubscriptionSection(context),
+          const SizedBox(height: 24),
           _buildMetricsSection(context),
           const SizedBox(height: 24),
           _buildIntegrationsSection(context),
@@ -250,6 +260,96 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           const SizedBox(height: 60),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubscriptionSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isPremium = _activeSubscription != null;
+
+    return glassCard(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Gói Đăng Ký',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              if (isPremium)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'PREMIUM',
+                    style: TextStyle(
+                      color: theme.primaryColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: (isPremium ? theme.primaryColor : Colors.grey).withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isPremium ? Icons.star : Icons.star_outline,
+                  color: isPremium ? theme.primaryColor : Colors.grey,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isPremium ? _activeSubscription!.plan!.name : 'Gói Miễn Phí',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      isPremium 
+                        ? 'Hết hạn: ${_activeSubscription!.endDate.day}/${_activeSubscription!.endDate.month}/${_activeSubscription!.endDate.year}'
+                        : 'Nâng cấp để nhận thêm quyền lợi',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SubscriptionPage()),
+                  ).then((_) => _loadProfile());
+                },
+                child: Text(isPremium ? 'Quản lý' : 'Nâng cấp'),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -388,6 +488,21 @@ class _ProfilePageState extends State<ProfilePage> {
               child: _isSaving
                   ? const CircularProgressIndicator(color: Colors.white)
                   : Text(context.translate('update_metrics')),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: secondaryActionButton(context),
+              icon: const Icon(Icons.timeline, size: 18),
+              label: const Text('Theo dõi cân nặng & mục tiêu'),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WeightTrackingPage()),
+                ).then((_) => _loadProfile());
+              },
             ),
           ),
         ],
