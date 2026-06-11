@@ -26,7 +26,7 @@ class _LoginPageState extends State<LoginPage> {
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Đăng ký thành công! Vui lòng kiểm tra email.')),
+            SnackBar(content: Text(context.translate('signup_success'))),
           );
         }
       } else {
@@ -44,7 +44,7 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã có lỗi xảy ra'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('error_occurred')), backgroundColor: Colors.redAccent),
         );
       }
     } finally {
@@ -65,7 +65,7 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đã có lỗi xảy ra khi đăng nhập bằng OAuth'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('oauth_error')), backgroundColor: Colors.redAccent),
         );
       }
     } finally {
@@ -118,7 +118,7 @@ class _LoginPageState extends State<LoginPage> {
                     const RunnyLogo(fontSize: 32),
                     const SizedBox(height: 28),
                     Text(
-                      _isSignUp ? context.translate('start_workout') : context.translate('login'),
+                      _isSignUp ? context.translate('signup') : context.translate('login'),
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: isDark ? Colors.white : Colors.black87,
@@ -148,7 +148,7 @@ class _LoginPageState extends State<LoginPage> {
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
-                          : Text(_isSignUp ? context.translate('login') : context.translate('login')),
+                          : Text(_isSignUp ? context.translate('signup') : context.translate('login')),
                     ),
                     const SizedBox(height: 16),
                     Wrap(
@@ -159,13 +159,13 @@ class _LoginPageState extends State<LoginPage> {
                         OutlinedButton.icon(
                           onPressed: _isLoading ? null : () => _signInWithProvider(OAuthProvider.google),
                           icon: const Icon(Icons.g_mobiledata, color: Colors.redAccent, size: 24),
-                          label: const Text('Google'),
+                          label: Text(context.translate('google_login')),
                           style: secondaryActionButton(context),
                         ),
                         OutlinedButton.icon(
                           onPressed: _isLoading ? null : () => _signInWithProvider(OAuthProvider.facebook),
                           icon: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 24),
-                          label: const Text('Facebook'),
+                          label: Text(context.translate('facebook_login')),
                           style: secondaryActionButton(context),
                         ),
                       ],
@@ -174,7 +174,7 @@ class _LoginPageState extends State<LoginPage> {
                     TextButton(
                       onPressed: () => setState(() => _isSignUp = !_isSignUp),
                       child: Text(
-                        _isSignUp ? 'Already have an account? Login' : 'No account? Sign up',
+                        _isSignUp ? context.translate('already_have_account') : context.translate('no_account_signup'),
                         style: TextStyle(
                           color: isDark ? Colors.white70 : Colors.black54, 
                           fontWeight: FontWeight.w600

@@ -32,7 +32,7 @@ class _DashboardPageState extends State<DashboardPage> {
       Center(
         child: Builder(
           builder: (context) => Text(
-            'Activity History', 
+            context.translate('history'), 
             style: TextStyle(color: Theme.of(context).colorScheme.onSurface)
           ),
         ),
@@ -62,7 +62,7 @@ class _DashboardPageState extends State<DashboardPage> {
           const ThemeToggle(),
           IconButton(
             icon: Icon(Icons.add_circle_outline, color: colorScheme.onSurface),
-            tooltip: 'Import Activity',
+            tooltip: context.translate('import_activity'),
             onPressed: () {
               Navigator.push(
                 context,
@@ -74,7 +74,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           IconButton(
             icon: Icon(Icons.logout, color: colorScheme.onSurface),
-            tooltip: 'Logout',
+            tooltip: context.translate('logout'),
             onPressed: () => _showLogoutDialog(context),
           ),
         ],
@@ -108,10 +108,10 @@ class _DashboardPageState extends State<DashboardPage> {
                         selectedIcon: const Icon(Icons.dashboard),
                         label: Text(context.translate('dashboard')),
                       ),
-                      const NavigationRailDestination(
-                        icon: Icon(Icons.history_outlined),
-                        selectedIcon: Icon(Icons.history),
-                        label: Text('History'),
+                      NavigationRailDestination(
+                        icon: const Icon(Icons.history_outlined),
+                        selectedIcon: const Icon(Icons.history),
+                        label: Text(context.translate('history')),
                       ),
                       NavigationRailDestination(
                         icon: const Icon(Icons.calendar_month_outlined),
@@ -168,9 +168,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   icon: const Icon(Icons.dashboard),
                   label: context.translate('dashboard'),
                 ),
-                const NavigationDestination(
-                  icon: Icon(Icons.history),
-                  label: 'History',
+                NavigationDestination(
+                  icon: const Icon(Icons.history),
+                  label: context.translate('history'),
                 ),
                 NavigationDestination(
                   icon: const Icon(Icons.calendar_month),
@@ -200,34 +200,34 @@ class _DashboardPageState extends State<DashboardPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: colorScheme.surface,
-        title: Text('Logout', style: TextStyle(color: colorScheme.onSurface)),
-        content: Text('Are you sure you want to logout from Runny AI?', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+        title: Text(context.translate('logout'), style: TextStyle(color: colorScheme.onSurface)),
+        content: Text(context.translate('logout_confirm'), style: TextStyle(color: colorScheme.onSurfaceVariant)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+            child: Text(context.translate('cancel'), style: TextStyle(color: colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
               final messenger = ScaffoldMessenger.of(context);
               messenger.showSnackBar(
-                const SnackBar(
-                  content: Text('Logging out...'),
-                  duration: Duration(seconds: 1),
+                SnackBar(
+                  content: Text(context.translate('logging_out')),
+                  duration: const Duration(seconds: 1),
                 ),
               );
               try {
                 await Supabase.instance.client.auth.signOut();
               } catch (e) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Error logging out: $e')),
+                  SnackBar(content: Text('${context.translate('error')}: $e')),
                 );
               }
             },
-            child: const Text(
-              'Logout',
-              style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+            child: Text(
+              context.translate('logout'),
+              style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -381,7 +381,7 @@ class _OverviewContentState extends State<OverviewContent> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Performance Overview',
+                            context.translate('performance_overview'),
                             style: theme.textTheme.displaySmall?.copyWith(
                               color: colorScheme.onSurface,
                               fontWeight: FontWeight.w900,
@@ -405,7 +405,7 @@ class _OverviewContentState extends State<OverviewContent> {
                               final weather = snapshot.data;
                               if (weather == null) {
                                 return Text(
-                                  'Weather data unavailable.',
+                                  context.translate('weather_unavailable'),
                                   style: theme.textTheme.bodyMedium
                                       ?.copyWith(color: colorScheme.onSurfaceVariant),
                                 );
@@ -505,13 +505,13 @@ class _OverviewContentState extends State<OverviewContent> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                'Streak',
+                                context.translate('streak'),
                                 style: theme.textTheme.bodySmall
                                     ?.copyWith(color: Colors.white70),
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                '7 Days',
+                                '7 ${context.translate('days')}',
                                 style: theme.textTheme.headlineSmall
                                     ?.copyWith(
                                       color: Colors.white,
@@ -532,7 +532,7 @@ class _OverviewContentState extends State<OverviewContent> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'Performance Stats',
+              context.translate('performance_stats'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
@@ -579,17 +579,18 @@ class _OverviewContentState extends State<OverviewContent> {
                     gradient: accentPulseGradient,
                   ),
                   PerformanceStatCard(
-                    title: 'Sessions',
+                    title: context.translate('sessions'),
                     value: '${stats['totalSessions']}',
                     icon: Icons.directions_run,
                     gradient: secondaryPulseGradient,
                   ),
                   PerformanceStatCard(
-                    title: 'Avg HR',
+                    title: context.translate('avg_hr'),
                     value: stats['avgHr'] > 0 ? '${stats['avgHr']} bpm' : '--',
                     icon: Icons.favorite,
                     gradient: accentPulseGradient,
                   ),
+
                   PerformanceStatCard(
                     title: context.translate('pace'),
                     value: '$formattedPace /km',
@@ -616,7 +617,7 @@ class _OverviewContentState extends State<OverviewContent> {
                 ),
                 TextButton(
                   onPressed: () {}, 
-                  child: const Text('View All'),
+                  child: Text(context.translate('view_all')),
                 ),
               ],
             ),
@@ -633,7 +634,7 @@ class _OverviewContentState extends State<OverviewContent> {
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Center(
                     child: Text(
-                      'No activities yet.',
+                      context.translate('no_activities_yet'),
                       style: TextStyle(color: colorScheme.onSurfaceVariant),
                     ),
                   ),
@@ -686,14 +687,14 @@ class _OverviewContentState extends State<OverviewContent> {
                           ),
                         ),
                         title: Text(
-                          activity.notes ?? 'Run Activity',
+                          activity.notes ?? context.translate('run_activity'),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: colorScheme.onSurface,
                           ),
                         ),
                         subtitle: Text(
-                          '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • Pace $paceStr',
+                          '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr',
                           style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
                         trailing: Icon(
@@ -711,7 +712,7 @@ class _OverviewContentState extends State<OverviewContent> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'Quick Actions',
+              context.translate('quick_actions'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
@@ -726,7 +727,7 @@ class _OverviewContentState extends State<OverviewContent> {
               runSpacing: 12,
               children: [
                 _ActionChip(
-                  text: 'Import Activity',
+                  text: context.translate('import_activity'),
                   icon: Icons.cloud_upload,
                   onTap: () {
                     Navigator.push(

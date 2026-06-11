@@ -4,6 +4,7 @@ import '../services/gemini_service.dart';
 import '../services/chat_service.dart';
 import '../widgets/ui_components.dart';
 import '../models/workout_models.dart';
+import '../l10n/app_localizations.dart';
 
 class AICoachPage extends StatefulWidget {
   final Activity? initialActivity;
@@ -26,10 +27,18 @@ class _AICoachPageState extends State<AICoachPage> {
   void initState() {
     super.initState();
     _contextActivity = widget.initialActivity;
-    if (_contextActivity != null) {
-      _controller.text = "Hãy phân tích hoạt động chạy ${_contextActivity!.distanceKm.toStringAsFixed(2)}km của tôi.";
-    }
     _loadHistory();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_contextActivity != null && _messages.isEmpty && _controller.text.isEmpty) {
+      _controller.text = context.translate(
+        'ai_coach_analyze_activity',
+        [_contextActivity!.distanceKm.toStringAsFixed(2)],
+      );
+    }
   }
 
   Future<void> _loadHistory() async {
@@ -54,7 +63,7 @@ class _AICoachPageState extends State<AICoachPage> {
       setState(() {
         _messages.add({
           'role': 'assistant',
-          'content': 'AI đang tạm tắt vì thiếu OPENROUTER_API_KEY trong .env.',
+          'content': context.translate('ai_disabled_no_key'),
         });
       });
       return;
@@ -70,12 +79,16 @@ class _AICoachPageState extends State<AICoachPage> {
     await _chatService.saveMessage('user', text);
 
     try {
-      // Check if user is asking for a plan
-      if (text.toLowerCase().contains('lịch tập') ||
-          text.toLowerCase().contains('kế hoạch')) {
+      // Check if user is asking for a plan (localized keywords)
+      final lowercaseText = text.toLowerCase();
+      bool isRequestingPlan = lowercaseText.contains('lịch tập') ||
+          lowercaseText.contains('kế hoạch') ||
+          lowercaseText.contains('training plan') ||
+          lowercaseText.contains('schedule');
+
+      if (isRequestingPlan) {
         await _trainingService.createGoalBasedPlan(text);
-        const assistantMsg =
-            'Tôi đã tạo xong lịch tập dựa trên mục tiêu của bạn! Bạn có thể xem chi tiết trong phần Lịch tập.';
+        final assistantMsg = context.translate('plan_created_assistant');
         setState(() {
           _messages.add({
             'role': 'assistant',
@@ -86,13 +99,14 @@ class _AICoachPageState extends State<AICoachPage> {
       } else {
         String prompt = text;
         if (_contextActivity != null) {
-          prompt = "Dựa trên dữ liệu hoạt động chạy bộ này: "
-              "Khoảng cách: ${_contextActivity!.distanceKm.toStringAsFixed(2)}km, "
-              "Thời gian: ${_contextActivity!.durationMin.toStringAsFixed(1)} phút, "
-              "Nhịp tim TB: ${_contextActivity!.avgHr ?? 'N/A'} bpm, "
-              "Độ cao tích lũy: ${_contextActivity!.elevationGainM ?? 0}m. "
-              "Ghi chú: ${_contextActivity!.notes ?? 'Không có'}. "
-              "Hãy trả lời câu hỏi sau: $text";
+          prompt = context.translate('ai_prompt_context', [
+            _contextActivity!.distanceKm.toStringAsFixed(2),
+            _contextActivity!.durationMin.toStringAsFixed(1),
+            _contextActivity!.avgHr?.toString() ?? 'N/A',
+            _contextActivity!.elevationGainM?.toString() ?? '0',
+            _contextActivity!.notes ?? (context.translate('english') == 'English' ? 'None' : 'Không có'),
+            text,
+          ]);
           setState(() => _contextActivity = null); // Reset context after sending
         }
 
@@ -106,7 +120,7 @@ class _AICoachPageState extends State<AICoachPage> {
         await _chatService.saveMessage('assistant', response);
       }
     } catch (e) {
-      final errorMsg = 'Xin lỗi, đã có lỗi xảy ra: $e';
+      final errorMsg = '${context.translate('error_occurred')}: $e';
       setState(() {
         _messages.add({
           'role': 'assistant',
@@ -127,16 +141,16 @@ class _AICoachPageState extends State<AICoachPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
-        title: Text('Xóa lịch sử?', style: TextStyle(color: theme.colorScheme.onSurface)),
-        content: Text('Hành động này sẽ xóa tất cả tin nhắn trong phiên chat này.', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+        title: Text(context.translate('delete_history'), style: TextStyle(color: theme.colorScheme.onSurface)),
+        content: Text(context.translate('delete_history_confirm'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Hủy', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(context.translate('cancel'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Xóa', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: Text(context.translate('delete'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -159,7 +173,7 @@ class _AICoachPageState extends State<AICoachPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text('AI Coach', style: TextStyle(color: colorScheme.onSurface)),
+        title: Text(context.translate('ai_coach'), style: TextStyle(color: colorScheme.onSurface)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -170,7 +184,7 @@ class _AICoachPageState extends State<AICoachPage> {
           IconButton(
             onPressed: _clearHistory,
             icon: Icon(Icons.delete_outline, color: colorScheme.onSurface),
-            tooltip: 'Xóa lịch sử',
+            tooltip: context.translate('delete_history'),
           ),
         ],
       ),
@@ -246,7 +260,7 @@ class _AICoachPageState extends State<AICoachPage> {
                           Icon(Icons.description_outlined, color: colorScheme.primary, size: 18),
                           const SizedBox(width: 8),
                           Text(
-                            'Hoạt động: ${_contextActivity!.distanceKm.toStringAsFixed(2)}km',
+                            '${context.translate('activity')}: ${_contextActivity!.distanceKm.toStringAsFixed(2)}km',
                             style: TextStyle(color: colorScheme.primary, fontSize: 13, fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(width: 4),
@@ -269,7 +283,7 @@ class _AICoachPageState extends State<AICoachPage> {
                           controller: _controller,
                           style: TextStyle(color: colorScheme.onSurface),
                           decoration: InputDecoration(
-                            hintText: 'Hỏi HLV ảo hoặc yêu cầu lịch tập...',
+                            hintText: context.translate('ai_coach_hint'),
                             hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                             filled: true,
                             fillColor: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),

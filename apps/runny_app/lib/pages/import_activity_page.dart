@@ -3,6 +3,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/activity_parser.dart';
 import '../services/weather_service.dart';
+import '../l10n/app_localizations.dart';
 
 class ImportActivityPage extends StatefulWidget {
   const ImportActivityPage({super.key});
@@ -20,7 +21,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     try {
       setState(() {
         _isLoading = true;
-        _statusMessage = 'Đang chọn file...';
+        _statusMessage = context.translate('selecting_file');
       });
 
       FilePickerResult? result = await FilePicker.pickFiles(
@@ -34,13 +35,13 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         final extension = file.extension?.toLowerCase();
 
         setState(() {
-          _statusMessage = 'Đang phân tích tệp ${file.name}...';
+          _statusMessage = context.translate('analyzing_file', [file.name]);
         });
 
         // Parse file
         final bytes = file.bytes;
         if (bytes == null) {
-          throw Exception('Không thể đọc dữ liệu file');
+          throw Exception(context.translate('read_file_error'));
         }
 
         final parsedActivity = await ActivityParser.parse(
@@ -53,7 +54,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
             parsedActivity.startLon != null) {
           try {
             setState(() {
-              _statusMessage = 'Đang lấy thời tiết tại vị trí hoạt động...';
+              _statusMessage = context.translate('fetching_weather');
             });
             weatherSnapshot = await _weatherService.fetchWeatherSnapshot(
               lat: parsedActivity.startLat!,
@@ -65,7 +66,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         }
 
         setState(() {
-          _statusMessage = 'Đang lưu vào cơ sở dữ liệu...';
+          _statusMessage = context.translate('saving_to_db');
         });
 
         // Save to Supabase
@@ -84,20 +85,20 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           'aqi': weatherSnapshot?.aqi,
           'weather_json': weatherSnapshot?.toJson(),
           'weather_fetched_at': weatherSnapshot?.fetchedAt.toIso8601String(),
-          'notes': 'Imported from ${file.name}',
+          'notes': context.translate('imported_from', [file.name]),
         });
 
         setState(() {
-          _statusMessage = 'Import thành công!';
+          _statusMessage = context.translate('import_success');
         });
       } else {
         setState(() {
-          _statusMessage = 'Đã hủy import.';
+          _statusMessage = context.translate('import_cancelled');
         });
       }
     } catch (e) {
       setState(() {
-        _statusMessage = 'Lỗi import: $e';
+        _statusMessage = '${context.translate('import_error')}: $e';
       });
     } finally {
       setState(() {
@@ -109,7 +110,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Nhập Hoạt Động')),
+      appBar: AppBar(title: Text(context.translate('import_activity'))),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -122,14 +123,14 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                 color: Colors.blue,
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Tải lên hoạt động từ file thô',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              Text(
+                context.translate('upload_raw_activity'),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Hỗ trợ định dạng: .GPX, .FIT',
-                style: TextStyle(color: Colors.grey),
+              Text(
+                context.translate('supported_formats'),
+                style: const TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 32),
               if (_isLoading)
@@ -138,7 +139,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                 ElevatedButton.icon(
                   onPressed: _pickAndImportFile,
                   icon: const Icon(Icons.file_upload),
-                  label: const Text('Chọn File (.gpx, .fit)'),
+                  label: Text(context.translate('select_file')),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,

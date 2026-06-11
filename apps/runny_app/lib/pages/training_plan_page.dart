@@ -4,6 +4,7 @@ import '../services/training_service.dart';
 import '../widgets/ui_components.dart';
 import 'ai_coach_page.dart';
 import 'package:intl/intl.dart';
+import '../l10n/app_localizations.dart';
 
 class TrainingPlanPage extends StatefulWidget {
   const TrainingPlanPage({super.key});
@@ -66,12 +67,12 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       await _fetchData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lịch tập đã được AI điều chỉnh tối ưu!')),
+          SnackBar(content: Text(context.translate('plan_adjusted'))),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi khi điều chỉnh: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -82,7 +83,6 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -95,13 +95,13 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('Bạn chưa có lịch tập nào.', style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(context.translate('no_plan_yet'), style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              Text('Bắt đầu với AI Coach để nhận ngay lịch tập cá nhân hoá, phù hợp với mục tiêu của bạn.', style: TextStyle(color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+              Text(context.translate('no_plan_desc'), style: TextStyle(color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
               const SizedBox(height: 24),
               ElevatedButton(onPressed: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const AICoachPage()));
-              }, style: primaryActionButton(context), child: const Text('Tạo lịch tập với AI Coach')),
+              }, style: primaryActionButton(context), child: Text(context.translate('create_plan_ai'))),
             ],
           ),
         ),
@@ -118,11 +118,11 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(_activeSchedule!['title'] ?? 'Lịch tập của bạn', style: TextStyle(color: colorScheme.onSurface)),
+        title: Text(_activeSchedule!['title'] ?? context.translate('your_training_plan'), style: TextStyle(color: colorScheme.onSurface)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface), onPressed: _adjustPlan, tooltip: 'Tối ưu lịch tập với AI'),
+          IconButton(icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface), onPressed: _adjustPlan, tooltip: context.translate('optimize_plan_tooltip')),
           IconButton(icon: Icon(Icons.refresh, color: colorScheme.onSurface), onPressed: _fetchData),
         ],
       ),
@@ -145,40 +145,40 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text('Chi tiết lịch tập', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: colorScheme.onSurface)),
+                        Text(context.translate('plan_details'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: colorScheme.onSurface)),
                         const SizedBox(height: 12),
-                        Text('Hệ thống AI đang giữ nhịp cho tiến độ của bạn với chuyên môn thể thao cao cấp.', style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
+                        Text(context.translate('ai_keeping_pace'), style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
                         const SizedBox(height: 20),
                         Wrap(
                           spacing: 12,
                           runSpacing: 12,
                           children: [
-                            _PlanMetricCard(label: 'Bài tập', value: '${_workouts.length}', icon: Icons.fitness_center),
-                            _PlanMetricCard(label: 'Hoàn thành', value: '$completionRate%', icon: Icons.check_circle),
-                            _PlanMetricCard(label: 'Mục tiêu', value: nextWorkout['target_distance_km']?.toString() ?? '---', icon: Icons.track_changes),
+                            _PlanMetricCard(label: context.translate('workout'), value: '${_workouts.length}', icon: Icons.fitness_center),
+                            _PlanMetricCard(label: context.translate('completed'), value: '$completionRate%', icon: Icons.check_circle),
+                            _PlanMetricCard(label: context.translate('goal'), value: nextWorkout['target_distance_km']?.toString() ?? '---', icon: Icons.track_changes),
                           ],
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 22),
-                  Text('Buổi tập tiếp theo', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                  Text(context.translate('next_workout'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                   const SizedBox(height: 12),
                   glassCard(
                     context: context,
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                       leading: Icon(Icons.flag, color: colorScheme.primary, size: 32),
-                      title: Text(nextWorkout['title'] ?? 'Bài tập tiếp theo', style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold)),
+                      title: Text(nextWorkout['title'] ?? context.translate('next_workout'), style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold)),
                       subtitle: Text(
                         '${DateFormat('EEEE, dd MMM').format(DateTime.parse(nextWorkout['date'] as String))} • ${nextWorkout['target_distance_km']} km',
                         style: TextStyle(color: colorScheme.onSurfaceVariant),
                       ),
-                      trailing: ElevatedButton(onPressed: () {}, style: primaryActionButton(context), child: const Text('Khởi động')),
+                      trailing: ElevatedButton(onPressed: () {}, style: primaryActionButton(context), child: Text(context.translate('warm_up'))),
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Text('Lịch trình chi tiết', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                  Text(context.translate('detailed_schedule'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                   const SizedBox(height: 14),
                   Column(
                     children: List.generate(
@@ -206,7 +206,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                                 ],
                               ),
                               trailing: workout['status'] == 'planned'
-                                  ? ElevatedButton(onPressed: () {}, style: primaryActionButton(context), child: const Text('Bắt đầu'))
+                                  ? ElevatedButton(onPressed: () {}, style: primaryActionButton(context), child: Text(context.translate('start')))
                                   : Icon(_getStatusIcon(workout['status']), color: _getStatusColor(workout['status'])),
                             ),
                           ),

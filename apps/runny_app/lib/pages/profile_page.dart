@@ -78,7 +78,7 @@ class _ProfilePageState extends State<ProfilePage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error loading profile: $e')));
+        ).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -92,7 +92,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (weightStr.isEmpty || heightStr.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter weight and height')),
+        SnackBar(content: Text(context.translate('enter_weight_height'))),
       );
       return;
     }
@@ -103,7 +103,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (weight == null || height == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid weight or height')),
+        SnackBar(content: Text(context.translate('invalid_weight_height'))),
       );
       return;
     }
@@ -137,14 +137,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully!')),
+          SnackBar(content: Text(context.translate('profile_updated'))),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Update error: $e')));
+        ).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -162,13 +162,13 @@ class _ProfilePageState extends State<ProfilePage> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Matching settings saved!')),
+          SnackBar(content: Text(context.translate('matching_settings_saved'))),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('${context.translate('error')}: $e')),
         );
       }
     } finally {
@@ -182,7 +182,7 @@ class _ProfilePageState extends State<ProfilePage> {
         await _integrationService.disconnectStrava();
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Disconnected from Strava')));
+        ).showSnackBar(SnackBar(content: Text(context.translate('disconnected_strava'))));
       } else {
         await _integrationService.connectStrava();
       }
@@ -190,7 +190,7 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
     }
   }
 
@@ -200,7 +200,7 @@ class _ProfilePageState extends State<ProfilePage> {
         await _integrationService.disconnectGarmin();
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Disconnected from Garmin')));
+        ).showSnackBar(SnackBar(content: Text(context.translate('disconnected_garmin'))));
       } else {
         await _integrationService.connectGarmin();
       }
@@ -208,7 +208,7 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
     }
   }
 
@@ -244,7 +244,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               icon: const Icon(Icons.logout),
               label: Text(
-                context.translate('Logout'),
+                context.translate('logout'),
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
@@ -259,12 +259,12 @@ class _ProfilePageState extends State<ProfilePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: Text(context.translate('logout')),
+        content: Text(context.translate('logout_confirm_short')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(context.translate('cancel')),
           ),
           TextButton(
             onPressed: () async {
@@ -274,13 +274,13 @@ class _ProfilePageState extends State<ProfilePage> {
                 await _supabase.auth.signOut();
               } catch (e) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Logout error: $e')),
+                  SnackBar(content: Text('${context.translate('error')}: $e')),
                 );
               }
             },
-            child: const Text(
-              'Logout',
-              style: TextStyle(color: Colors.redAccent),
+            child: Text(
+              context.translate('logout'),
+              style: const TextStyle(color: Colors.redAccent),
             ),
           ),
         ],
@@ -311,7 +311,7 @@ class _ProfilePageState extends State<ProfilePage> {
               color: colorScheme.onSurface,
             ),
             decoration: InputDecoration(
-              hintText: 'Display Name',
+              hintText: context.translate('display_name'),
               hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
               border: InputBorder.none,
             ),
@@ -336,7 +336,7 @@ class _ProfilePageState extends State<ProfilePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Body Metrics',
+            context.translate('body_metrics'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -348,7 +348,7 @@ class _ProfilePageState extends State<ProfilePage> {
             controller: _weightController,
             decoration: themedInputDecoration(
               context,
-              'Weight',
+              context.translate('weight'),
               suffixText: 'kg',
               icon: Icons.monitor_weight,
             ),
@@ -360,7 +360,7 @@ class _ProfilePageState extends State<ProfilePage> {
             controller: _heightController,
             decoration: themedInputDecoration(
               context,
-              'Height',
+              context.translate('height'),
               suffixText: 'cm',
               icon: Icons.height,
             ),
@@ -372,7 +372,7 @@ class _ProfilePageState extends State<ProfilePage> {
             controller: _maxHrController,
             decoration: themedInputDecoration(
               context,
-              'Max HR',
+              context.translate('max_hr_label'),
               suffixText: 'bpm',
               icon: Icons.favorite,
             ),
@@ -387,7 +387,7 @@ class _ProfilePageState extends State<ProfilePage> {
               style: primaryActionButton(context),
               child: _isSaving
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Update Metrics'),
+                  : Text(context.translate('update_metrics')),
             ),
           ),
         ],
@@ -405,7 +405,7 @@ class _ProfilePageState extends State<ProfilePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Integrations',
+            context.translate('integrations'),
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -445,7 +445,7 @@ class _ProfilePageState extends State<ProfilePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Partner Matching',
+            context.translate('partner_matching'),
             style: TextStyle(
               fontSize: 18, 
               fontWeight: FontWeight.bold, 
@@ -457,19 +457,19 @@ class _ProfilePageState extends State<ProfilePage> {
             contentPadding: EdgeInsets.zero,
             value: _lookingForPartner,
             onChanged: (v) => setState(() => _lookingForPartner = v),
-            title: Text('Find Running Partner', style: TextStyle(color: colorScheme.onSurface)),
+            title: Text(context.translate('find_partner'), style: TextStyle(color: colorScheme.onSurface)),
             activeThumbColor: theme.primaryColor,
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _cityController,
-            decoration: themedInputDecoration(context, 'City / Region', icon: Icons.place),
+            decoration: themedInputDecoration(context, context.translate('city_region'), icon: Icons.place),
             style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _preferredPaceController,
-            decoration: themedInputDecoration(context, 'Preferred Pace', suffixText: 'min/km', icon: Icons.speed),
+            decoration: themedInputDecoration(context, context.translate('preferred_pace'), suffixText: 'min/km', icon: Icons.speed),
             keyboardType: TextInputType.number,
             style: TextStyle(color: colorScheme.onSurface),
           ),
@@ -477,7 +477,7 @@ class _ProfilePageState extends State<ProfilePage> {
           TextField(
             controller: _bioController,
             maxLines: 3,
-            decoration: themedInputDecoration(context, 'Short Bio', icon: Icons.notes),
+            decoration: themedInputDecoration(context, context.translate('short_bio'), icon: Icons.notes),
             style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 24),
@@ -488,7 +488,7 @@ class _ProfilePageState extends State<ProfilePage> {
               style: primaryActionButton(context),
               child: _isSavingMatching
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Save Settings'),
+                  : Text(context.translate('save_settings')),
             ),
           ),
         ],
@@ -538,7 +538,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 Text(
-                  isConnected ? 'Connected' : 'Not Connected',
+                  isConnected ? context.translate('connected') : context.translate('not_connected'),
                   style: TextStyle(
                     color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
                     fontSize: 12,
@@ -556,7 +556,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: Text(isConnected ? 'Disconnect' : 'Connect'),
+            child: Text(isConnected ? context.translate('disconnect') : context.translate('connect')),
           ),
         ],
       ),
