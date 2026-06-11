@@ -214,12 +214,14 @@ class MealSection extends StatelessWidget {
   final String title;
   final List<MealLog> logs;
   final VoidCallback onAdd;
+  final VoidCallback onAISuggest;
 
   const MealSection({
     super.key,
     required this.title,
     required this.logs,
     required this.onAdd,
+    required this.onAISuggest,
   });
 
   @override
@@ -240,13 +242,28 @@ class MealSection extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              IconButton.filledTonal(
-                onPressed: onAdd,
-                icon: const Icon(Icons.add, size: 20),
-                style: IconButton.styleFrom(
-                  backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-                  foregroundColor: AppTheme.primary,
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton.filledTonal(
+                    onPressed: onAISuggest,
+                    icon: const Icon(Icons.auto_awesome, size: 20),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.amber.withValues(alpha: 0.1),
+                      foregroundColor: Colors.amber[700],
+                    ),
+                    tooltip: 'AI Gợi ý thực đơn',
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filledTonal(
+                    onPressed: onAdd,
+                    icon: const Icon(Icons.add, size: 20),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                      foregroundColor: AppTheme.primary,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

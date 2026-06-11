@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/activity_parser.dart';
 import '../services/weather_service.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/ui_components.dart';
 
 class ImportActivityPage extends StatefulWidget {
   const ImportActivityPage({super.key});
@@ -136,17 +137,10 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               if (_isLoading)
                 const CircularProgressIndicator()
               else
-                ElevatedButton.icon(
+                GradientButton.icon(
                   onPressed: _pickAndImportFile,
-                  icon: const Icon(Icons.file_upload),
+                  icon: const Icon(Icons.file_upload, color: Colors.white),
                   label: Text(context.translate('select_file')),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    textStyle: const TextStyle(fontSize: 18),
-                  ),
                 ),
               if (_statusMessage != null) ...[
                 const SizedBox(height: 24),

@@ -152,7 +152,7 @@ Widget glassCard({
 }
 
 ButtonStyle primaryActionButton(BuildContext context, {Color? backgroundColor}) => ElevatedButton.styleFrom(
-      backgroundColor: backgroundColor ?? Theme.of(context).primaryColor,
+      backgroundColor: backgroundColor ?? const Color(0xFFFA6B27),
       foregroundColor: Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
@@ -160,6 +160,104 @@ ButtonStyle primaryActionButton(BuildContext context, {Color? backgroundColor}) 
       shadowColor: Colors.black.withValues(alpha: 0.28),
       textStyle: const TextStyle(fontWeight: FontWeight.w700),
     );
+
+class GradientButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final Widget child;
+  final double? width;
+  final double height;
+  final BorderRadius borderRadius;
+  final Gradient gradient;
+  final double elevation;
+
+  const GradientButton({
+    super.key,
+    required this.onPressed,
+    required this.child,
+    this.width,
+    this.height = 54,
+    this.borderRadius = const BorderRadius.all(Radius.circular(24)),
+    this.gradient = accentPulseGradient,
+    this.elevation = 8,
+  });
+
+  factory GradientButton.icon({
+    Key? key,
+    required VoidCallback? onPressed,
+    required Widget icon,
+    required Widget label,
+    double? width,
+    double height = 54,
+    BorderRadius borderRadius = const BorderRadius.all(Radius.circular(24)),
+    Gradient gradient = accentPulseGradient,
+    double elevation = 8,
+  }) {
+    return GradientButton(
+      key: key,
+      onPressed: onPressed,
+      width: width,
+      height: height,
+      borderRadius: borderRadius,
+      gradient: gradient,
+      elevation: elevation,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          icon,
+          const SizedBox(width: 8),
+          label,
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isEnabled = onPressed != null;
+
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        gradient: isEnabled ? gradient : null,
+        color: isEnabled ? null : theme.disabledColor.withValues(alpha: 0.12),
+        borderRadius: borderRadius,
+        boxShadow: isEnabled && elevation > 0
+            ? [
+                BoxShadow(
+                  color: const Color(0xFFFA6B27).withValues(alpha: 0.35),
+                  blurRadius: elevation * 2,
+                  offset: Offset(0, elevation / 2),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: borderRadius,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Center(
+              child: DefaultTextStyle(
+                style: theme.textTheme.labelLarge?.copyWith(
+                      color: isEnabled ? Colors.white : theme.disabledColor,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ) ??
+                    const TextStyle(),
+                child: child,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 ButtonStyle secondaryActionButton(BuildContext context) => OutlinedButton.styleFrom(
       foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,

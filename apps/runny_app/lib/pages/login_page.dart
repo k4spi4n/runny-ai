@@ -139,9 +139,8 @@ class _LoginPageState extends State<LoginPage> {
                       style: TextStyle(color: isDark ? Colors.white : Colors.black87),
                     ),
                     const SizedBox(height: 24),
-                    ElevatedButton(
+                    GradientButton(
                       onPressed: _isLoading ? null : _handleAuth,
-                      style: primaryActionButton(context),
                       child: _isLoading
                           ? const SizedBox(
                               height: 20,
