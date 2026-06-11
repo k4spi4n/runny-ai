@@ -22,9 +22,9 @@ class OnboardingPage extends StatelessWidget {
           const ThemeToggle(),
           TextButton(
             onPressed: () => _skipOnboarding(context),
-            child: const Text(
-              'Skip',
-              style: TextStyle(
+            child: Text(
+              context.translate('skip'),
+              style: const TextStyle(
                 color: Colors.white70,
                 fontWeight: FontWeight.bold,
               ),
@@ -53,7 +53,7 @@ class OnboardingPage extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
       }
     }
   }
@@ -110,7 +110,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
 
     if (weight == null || height == null || goal.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter all required information')),
+        SnackBar(content: Text(context.translate('onboarding_info_required'))),
       );
       return;
     }
@@ -141,7 +141,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -190,36 +190,36 @@ class _OnboardingContentState extends State<OnboardingContent> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Athlete metrics', style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            Text(context.translate('athlete_metrics'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w900,
               color: isDark ? Colors.white : Colors.black87
             )),
             const SizedBox(height: 12),
-            Text('Set up your baseline metrics for personalized AI training.', 
+            Text(context.translate('onboarding_metrics_desc'), 
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: isDark ? Colors.white70 : Colors.black54)),
             const SizedBox(height: 28),
             TextField(
               controller: _weightController,
-              decoration: themedInputDecoration(context, 'Weight', suffixText: 'kg', icon: Icons.monitor_weight),
+              decoration: themedInputDecoration(context, context.translate('weight'), suffixText: 'kg', icon: Icons.monitor_weight),
               keyboardType: TextInputType.number,
               style: TextStyle(color: isDark ? Colors.white : Colors.black87),
             ),
             const SizedBox(height: 18),
             TextField(
               controller: _heightController,
-              decoration: themedInputDecoration(context, 'Height', suffixText: 'cm', icon: Icons.height),
+              decoration: themedInputDecoration(context, context.translate('height'), suffixText: 'cm', icon: Icons.height),
               keyboardType: TextInputType.number,
               style: TextStyle(color: isDark ? Colors.white : Colors.black87),
             ),
             const SizedBox(height: 18),
             TextField(
               controller: _maxHrController,
-              decoration: themedInputDecoration(context, 'Max HR', hint: '220 - age', suffixText: 'bpm', icon: Icons.favorite),
+              decoration: themedInputDecoration(context, context.translate('max_hr_label'), hint: context.translate('max_hr_hint'), suffixText: 'bpm', icon: Icons.favorite),
               keyboardType: TextInputType.number,
               style: TextStyle(color: isDark ? Colors.white : Colors.black87),
             ),
             const SizedBox(height: 32),
-            ElevatedButton(onPressed: _nextPage, style: primaryActionButton(context), child: const Text('Next')),
+            ElevatedButton(onPressed: _nextPage, style: primaryActionButton(context), child: Text(context.translate('next'))),
           ],
         ),
       ),
@@ -235,12 +235,12 @@ class _OnboardingContentState extends State<OnboardingContent> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Training goal', style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            Text(context.translate('training_goal'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w900,
               color: isDark ? Colors.white : Colors.black87
             )),
             const SizedBox(height: 12),
-            Text('Tell us your primary goal so AI can build your winning roadmap.', 
+            Text(context.translate('training_goal_desc'), 
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: isDark ? Colors.white70 : Colors.black54)),
             const SizedBox(height: 28),
             TextField(
@@ -248,14 +248,14 @@ class _OnboardingContentState extends State<OnboardingContent> {
               maxLines: 5,
               decoration: themedInputDecoration(
                 context,
-                'Your Goal',
-                hint: 'e.g., I want to run my first 5km under 25 minutes.',
+                context.translate('your_goal'),
+                hint: context.translate('goal_hint'),
                 icon: Icons.flag_circle,
               ),
               style: TextStyle(color: isDark ? Colors.white : Colors.black87),
             ),
             const SizedBox(height: 30),
-            ElevatedButton(onPressed: _nextPage, style: primaryActionButton(context), child: const Text('Complete & Create Plan')),
+            ElevatedButton(onPressed: _nextPage, style: primaryActionButton(context), child: Text(context.translate('complete_create_plan'))),
             const SizedBox(height: 12),
             TextButton(
               onPressed: () {
@@ -264,7 +264,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
                   setState(() => _currentStep--);
                 }
               },
-              child: Text('Back', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+              child: Text(context.translate('back'), style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
             ),
           ],
         ),
@@ -285,9 +285,9 @@ class _OnboardingStepper extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          _StepDot(label: 'Metrics', active: currentStep == 0),
+          _StepDot(label: context.translate('metrics_tab'), active: currentStep == 0),
           Expanded(child: Container(height: 2, color: theme.dividerColor.withValues(alpha: 0.1))),
-          _StepDot(label: 'Goal', active: currentStep == 1),
+          _StepDot(label: context.translate('goal_tab'), active: currentStep == 1),
         ],
       ),
     );

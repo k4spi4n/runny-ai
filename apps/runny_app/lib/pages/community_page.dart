@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 
 import '../models/social_models.dart';
 import '../services/social_service.dart';
 import '../widgets/ui_components.dart';
+import '../l10n/app_localizations.dart';
 
 /// Phân hệ 4: Động lực & Tương tác (Gamification & Social).
 class CommunityPage extends StatefulWidget {
@@ -35,7 +37,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Cộng đồng',
+          context.translate('community'),
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.bold,
             color: colorScheme.onSurface,
@@ -56,10 +58,10 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             labelColor: Colors.white,
             unselectedLabelColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
             labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-            tabs: const [
-              Tab(text: 'Huy hiệu'),
-              Tab(text: 'Xếp hạng'),
-              Tab(text: 'Ghép đôi'),
+            tabs: [
+              Tab(text: context.translate('badges_tab')),
+              Tab(text: context.translate('leaderboard_tab')),
+              Tab(text: context.translate('matching_tab')),
             ],
           ),
         ),
@@ -80,7 +82,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
 }
 
 // =====================================================================
-// 4.1 HUY HIỆU
+// 4.1 HUY HIỆU (Redesigned)
 // =====================================================================
 
 class _BadgesTab extends StatelessWidget {
@@ -97,12 +99,12 @@ class _BadgesTab extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _errorView(context, 'Không tải được huy hiệu: ${snapshot.error}');
+          return _errorView(context, context.translate('load_badges_error', [snapshot.error.toString()]));
         }
         final badges = snapshot.data ?? [];
         final earnedCount = badges.where((b) => b.isEarned).length;
         final width = MediaQuery.of(context).size.width;
-        final crossAxisCount = width > 1100 ? 3 : (width > 700 ? 2 : 1);
+        final crossAxisCount = width > 1100 ? 5 : (width > 700 ? 3 : 2);
 
         return SingleChildScrollView(
           child: Column(
@@ -125,10 +127,11 @@ class _BadgesTab extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Thành tích của bạn',
+                          Text(context.translate('your_achievements'),
                               style: TextStyle(color: colorScheme.onSurfaceVariant)),
                           const SizedBox(height: 4),
-                          Text('$earnedCount / ${badges.length} huy hiệu',
+                          Text(
+                              context.translate('badges_earned_count', [earnedCount.toString(), badges.length.toString()]),
                               style: TextStyle(
                                   color: colorScheme.onSurface,
                                   fontSize: 22,
@@ -139,14 +142,14 @@ class _BadgesTab extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               GridView.count(
                 crossAxisCount: crossAxisCount,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                childAspectRatio: 2.4,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 0.85,
                 children: badges.map((b) => _BadgeCard(badge: b)).toList(),
               ),
               const SizedBox(height: 24),
@@ -169,50 +172,119 @@ class _BadgeCard extends StatelessWidget {
     final earned = badge.isEarned;
     final isDark = theme.brightness == Brightness.dark;
 
-    return Opacity(
-      opacity: earned ? 1 : 0.45,
-      child: glassCard(
-          context: context,
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
+    return glassCard(
+      context: context,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Icon Container
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: earned ? accentPulseGradient : null,
+                  color: earned ? null : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+                  border: Border.all(
+                    color: earned ? Colors.white.withValues(alpha: 0.2) : colorScheme.outline.withValues(alpha: 0.1),
+                    width: 2,
+                  ),
+                  boxShadow: earned ? [
+                    BoxShadow(
+                      color: const Color(0xFFFA6B27).withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      spreadRadius: 1,
+                    )
+                  ] : null,
+                ),
+                child: Icon(
+                  _iconFor(badge.icon),
+                  color: earned ? Colors.white : colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                  size: 28,
+                ),
+              ),
+              if (!earned)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                    ),
+                    child: Icon(Icons.lock, size: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Badge Name
+          Text(
+            _getTranslatedName(context),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: earned ? colorScheme.onSurface : colorScheme.onSurface.withValues(alpha: 0.5),
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+              letterSpacing: -0.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Badge Description
+          Expanded(
+            child: Text(
+              _getTranslatedDesc(context),
+              textAlign: TextAlign.center,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                fontSize: 10,
+                height: 1.2,
+              ),
+            ),
+          ),
+          if (earned && badge.earnedAt != null) ...[
+            const SizedBox(height: 6),
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                gradient: earned ? accentPulseGradient : null,
-                color: earned ? null : (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05)),
-                borderRadius: BorderRadius.circular(16),
+                color: Colors.green.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
-                earned ? _iconFor(badge.icon) : Icons.lock_outline,
-                color: earned ? Colors.white : colorScheme.onSurfaceVariant,
-                size: 26,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(badge.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          color: colorScheme.onSurface, fontWeight: FontWeight.w800, fontSize: 15)),
-                  const SizedBox(height: 4),
-                  Text(badge.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
-                ],
+              child: Text(
+                DateFormat('dd/MM/yyyy').format(badge.earnedAt!),
+                style: const TextStyle(
+                  color: Color(0xFF4ADE80),
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-            if (earned) const Icon(Icons.check_circle, color: Color(0xFF4ADE80), size: 20),
           ],
-        ),
+        ],
       ),
     );
+  }
+
+  String _getTranslatedName(BuildContext context) {
+    final key = 'badge_name_${badge.code}';
+    final translated = context.translate(key);
+    return (translated == key) ? badge.name : translated;
+  }
+
+  String _getTranslatedDesc(BuildContext context) {
+    final key = 'badge_desc_${badge.code}';
+    final translated = context.translate(key);
+    return (translated == key) ? badge.description : translated;
   }
 }
 
@@ -234,11 +306,11 @@ class _LeaderboardTab extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _errorView(context, 'Không tải được bảng xếp hạng: ${snapshot.error}');
+          return _errorView(context, context.translate('load_leaderboard_error', [snapshot.error.toString()]));
         }
         final entries = snapshot.data ?? [];
         if (entries.isEmpty) {
-          return _emptyView(context, 'Chưa có dữ liệu xếp hạng.');
+          return _emptyView(context, context.translate('no_leaderboard_data'));
         }
         return ListView.separated(
           itemCount: entries.length,
@@ -288,12 +360,12 @@ class _LeaderboardRow extends StatelessWidget {
                     ),
                     if (isMe) ...[
                       const SizedBox(width: 8),
-                      badgeLabel(context, 'Bạn', background: const Color(0xFFF85F2B)),
+                      badgeLabel(context, context.translate('you'), background: const Color(0xFFF85F2B)),
                     ],
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text('${entry.activityCount} buổi chạy',
+                Text(context.translate('sessions_count', [entry.activityCount.toString()]),
                     style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
               ],
             ),
@@ -380,10 +452,10 @@ class _MatchingTabState extends State<_MatchingTab> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await _service.sendMatchRequest(s.userId);
-      messenger.showSnackBar(SnackBar(content: Text('Đã gửi lời mời tới ${s.displayName}')));
+      messenger.showSnackBar(SnackBar(content: Text(context.translate('invitation_sent_to', [s.displayName]))));
       _refresh();
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
     }
   }
 
@@ -393,11 +465,11 @@ class _MatchingTabState extends State<_MatchingTab> {
       await _service.respondToRequest(m.id, accept: accept);
       messenger.showSnackBar(SnackBar(
           content: Text(accept
-              ? 'Đã kết nối với ${m.otherDisplayName}'
-              : 'Đã từ chối lời mời')));
+              ? context.translate('connected_with', [m.otherDisplayName])
+              : context.translate('invitation_declined'))));
       _refresh();
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
     }
   }
 
@@ -411,7 +483,7 @@ class _MatchingTabState extends State<_MatchingTab> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _errorView(context, 'Không tải được dữ liệu ghép đôi: ${snapshot.error}');
+          return _errorView(context, context.translate('load_matching_error', [snapshot.error.toString()]));
         }
         final data = snapshot.data!;
         return RefreshIndicator(
@@ -419,24 +491,24 @@ class _MatchingTabState extends State<_MatchingTab> {
           child: ListView(
             children: [
               if (data.incoming.isNotEmpty) ...[
-                _sectionTitle(context, 'Lời mời đang chờ (${data.incoming.length})'),
+                _sectionTitle(context, context.translate('pending_invitations', [data.incoming.length.toString()])),
                 ...data.incoming.map((m) => _IncomingCard(match: m, onRespond: _respond)),
                 const SizedBox(height: 16),
               ],
               if (data.partners.isNotEmpty) ...[
-                _sectionTitle(context, 'Bạn chạy của bạn (${data.partners.length})'),
+                _sectionTitle(context, context.translate('your_partners', [data.partners.length.toString()])),
                 ...data.partners.map((m) => _PartnerCard(match: m)),
                 const SizedBox(height: 16),
               ],
-              _sectionTitle(context, 'Gợi ý bạn chạy'),
+              _sectionTitle(context, context.translate('partner_suggestions')),
               const SizedBox(height: 4),
               Text(
-                'Dựa trên pace và vị trí. Bật "Tìm bạn chạy" trong Hồ sơ để xuất hiện với người khác.',
+                context.translate('partner_suggestions_desc'),
                 style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
               ),
               const SizedBox(height: 12),
               if (data.suggestions.isEmpty)
-                _emptyView(context, 'Chưa có gợi ý phù hợp.')
+                _emptyView(context, context.translate('no_suggestions_found'))
               else
                 ...data.suggestions.map((s) => _SuggestionCard(
                       suggestion: s,
@@ -490,12 +562,12 @@ class _IncomingCard extends StatelessWidget {
             ),
             IconButton(
               icon: const Icon(Icons.check_circle, color: Color(0xFF4ADE80)),
-              tooltip: 'Chấp nhận',
+              tooltip: context.translate('accept'),
               onPressed: () => onRespond(match, true),
             ),
             IconButton(
               icon: Icon(Icons.cancel, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
-              tooltip: 'Từ chối',
+              tooltip: context.translate('decline'),
               onPressed: () => onRespond(match, false),
             ),
           ],
@@ -534,7 +606,7 @@ class _PartnerCard extends StatelessWidget {
                 ],
               ),
             ),
-            badgeLabel(context, 'Đã kết nối', background: const Color(0xFF1F7A4D)),
+            badgeLabel(context, context.translate('connected'), background: const Color(0xFF1F7A4D)),
           ],
         ),
       ),
@@ -577,7 +649,7 @@ class _SuggestionCard extends StatelessWidget {
                           ),
                           if (suggestion.sameCity) ...[
                             const SizedBox(width: 8),
-                            badgeLabel(context, 'Cùng khu vực', background: const Color(0xFF2A3B6B)),
+                            badgeLabel(context, context.translate('same_area'), background: const Color(0xFF2A3B6B)),
                           ],
                         ],
                       ),
@@ -609,7 +681,7 @@ class _SuggestionCard extends StatelessWidget {
                 onPressed: onSend,
                 style: primaryActionButton(context),
                 icon: const Icon(Icons.person_add_alt_1, size: 18),
-                label: const Text('Gửi lời mời chạy cùng'),
+                label: Text(context.translate('send_invitation')),
               ),
             ),
           ],

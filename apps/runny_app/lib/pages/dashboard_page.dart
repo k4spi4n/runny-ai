@@ -184,7 +184,7 @@ class _DashboardPageState extends State<DashboardPage> {
           const ThemeToggle(),
           IconButton(
             icon: Icon(Icons.add_circle_outline, color: colorScheme.onSurface),
-            tooltip: 'Import Activity',
+            tooltip: context.translate('import_activity'),
             onPressed: () {
               Navigator.push(
                 context,
@@ -196,7 +196,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           IconButton(
             icon: Icon(Icons.logout, color: colorScheme.onSurface),
-            tooltip: 'Logout',
+            tooltip: context.translate('logout'),
             onPressed: () => _showLogoutDialog(context),
           ),
         ],
@@ -367,16 +367,16 @@ class _DashboardPageState extends State<DashboardPage> {
               Navigator.pop(context);
               final messenger = ScaffoldMessenger.of(context);
               messenger.showSnackBar(
-                const SnackBar(
-                  content: Text('Logging out...'),
-                  duration: Duration(seconds: 1),
+                SnackBar(
+                  content: Text(context.translate('logging_out')),
+                  duration: const Duration(seconds: 1),
                 ),
               );
               try {
                 await Supabase.instance.client.auth.signOut();
               } catch (e) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('Error logging out: $e')),
+                  SnackBar(content: Text('${context.translate('error')}: $e')),
                 );
               }
             },
@@ -583,7 +583,7 @@ class _OverviewContentState extends State<OverviewContent> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Performance Overview',
+                            context.translate('performance_overview'),
                             style: theme.textTheme.displaySmall?.copyWith(
                               color: colorScheme.onSurface,
                               fontWeight: FontWeight.w900,
@@ -863,17 +863,18 @@ class _OverviewContentState extends State<OverviewContent> {
                     gradient: accentPulseGradient,
                   ),
                   PerformanceStatCard(
-                    title: 'Sessions',
+                    title: context.translate('sessions'),
                     value: '${stats['totalSessions']}',
                     icon: Icons.directions_run,
                     gradient: secondaryPulseGradient,
                   ),
                   PerformanceStatCard(
-                    title: 'Avg HR',
+                    title: context.translate('avg_hr'),
                     value: stats['avgHr'] > 0 ? '${stats['avgHr']} bpm' : '--',
                     icon: Icons.favorite,
                     gradient: accentPulseGradient,
                   ),
+
                   PerformanceStatCard(
                     title: context.translate('pace'),
                     value: '$formattedPace /km',
@@ -914,7 +915,7 @@ class _OverviewContentState extends State<OverviewContent> {
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Center(
                     child: Text(
-                      'No activities yet.',
+                      context.translate('no_activities_yet'),
                       style: TextStyle(color: colorScheme.onSurfaceVariant),
                     ),
                   ),
@@ -967,14 +968,14 @@ class _OverviewContentState extends State<OverviewContent> {
                           ),
                         ),
                         title: Text(
-                          activity.notes ?? 'Run Activity',
+                          activity.notes ?? context.translate('run_activity'),
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: colorScheme.onSurface,
                           ),
                         ),
                         subtitle: Text(
-                          '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • Pace $paceStr',
+                          '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr',
                           style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
                         trailing: Icon(
@@ -992,7 +993,7 @@ class _OverviewContentState extends State<OverviewContent> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'Quick Actions',
+              context.translate('quick_actions'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
@@ -1007,7 +1008,7 @@ class _OverviewContentState extends State<OverviewContent> {
               runSpacing: 12,
               children: [
                 _ActionChip(
-                  text: 'Import Activity',
+                  text: context.translate('import_activity'),
                   icon: Icons.cloud_upload,
                   onTap: () {
                     Navigator.push(

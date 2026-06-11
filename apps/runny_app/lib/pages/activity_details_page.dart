@@ -4,6 +4,7 @@ import '../models/workout_models.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
 import '../services/weather_service.dart';
+import '../l10n/app_localizations.dart';
 import 'ai_coach_page.dart';
 
 class ActivityDetailsPage extends StatefulWidget {
@@ -60,8 +61,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã cập nhật thông tin hoạt động thành công!'),
+          SnackBar(
+            content: Text(context.translate('update_success')),
             backgroundColor: Colors.green,
           ),
         );
@@ -71,7 +72,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Có lỗi xảy ra: $e'),
+            content: Text('${context.translate('error')}: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -90,8 +91,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã xóa hoạt động thành công!'),
+          SnackBar(
+            content: Text(context.translate('delete_success')),
             backgroundColor: Colors.green,
           ),
         );
@@ -102,7 +103,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Có lỗi xảy ra khi xóa: $e'),
+            content: Text('${context.translate('error')}: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -117,13 +118,13 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
-        title: Text('Chỉnh sửa thông tin', style: TextStyle(color: theme.colorScheme.onSurface)),
+        title: Text(context.translate('edit_info'), style: TextStyle(color: theme.colorScheme.onSurface)),
         content: TextField(
           controller: controller,
           maxLines: 3,
           style: TextStyle(color: theme.colorScheme.onSurface),
           decoration: InputDecoration(
-            hintText: 'Nhập ghi chú hoặc tên hoạt động...',
+            hintText: context.translate('enter_notes_hint'),
             hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
             enabledBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
@@ -136,7 +137,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Hủy', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(context.translate('cancel'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () async {
@@ -144,7 +145,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               Navigator.pop(context);
               await _updateActivityNotes(newNotes);
             },
-            child: Text('Lưu', style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold)),
+            child: Text(context.translate('save'), style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -157,22 +158,22 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
-        title: Text('Xóa hoạt động?', style: TextStyle(color: theme.colorScheme.onSurface)),
+        title: Text(context.translate('delete_activity'), style: TextStyle(color: theme.colorScheme.onSurface)),
         content: Text(
-          'Bạn có chắc chắn muốn xóa hoạt động này? Hành động này không thể hoàn tác.',
+          context.translate('delete_activity_confirm'),
           style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Hủy', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(context.translate('cancel'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
               await _deleteActivity();
             },
-            child: const Text('Xóa', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: Text(context.translate('delete'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -202,7 +203,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
             onPressed: () => Navigator.pop(context, _hasChanged),
           ),
-          title: Text(_activity.notes ?? 'Chi tiết hoạt động', style: TextStyle(color: colorScheme.onSurface)),
+          title: Text(_activity.notes ?? context.translate('activity_details'), style: TextStyle(color: colorScheme.onSurface)),
           backgroundColor: Colors.transparent,
           elevation: 0,
           actions: [
@@ -222,7 +223,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                     children: [
                       Icon(Icons.edit, color: colorScheme.onSurfaceVariant),
                       const SizedBox(width: 8),
-                      Text('Sửa thông tin', style: TextStyle(color: colorScheme.onSurface)),
+                      Text(context.translate('edit_info'), style: TextStyle(color: colorScheme.onSurface)),
                     ],
                   ),
                 ),
@@ -232,7 +233,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                     children: [
                       const Icon(Icons.delete, color: Colors.redAccent),
                       const SizedBox(width: 8),
-                      const Text('Xóa hoạt động', style: TextStyle(color: Colors.redAccent)),
+                      Text(context.translate('delete_activity'), style: const TextStyle(color: Colors.redAccent)),
                     ],
                   ),
                 ),
@@ -280,38 +281,38 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                     ],
                     if (paces.isNotEmpty) ...[
                       ActivityChart(
-                        title: 'Pace (Tốc độ)',
+                        title: context.translate('pace_title'),
                         xValues: times,
                         yValues: paces,
                         color: const Color(0xFFFA6B27),
-                        yAxisLabel: 'min/km',
+                        yAxisLabel: context.translate('min_km'),
                         isPace: true,
                       ),
                       const SizedBox(height: 24),
                     ],
                     if (hrs.isNotEmpty) ...[
                       ActivityChart(
-                        title: 'Nhịp tim',
+                        title: context.translate('heart_rate'),
                         xValues: times,
                         yValues: hrs,
                         color: Colors.redAccent,
-                        yAxisLabel: 'bpm',
+                        yAxisLabel: context.translate('bpm'),
                       ),
                       const SizedBox(height: 24),
                     ],
                     if (elevations.isNotEmpty) ...[
                       ActivityChart(
-                        title: 'Độ cao',
+                        title: context.translate('elevation'),
                         xValues: times,
                         yValues: elevations,
                         color: const Color(0xFF3CABFF),
-                        yAxisLabel: 'm',
+                        yAxisLabel: context.translate('m'),
                       ),
                       const SizedBox(height: 24),
                     ],
                     if (_activity.notes != null && _activity.notes!.isNotEmpty) ...[
                       Text(
-                        'Ghi chú',
+                        context.translate('notes'),
                         style: TextStyle(
                           color: colorScheme.onSurface,
                           fontSize: 18,
@@ -365,7 +366,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Điều kiện môi trường',
+            context.translate('environment_conditions'),
             style: TextStyle(
               color: colorScheme.onSurfaceVariant,
               fontSize: 14,
@@ -388,7 +389,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${snapshot.temperatureC?.toStringAsFixed(1) ?? '--'}°C • ${snapshot.summary ?? snapshot.description ?? 'Thời tiết'}',
+                      '${snapshot.temperatureC?.toStringAsFixed(1) ?? '--'}°C • ${snapshot.summary ?? snapshot.description ?? context.translate('weather')}',
                       style: TextStyle(
                         color: colorScheme.onSurface,
                         fontSize: 18,
@@ -442,7 +443,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${snapshot.windKph!.toStringAsFixed(1)} km/h',
+                      '${snapshot.windKph!.toStringAsFixed(1)} ${context.translate('km_h')}',
                       style: TextStyle(color: colorScheme.onSurface, fontSize: 14),
                     ),
                   ],
@@ -467,14 +468,14 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               Expanded(
                 child: _buildStatItem(
                   context,
-                  'Quãng đường',
+                  context.translate('distance'),
                   '${_activity.distanceKm.toStringAsFixed(2)} km',
                 ),
               ),
               Expanded(
                 child: _buildStatItem(
                   context,
-                  'Thời gian',
+                  context.translate('time'),
                   _formatDuration(_activity.durationMin),
                 ),
               ),
@@ -486,19 +487,19 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             children: [
               _buildStatItem(
                 context,
-                'Pace TB',
+                context.translate('avg_pace'),
                 _formatPace(_activity.durationMin / _activity.distanceKm),
               ),
               _buildStatItem(
                 context,
-                'Độ cao (+)',
+                context.translate('elevation_gain'),
                 '${_activity.elevationGainM?.toStringAsFixed(0) ?? 0} m',
               ),
             ],
           ),
           if (_activity.avgHr != null) ...[
             Divider(color: colorScheme.outline.withValues(alpha: 0.1), height: 32),
-            _buildStatItem(context, 'Nhịp tim TB', '${_activity.avgHr} bpm'),
+            _buildStatItem(context, context.translate('avg_hr'), '${_activity.avgHr} bpm'),
           ],
         ],
       ),

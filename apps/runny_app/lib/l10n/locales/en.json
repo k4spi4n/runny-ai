@@ -1,6 +1,9 @@
 {
   "app_title": "Runny AI",
   "login": "Login",
+  "logout": "Logout",
+  "logout_confirm": "Are you sure you want to logout from Runny AI?",
+  "logging_out": "Logging out...",
   "email": "Email",
   "password": "Password",
   "dashboard": "Dashboard",

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'ui_components.dart';
+import '../l10n/app_localizations.dart';
 
 class ActivityChart extends StatelessWidget {
   final String title;
@@ -85,7 +86,7 @@ class ActivityChart extends StatelessWidget {
                         return SideTitleWidget(
                           axisSide: meta.axisSide,
                           child: Text(
-                            '$minutes m',
+                            '$minutes ${context.translate('minute_short')}',
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.5),
                               fontSize: 10,
