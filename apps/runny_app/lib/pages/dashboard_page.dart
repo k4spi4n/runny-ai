@@ -8,6 +8,7 @@ import 'activity_details_page.dart';
 import 'profile_page.dart';
 import 'community_page.dart';
 import 'nutrition_page.dart';
+import 'activity_history_page.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/nutrition_components.dart';
 import '../services/nutrition_service.dart';
@@ -38,14 +39,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _pages = [
       const OverviewContent(),
       const NutritionPage(),
-      Center(
-        child: Builder(
-          builder: (context) => Text(
-            'Activity History',
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-          ),
-        ),
-      ),
+      const ActivityHistoryPage(),
       const TrainingPlanPage(),
       const AICoachPage(),
       const CommunityPage(),

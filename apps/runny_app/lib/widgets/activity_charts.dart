@@ -10,6 +10,8 @@ class ActivityChart extends StatelessWidget {
   final Color color;
   final String yAxisLabel;
   final bool isPace;
+  final double? activeX;
+  final ValueChanged<double?>? onXSelected;
 
   const ActivityChart({
     super.key,
@@ -19,6 +21,8 @@ class ActivityChart extends StatelessWidget {
     required this.color,
     required this.yAxisLabel,
     this.isPace = false,
+    this.activeX,
+    this.onXSelected,
   });
 
   @override
@@ -58,6 +62,17 @@ class ActivityChart extends StatelessWidget {
             height: 200,
             child: LineChart(
               LineChartData(
+                extraLinesData: ExtraLinesData(
+                  verticalLines: [
+                    if (activeX != null)
+                      VerticalLine(
+                        x: activeX!,
+                        color: Colors.white.withValues(alpha: 0.35),
+                        strokeWidth: 1.5,
+                        dashArray: [4, 4],
+                      ),
+                  ],
+                ),
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
@@ -141,6 +156,14 @@ class ActivityChart extends StatelessWidget {
                   ),
                 ],
                 lineTouchData: LineTouchData(
+                  touchCallback: (FlTouchEvent event, LineTouchResponse? response) {
+                    if (onXSelected == null) return;
+                    if (response == null || response.lineBarSpots == null || response.lineBarSpots!.isEmpty) {
+                      onXSelected!(null);
+                    } else {
+                      onXSelected!(response.lineBarSpots!.first.x);
+                    }
+                  },
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipColor: (touchedSpot) => const Color(0xFF262F57),
                     getTooltipItems: (List<LineBarSpot> touchedBarSpots) {

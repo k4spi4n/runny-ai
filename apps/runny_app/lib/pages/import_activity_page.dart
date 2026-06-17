@@ -5,6 +5,7 @@ import '../utils/activity_parser.dart';
 import '../services/weather_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/ui_components.dart';
+import '../models/shoe_models.dart';
 
 class ImportActivityPage extends StatefulWidget {
   const ImportActivityPage({super.key});
@@ -17,6 +18,33 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   bool _isLoading = false;
   String? _statusMessage;
   final WeatherService _weatherService = WeatherService();
+  List<Shoe> _activeShoes = [];
+  String? _selectedShoeId;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchActiveShoes();
+  }
+
+  Future<void> _fetchActiveShoes() async {
+    try {
+      final res = await Supabase.instance.client
+          .from('shoes')
+          .select()
+          .eq('is_active', true)
+          .order('name');
+      final list = (res as List).map((json) => Shoe.fromJson(json)).toList();
+      setState(() {
+        _activeShoes = list;
+        if (list.isNotEmpty) {
+          _selectedShoeId = list.first.id;
+        }
+      });
+    } catch (e) {
+      debugPrint('Error fetching active shoes: $e');
+    }
+  }
 
   Future<void> _pickAndImportFile() async {
     try {
@@ -87,6 +115,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           'weather_json': weatherSnapshot?.toJson(),
           'weather_fetched_at': weatherSnapshot?.fetchedAt.toIso8601String(),
           'notes': context.translate('imported_from', [file.name]),
+          if (_selectedShoeId != null) 'shoe_id': _selectedShoeId,
         });
 
         setState(() {
@@ -133,7 +162,30 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                 context.translate('supported_formats'),
                 style: const TextStyle(color: Colors.grey),
               ),
-              const SizedBox(height: 32),
+              if (_activeShoes.isNotEmpty) ...[
+                Text(
+                  context.translate('select_shoe'),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                DropdownButton<String>(
+                  value: _selectedShoeId,
+                  dropdownColor: Theme.of(context).colorScheme.surface,
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedShoeId = newValue;
+                    });
+                  },
+                  items: _activeShoes.map<DropdownMenuItem<String>>((Shoe shoe) {
+                    return DropdownMenuItem<String>(
+                      value: shoe.id,
+                      child: Text('${shoe.name} (${shoe.brand ?? ''})'),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 24),
+              ],
               if (_isLoading)
                 const CircularProgressIndicator()
               else
