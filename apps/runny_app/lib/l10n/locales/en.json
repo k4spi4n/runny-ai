@@ -243,5 +243,12 @@
   "race_distance": "Race Distance",
   "vo2max_progress_msg": "Your running performance corresponds to an estimated VO2 Max of %s.",
   "select_shoe": "Select running shoe",
-  "no_shoes_yet": "No running shoes added yet."
+  "no_shoes_yet": "No running shoes added yet.",
+  "add_activity": "Add",
+  "add_activity_option_upload": "Upload new activity",
+  "add_activity_option_link": "Link to existing activity",
+  "select_activity_to_link": "Select activity to link",
+  "no_activities_to_link": "No unlinked activities found.",
+  "link_success": "Linked activity successfully!",
+  "link_error": "Failed to link activity."
 }

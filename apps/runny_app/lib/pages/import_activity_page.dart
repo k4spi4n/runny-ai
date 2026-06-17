@@ -8,7 +8,8 @@ import '../widgets/ui_components.dart';
 import '../models/shoe_models.dart';
 
 class ImportActivityPage extends StatefulWidget {
-  const ImportActivityPage({super.key});
+  final String? scheduledWorkoutId;
+  const ImportActivityPage({super.key, this.scheduledWorkoutId});
 
   @override
   State<ImportActivityPage> createState() => _ImportActivityPageState();
@@ -47,10 +48,11 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   }
 
   Future<void> _pickAndImportFile() async {
+    final localizations = AppLocalizations.of(context);
     try {
       setState(() {
         _isLoading = true;
-        _statusMessage = context.translate('selecting_file');
+        _statusMessage = localizations?.translate('selecting_file') ?? 'selecting_file';
       });
 
       FilePickerResult? result = await FilePicker.pickFiles(
@@ -64,13 +66,13 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         final extension = file.extension?.toLowerCase();
 
         setState(() {
-          _statusMessage = context.translate('analyzing_file', [file.name]);
+          _statusMessage = localizations?.translate('analyzing_file', [file.name]) ?? 'analyzing_file';
         });
 
         // Parse file
         final bytes = file.bytes;
         if (bytes == null) {
-          throw Exception(context.translate('read_file_error'));
+          throw Exception(localizations?.translate('read_file_error') ?? 'read_file_error');
         }
 
         final parsedActivity = await ActivityParser.parse(
@@ -83,7 +85,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
             parsedActivity.startLon != null) {
           try {
             setState(() {
-              _statusMessage = context.translate('fetching_weather');
+              _statusMessage = localizations?.translate('fetching_weather') ?? 'fetching_weather';
             });
             weatherSnapshot = await _weatherService.fetchWeatherSnapshot(
               lat: parsedActivity.startLat!,
@@ -95,11 +97,11 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         }
 
         setState(() {
-          _statusMessage = context.translate('saving_to_db');
+          _statusMessage = localizations?.translate('saving_to_db') ?? 'saving_to_db';
         });
 
         // Save to Supabase
-        await Supabase.instance.client.from('activities').insert({
+        final activityRes = await Supabase.instance.client.from('activities').insert({
           'user_id': Supabase.instance.client.auth.currentUser!.id,
           'started_at': parsedActivity.startedAt.toIso8601String(),
           'distance_km': parsedActivity.distanceKm,
@@ -114,21 +116,41 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           'aqi': weatherSnapshot?.aqi,
           'weather_json': weatherSnapshot?.toJson(),
           'weather_fetched_at': weatherSnapshot?.fetchedAt.toIso8601String(),
-          'notes': context.translate('imported_from', [file.name]),
+          'notes': localizations?.translate('imported_from', [file.name]) ?? 'imported_from',
           if (_selectedShoeId != null) 'shoe_id': _selectedShoeId,
-        });
+        }).select('id').single();
+
+        final activityId = activityRes['id'] as String;
+
+        if (widget.scheduledWorkoutId != null) {
+          await Supabase.instance.client
+              .from('scheduled_workouts')
+              .update({
+                'activity_id': activityId,
+                'status': 'completed',
+              })
+              .eq('id', widget.scheduledWorkoutId!);
+        }
 
         setState(() {
-          _statusMessage = context.translate('import_success');
+          _statusMessage = localizations?.translate('import_success') ?? 'import_success';
         });
+
+        if (mounted) {
+          Future.delayed(const Duration(milliseconds: 1000), () {
+            if (mounted) {
+              Navigator.pop(context, true);
+            }
+          });
+        }
       } else {
         setState(() {
-          _statusMessage = context.translate('import_cancelled');
+          _statusMessage = localizations?.translate('import_cancelled') ?? 'import_cancelled';
         });
       }
     } catch (e) {
       setState(() {
-        _statusMessage = '${context.translate('import_error')}: $e';
+        _statusMessage = '${localizations?.translate('import_error') ?? 'import_error'}: $e';
       });
     } finally {
       setState(() {

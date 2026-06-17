@@ -358,6 +358,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           TextButton(
             onPressed: () async {
+              final errorPrefix = context.translate('error');
               Navigator.pop(context);
               final messenger = ScaffoldMessenger.of(context);
               messenger.showSnackBar(
@@ -370,7 +371,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 await Supabase.instance.client.auth.signOut();
               } catch (e) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('${context.translate('error')}: $e')),
+                  SnackBar(content: Text('$errorPrefix: $e')),
                 );
               }
             },
@@ -507,7 +508,6 @@ class _OverviewContentState extends State<OverviewContent> {
     }
 
     throw lastError;
-    return null;
   }
 
   Future<List<Activity>> _fetchLatestActivities() async {

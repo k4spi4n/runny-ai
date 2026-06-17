@@ -243,5 +243,12 @@
   "race_distance": "Cự ly thi đấu",
   "vo2max_progress_msg": "Hiệu suất tập luyện của bạn tương đương VO2 Max là %s.",
   "select_shoe": "Chọn giày chạy",
-  "no_shoes_yet": "Chưa khai báo giày chạy bộ nào."
+  "no_shoes_yet": "Chưa khai báo giày chạy bộ nào.",
+  "add_activity": "Thêm",
+  "add_activity_option_upload": "Tải lên hoạt động mới",
+  "add_activity_option_link": "Liên kết hoạt động đã upload",
+  "select_activity_to_link": "Chọn hoạt động để liên kết",
+  "no_activities_to_link": "Không tìm thấy hoạt động chưa liên kết.",
+  "link_success": "Liên kết hoạt động thành công!",
+  "link_error": "Liên kết hoạt động thất bại."
 }
