@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/workout_models.dart';
+import '../models/shoe_models.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
 import '../services/weather_service.dart';
@@ -20,11 +21,15 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
   late Activity _activity;
   bool _isSaving = false;
   bool _hasChanged = false;
+  double? _activeTime;
+  List<Shoe> _shoes = [];
+  Shoe? _currentShoe;
 
   @override
   void initState() {
     super.initState();
     _activity = widget.activity;
+    _fetchShoeInfo();
   }
 
   Future<void> _updateActivityNotes(String notes) async {
@@ -279,6 +284,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                       _buildWeatherCard(context),
                       const SizedBox(height: 24),
                     ],
+                    _buildShoeCard(context),
+                    const SizedBox(height: 24),
                     if (paces.isNotEmpty) ...[
                       ActivityChart(
                         title: context.translate('pace_title'),
@@ -287,6 +294,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                         color: const Color(0xFFFA6B27),
                         yAxisLabel: context.translate('min_km'),
                         isPace: true,
+                        activeX: _activeTime,
+                        onXSelected: (val) => setState(() => _activeTime = val),
                       ),
                       const SizedBox(height: 24),
                     ],
@@ -297,6 +306,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                         yValues: hrs,
                         color: Colors.redAccent,
                         yAxisLabel: context.translate('bpm'),
+                        activeX: _activeTime,
+                        onXSelected: (val) => setState(() => _activeTime = val),
                       ),
                       const SizedBox(height: 24),
                     ],
@@ -307,6 +318,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                         yValues: elevations,
                         color: const Color(0xFF3CABFF),
                         yAxisLabel: context.translate('m'),
+                        activeX: _activeTime,
+                        onXSelected: (val) => setState(() => _activeTime = val),
                       ),
                       const SizedBox(height: 24),
                     ],
@@ -551,5 +564,164 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
       return data.map((e) => (e as num).toDouble()).toList();
     }
     return [];
+  }
+
+  Future<void> _fetchShoeInfo() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    
+    try {
+      final shoesRes = await Supabase.instance.client
+          .from('shoes')
+          .select()
+          .order('name');
+      final shoesList = (shoesRes as List).map((json) => Shoe.fromJson(json)).toList();
+      
+      Shoe? currentShoe;
+      if (_activity.shoeId != null) {
+        final index = shoesList.indexWhere((s) => s.id == _activity.shoeId);
+        if (index != -1) {
+          currentShoe = shoesList[index];
+        }
+      }
+      
+      setState(() {
+        _shoes = shoesList;
+        _currentShoe = currentShoe;
+      });
+    } catch (e) {
+      debugPrint('Error fetching shoe info on detail page: $e');
+    }
+  }
+
+  Future<void> _updateActivityShoe(String? shoeId) async {
+    if (_activity.id == null) return;
+    setState(() => _isSaving = true);
+    try {
+      await Supabase.instance.client
+          .from('activities')
+          .update({'shoe_id': shoeId})
+          .eq('id', _activity.id!);
+
+      final updatedActivity = Activity(
+        id: _activity.id,
+        userId: _activity.userId,
+        startedAt: _activity.startedAt,
+        distanceKm: _activity.distanceKm,
+        durationMin: _activity.durationMin,
+        avgHr: _activity.avgHr,
+        elevationGainM: _activity.elevationGainM,
+        notes: _activity.notes,
+        dataPoints: _activity.dataPoints,
+        startLat: _activity.startLat,
+        startLon: _activity.startLon,
+        weatherSummary: _activity.weatherSummary,
+        temperatureC: _activity.temperatureC,
+        aqi: _activity.aqi,
+        weatherFetchedAt: _activity.weatherFetchedAt,
+        weatherJson: _activity.weatherJson,
+        shoeId: shoeId,
+      );
+
+      final index = _shoes.indexWhere((s) => s.id == shoeId);
+      final newShoe = (index != -1) ? _shoes[index] : null;
+
+      setState(() {
+        _activity = updatedActivity;
+        _currentShoe = newShoe;
+        _hasChanged = true;
+        _isSaving = false;
+      });
+    } catch (e) {
+      setState(() => _isSaving = false);
+      debugPrint('Error updating activity shoe: $e');
+    }
+  }
+
+  Widget _buildShoeCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final activeShoes = _shoes.where((s) => s.isActive).toList();
+
+    return glassCard(
+      context: context,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.translate('shoe_tracker'),
+            style: TextStyle(
+              color: colorScheme.onSurfaceVariant,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.run_circle_outlined,
+                      color: _currentShoe != null ? colorScheme.primary : Colors.grey,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _currentShoe != null
+                            ? '${_currentShoe!.name} (${_currentShoe!.brand ?? ''})'
+                            : context.translate('no_shoes_yet'),
+                        style: TextStyle(
+                          color: colorScheme.onSurface,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              DropdownButton<String>(
+                value: _activity.shoeId,
+                hint: Text(context.translate('select_shoe'), style: const TextStyle(fontSize: 12)),
+                underline: const SizedBox(),
+                icon: Icon(Icons.edit, color: colorScheme.primary, size: 18),
+                onChanged: (String? newValue) async {
+                  await _updateActivityShoe(newValue);
+                },
+                items: [
+                  const DropdownMenuItem<String>(
+                    value: null,
+                    child: Text('No Shoe', style: TextStyle(fontSize: 13)),
+                  ),
+                  ...activeShoes.map((shoe) {
+                    return DropdownMenuItem<String>(
+                      value: shoe.id,
+                      child: Text(shoe.name, style: const TextStyle(fontSize: 13)),
+                    );
+                  }),
+                ],
+              ),
+            ],
+          ),
+          if (_currentShoe != null && _currentShoe!.distanceKm >= 500.0) ...[
+            const SizedBox(height: 10),
+            Text(
+              context.translate('shoe_replace_warning'),
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
