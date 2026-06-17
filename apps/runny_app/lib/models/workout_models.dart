@@ -15,6 +15,7 @@ class Activity {
   final int? aqi;
   final DateTime? weatherFetchedAt;
   final Map<String, dynamic>? weatherJson;
+  final String? shoeId;
 
   Activity({
     this.id,
@@ -33,6 +34,7 @@ class Activity {
     this.aqi,
     this.weatherFetchedAt,
     this.weatherJson,
+    this.shoeId,
   });
 
   factory Activity.fromJson(Map<String, dynamic> json) {
@@ -57,6 +59,7 @@ class Activity {
           ? DateTime.parse(json['weather_fetched_at'])
           : null,
       weatherJson: json['weather_json'],
+      shoeId: json['shoe_id'],
     );
   }
 
@@ -78,6 +81,7 @@ class Activity {
       'aqi': aqi,
       'weather_fetched_at': weatherFetchedAt?.toIso8601String(),
       'weather_json': weatherJson,
+      if (shoeId != null) 'shoe_id': shoeId,
     };
   }
 }
