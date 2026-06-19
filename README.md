@@ -61,6 +61,7 @@ graph TD
 
 ## Tài liệu Hướng dẫn
 
+- [Tầm nhìn Sản phẩm, Personas & User Stories](docs/product-vision.md)
 - [Hướng dẫn Cài đặt](docs/setup.md)
 - [Tài liệu API](docs/api.md)
 - [Danh mục Công nghệ](docs/tech-stack.md)
