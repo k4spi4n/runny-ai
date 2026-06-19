@@ -185,38 +185,36 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _connectStrava() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final disconnectedStravaText = context.translate('disconnected_strava');
+    final errorText = context.translate('error');
     try {
       if (_stravaId != null) {
         await _integrationService.disconnectStrava();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(context.translate('disconnected_strava'))));
+        messenger.showSnackBar(SnackBar(content: Text(disconnectedStravaText)));
       } else {
         await _integrationService.connectStrava();
       }
       _loadProfile();
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('$errorText: $e')));
     }
   }
 
   Future<void> _connectGarmin() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final disconnectedGarminText = context.translate('disconnected_garmin');
+    final errorText = context.translate('error');
     try {
       if (_garminId != null) {
         await _integrationService.disconnectGarmin();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(context.translate('disconnected_garmin'))));
+        messenger.showSnackBar(SnackBar(content: Text(disconnectedGarminText)));
       } else {
         await _integrationService.connectGarmin();
       }
       _loadProfile();
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('$errorText: $e')));
     }
   }
 
@@ -368,13 +366,14 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
+              final errorText = context.translate('error');
               final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(context);
               try {
                 await _supabase.auth.signOut();
               } catch (e) {
                 messenger.showSnackBar(
-                  SnackBar(content: Text('${context.translate('error')}: $e')),
+                  SnackBar(content: Text('$errorText: $e')),
                 );
               }
             },

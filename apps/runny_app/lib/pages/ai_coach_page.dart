@@ -79,6 +79,25 @@ class _AICoachPageState extends State<AICoachPage> {
     });
     _controller.clear();
 
+    // Cache context-dependent translations before any async gaps
+    final errorOccurredTranslation = context.translate('error_occurred');
+    final planCreatedTranslation = context.translate('plan_created_assistant');
+
+    String prompt = text;
+    final contextActivity = _contextActivity;
+    if (contextActivity != null) {
+      final hasEnglishL10n = context.translate('english') == 'English';
+      prompt = context.translate('ai_prompt_context', [
+        contextActivity.distanceKm.toStringAsFixed(2),
+        contextActivity.durationMin.toStringAsFixed(1),
+        contextActivity.avgHr?.toString() ?? 'N/A',
+        contextActivity.elevationGainM?.toString() ?? '0',
+        contextActivity.notes ?? (hasEnglishL10n ? 'None' : 'Không có'),
+        text,
+      ]);
+      setState(() => _contextActivity = null); // Reset context immediately (safe since it's synchronous)
+    }
+
     // Save user message
     await _chatService.saveMessage('user', text);
 
@@ -92,39 +111,28 @@ class _AICoachPageState extends State<AICoachPage> {
 
       if (isRequestingPlan) {
         await _trainingService.createGoalBasedPlan(text);
-        final assistantMsg = context.translate('plan_created_assistant');
+        if (!mounted) return;
         setState(() {
           _messages.add({
             'role': 'assistant',
-            'content': assistantMsg,
+            'content': planCreatedTranslation,
           });
         });
-        await _chatService.saveMessage('assistant', assistantMsg);
+        await _chatService.saveMessage('assistant', planCreatedTranslation);
       } else {
-        String prompt = text;
-        if (_contextActivity != null) {
-          prompt = context.translate('ai_prompt_context', [
-            _contextActivity!.distanceKm.toStringAsFixed(2),
-            _contextActivity!.durationMin.toStringAsFixed(1),
-            _contextActivity!.avgHr?.toString() ?? 'N/A',
-            _contextActivity!.elevationGainM?.toString() ?? '0',
-            _contextActivity!.notes ?? (context.translate('english') == 'English' ? 'None' : 'Không có'),
-            text,
-          ]);
-          setState(() => _contextActivity = null); // Reset context after sending
-        }
-
         final response = await _geminiService.generateResponse(
           prompt,
           history: _messages.sublist(0, _messages.length - 1),
         );
+        if (!mounted) return;
         setState(() {
           _messages.add({'role': 'assistant', 'content': response});
         });
         await _chatService.saveMessage('assistant', response);
       }
     } catch (e) {
-      final errorMsg = '${context.translate('error_occurred')}: $e';
+      if (!mounted) return;
+      final errorMsg = '$errorOccurredTranslation: $e';
       setState(() {
         _messages.add({
           'role': 'assistant',
@@ -133,9 +141,11 @@ class _AICoachPageState extends State<AICoachPage> {
       });
       await _chatService.saveMessage('assistant', errorMsg);
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 

@@ -5,7 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class GeminiService {
   final String _modelName;
-  final bool _shouldUseProxy = true;
 
   GeminiService()
       : _modelName = dotenv.env['OPENROUTER_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct:free' {
