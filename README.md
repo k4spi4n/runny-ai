@@ -56,15 +56,8 @@ graph TD
 
 ## Ảnh Chụp Màn Hình (Demo)
 
-| Dashboard | AI Coach | Chi tiết Hoạt động |
-| :---: | :---: | :---: |
-| ![Dashboard](/docs/images/dashboard.png) | ![AI Coach](/docs/images/ai_coach.png) | ![Activity Details](/docs/images/activity_details.png) |
-
-| Cộng đồng | Hồ sơ | Giáo án Tập luyện |
-| :---: | :---: | :---: |
-| ![Community](/docs/images/community.png) | ![Profile](/docs/images/profile.png) | ![Training Plan](/docs/images/training_plan.png) |
-
-*(Lưu ý: Hình ảnh thực tế cần được đặt tại thư mục `/docs/images/`)*
+> [!NOTE]
+> Các hình ảnh demo giao diện người dùng thực tế đang được tổng hợp và đóng gói cho phiên bản phát hành chính thức (v1.0.0-stable). Trong bản phát hành thử nghiệm v0.1.0-alpha, bạn có thể chạy thử trực tiếp giao diện ứng dụng bằng cách làm theo hướng dẫn cài đặt dưới đây.
 
 ## Tài liệu Hướng dẫn
 

@@ -1,58 +1,49 @@
 # 🚀 Runny AI - Release v0.1.0-alpha (First Beta/Tester Release)
 
-Chào mừng các bạn đến với phiên bản thử nghiệm đầu tiên (**v0.1.0-alpha**) của dự án **Runny AI**! Đây là cột mốc quan trọng, đánh dấu sự hoàn thiện của bộ khung ứng dụng (Frontend Flutter + Backend Supabase) cùng các lõi chức năng cốt lõi. 
-
-Tài liệu này được biên soạn nhằm hướng dẫn chi tiết cho đội ngũ Kiểm thử (Testers) cách thiết lập môi trường phát triển cục bộ (Local Environment), cấu hình các biến bảo mật, cách sử dụng các tính năng ứng dụng, và các kịch bản kiểm thử (Test Scenarios) mẫu.
+Chào mừng các bạn đến với phiên bản thử nghiệm đầu tiên (**v0.1.0-alpha**) của dự án **Runny AI**! Đây là bản thử nghiệm đầu tiên cho tester, đánh dấu sự hoàn thiện của bộ khung ứng dụng (Frontend Flutter + Backend Supabase) cùng các lõi chức năng cốt lõi.
 
 ---
 
-## 📑 Bảng mục lục
-1. [🌟 Tổng quan về Runny AI](#-tong-quan-ve-runny-ai)
-2. [🛠 Các Tính Năng Hoàn Thiện trong v0.1.0](#-cac-tinh-nang-hoan-thien-trong-v010)
-3. [💻 Yêu Cầu Hệ Thống (Prerequisites)](#-yeu-cau-he-thong-prerequisites)
-4. [🚀 Hướng Dẫn Cài Đặt Môi Trường Chi Tiết](#-huong-dan-cai-dat-moi-truong-chi-tiet)
-   - [Bước 1: Clone dự án](#buoc-1-clone-du-an)
-   - [Bước 2: Cài đặt & Khởi chạy Backend (Supabase Local)](#buoc-2-cai-dat--khoi-chay-backend-supabase-local)
-   - [Bước 3: Cấu hình Biến môi trường (.env)](#buoc-3-cau-hinh-bien-moi-truong-env)
-   - [Bước 4: Cài đặt Thư viện & Khởi chạy Frontend](#buoc-4-cai-dat-thu-vien--khoi-chay-frontend)
-5. [📖 Hướng Dẫn Sử Dụng dành cho Tester](#-huong-dan-su-dung-danh-cho-tester)
-6. [📋 Kịch Bản Kiểm Thử Mẫu (Suggested Test Cases)](#-kich-ban-kiem-thu-mau-suggested-test-cases)
-7. [🐛 Báo Cáo Lỗi & Phản Hồi (Feedback Loops)](#-bao-cao-loi--phan-hoi-feedback-loops)
+## 📝 Release Changelog & Quy Trình
 
----
+### 1. Summary (Tóm tắt)
+Runny AI v0.1.0-alpha là bản phát hành thử nghiệm đầu tiên phục vụ theo dõi chạy bộ, AI Coach tư vấn tập luyện, nhập hoạt động thô, trực quan hóa biểu đồ nâng cao, hồ sơ sức khỏe và tương tác cộng đồng. Phiên bản này đồng bộ hóa tag `v0.1.0` trên hệ thống và tích hợp quy trình phát triển chuyên nghiệp trên GitHub.
 
-## 🌟 Tổng quan về Runny AI
-**Runny AI** là một hệ sinh thái thể dục thể thao chuyên nghiệp, được hỗ trợ bởi trí tuệ nhân tạo (AI), thiết kế riêng biệt cho cộng đồng những người đam mê chạy bộ. Dự án kết hợp công nghệ theo dõi hoạt động tiên tiến, huấn luyện viên ảo cá nhân hóa (AI Running Assistant) và các tính năng tương tác cộng đồng giúp người dùng tối ưu hóa hiệu suất tập luyện.
+### 2. New Features (Tính năng mới)
+*   **Lõi Trợ lý AI Coach thông minh** (#29, #41): Chatbot HLV Ảo trò chuyện trực tiếp (Q&A) tương tác với AI về kỹ thuật, chấn thương và dinh dưỡng. Tự động lập giáo án chạy bộ động (Training Plans) dựa trên mục tiêu qua OpenRouter/Gemini. Tích hợp nhập liệu giọng nói (Speech-to-Text).
+*   **Import Đa nguồn & Đồng bộ Strava** (#36, #44): Nhập thủ công các hoạt động chạy thô từ file chuẩn `.GPX` hoặc `.FIT`. Kết nối trực tiếp qua Strava API OAuth2 & Webhooks để đồng bộ hoạt động tự động khi kết thúc buổi chạy.
+*   **Biểu đồ dữ liệu nâng cao & Shoe Tracker** (#28, #44): Trực quan hóa Pace, Heart Rate (Nhịp tim) và Elevation (Độ cao) thời gian thực kèm con trỏ đồng bộ hóa chéo (synced cursor crosshair). Quản lý danh sách giày chạy bộ, tự động cộng dồn cự ly và cảnh báo thay giày khi đạt ngưỡng hao mòn.
+*   **Theo dõi sức khỏe & Cân nặng** (#30, #37): Nhật ký theo dõi cân nặng, tự động tính BMI và trực quan hóa biểu đồ xu hướng.
+*   **Cộng đồng & Trò chơi hóa (Gamification)**: Bảng xếp hạng runner theo quãng đường tích lũy, hệ thống Huy hiệu ghi nhận cột mốc, và tính năng ghép đôi bạn chạy (Partner Matching) dựa trên dải Pace và khu vực hoạt động.
+*   **Tính năng bổ trợ**: Quản lý thực đơn tracking (#31, #38) và bổ sung gói đăng ký Weekly/Monthly/Yearly (#40).
+*   **Giao diện sáng/tối & Đa ngôn ngữ** (#25, #35, #42): Hỗ trợ chuyển đổi Theme (Light/Dark Mode) và Ngôn ngữ (Vietnamese/English).
 
----
+### 3. Bug Fixes (Sửa lỗi)
+*   Khắc phục lỗi trả về `Future` không đồng bộ trong `setState` khi refresh trang cân nặng (#37).
+*   Sửa lỗi kết nối API thời tiết & AQI, đảm bảo dữ liệu chạy qua proxy ổn định (#36).
 
-## 🛠 Các Tính Năng Hoàn Thiện trong v0.1.0
-Phiên bản `v0.1.0-alpha` tích hợp đầy đủ 13 màn hình giao diện cốt lõi cùng hạ tầng dữ liệu và Serverless Edge Functions:
+### 4. Changed (Thay đổi quan trọng)
+*   🛡️ **Cải tiến bảo mật API Key**: Loại bỏ hoàn toàn các private API key (`OPENROUTER_API_KEY`, `GEMINI_API_KEY`, `OPENWEATHER_API_KEY`) khỏi phía client. Toàn bộ các yêu cầu AI và thời tiết hiện được proxy an toàn 100% qua Supabase Edge Functions, triệt tiêu rủi ro lộ key trên môi trường Flutter Web bundle.
+*   **Đồng bộ phiên bản**: Đồng bộ hóa tag, release title và metadata phiên bản (`0.1.0-alpha+1` trong `pubspec.yaml`).
+*   **Tài liệu hóa**: Bổ sung tài liệu onboarding, kiến trúc hệ thống và hướng dẫn thiết lập chi tiết (#43, #45).
 
-### 1. 👤 Quản lý Tài khoản & Hồ sơ (Auth & Onboarding)
-*   **Xác thực bảo mật:** Sử dụng Supabase Auth để quản lý Đăng ký/Đăng nhập.
-*   **Bảng hỏi thể trạng (Onboarding):** Thu thập thông tin ban đầu: Chiều cao, cân nặng, nhịp tim tối đa (Max HR), mục tiêu và kinh nghiệm chạy bộ để AI tối ưu hóa giáo án.
-*   **Hồ sơ người dùng (User Profile):** Hiển thị tổng quan thành tích, cấu hình liên kết bên thứ ba (Strava), và theo dõi thiết bị (Shoe Tracker).
+### 5. Testing & CI Evidence (Bằng chứng kiểm thử)
+*   **Manual Testing**: Chi tiết các kịch bản kiểm thử mẫu được trình bày ở phần bên dưới.
+*   **Automated Testing**: Tích hợp smoke/widget test cho Flutter tại `apps/runny_app/test/widget_test.dart`.
+*   🚀 **GitHub Actions CI Pipeline**: Đã cấu hình chạy tự động kiểm tra chất lượng code, lint (`flutter analyze`) và chạy tests (`flutter test`) mỗi khi có push hoặc PR (xem cấu hình tại [.github/workflows/ci.yml](file:///D:/CODE/runny-ai/.github/workflows/ci.yml)).
 
-### 2. 📊 Xử lý & Trực quan hóa Hoạt động (Activity Processing)
-*   **Import Đa nguồn:** Hỗ trợ người dùng tải lên thủ công tệp thô chuẩn `.GPX` hoặc `.FIT` từ đồng hồ thể thao.
-*   **Đồng bộ tự động Strava:** Kết nối trực tiếp qua Strava API OAuth2 & Webhooks để đồng bộ hoạt động tự động mỗi khi kết thúc buổi chạy.
-*   **Trực quan hóa Dữ liệu (fl_chart):** Biểu đồ tương tác thời gian thực cho Pace, Heart Rate (Nhịp tim) và Elevation (Độ cao) kèm theo con trỏ tương tác đồng bộ hóa giữa các biểu đồ (synced cursor crosshair).
-*   **Làm giàu dữ liệu:** Tự động kéo dữ liệu Thời tiết lịch sử tại thời điểm chạy để AI phân tích.
+### 6. Known Issues (Lỗi / Hạn chế đã biết)
+*   Dịch vụ đồng bộ Strava Webhook hiện đang chạy local/mock do môi trường thử nghiệm chưa cấu hình HTTPS public URL chính thức.
+*   Các hình ảnh screenshot giao diện đang được bổ sung và sẽ cập nhật đầy đủ ở phiên bản v1.0.0-stable.
+*   Chưa cung cấp build artifact (APK/IPA hoặc Web build zip) trực tiếp trên GitHub Release. Tester cần build hoặc chạy cục bộ từ source code tag.
 
-### 3. 🧠 Lõi Trợ lý AI Coach thông minh
-*   **Chatbot HLV Ảo:** Giao diện trò chuyện trực tiếp (Q&A) tương tác với AI (Llama 3.3 qua OpenRouter hoặc Google Gemini) về kỹ thuật, chấn thương và dinh dưỡng.
-*   **Thiết lập Giáo án Tự động:** Sinh giáo án chạy bộ động (Training Plans) dựa trên mục tiêu (ví dụ: Chạy 5K, 10K, Half Marathon, Full Marathon).
-*   **Phân tích Hậu hoạt động (Post-run Insights):** Đưa ra đánh giá chuyên sâu cho từng km của buổi chạy vừa hoàn thành.
-
-### 4. 👟 Sức Khỏe & Quản lý Trang thiết bị (Health & Gear)
-*   **Theo dõi Cân nặng (Weight Tracker):** Ghi nhật ký cân nặng, tự động tính toán chỉ số BMI và vẽ biểu đồ xu hướng.
-*   **Theo dõi Giày chạy (Shoe Tracker):** Quản lý danh sách giày giày chạy, tự động cộng dồn số km đã đi để cảnh báo thay giày khi đạt ngưỡng hao mòn (thường là 500km - 800km).
-
-### 5. 🏆 Động lực & Tương tác (Gamification & Social)
-*   **Bảng xếp hạng (Leaderboard):** Xếp hạng runner theo tổng quãng đường chạy tích lũy.
-*   **Hệ thống Huy hiệu (Badges):** Trao tặng huy hiệu khi đạt các mốc cự ly hoặc tần suất tập luyện.
-*   **Ghép bạn chạy bộ (Partner Matching):** Đề xuất bạn chạy có cùng dải Pace và khu vực hoạt động gần nhau.
+### 7. Contributors (Người đóng góp)
+Bản phát hành này được hoàn thiện nhờ nỗ lực của các thành viên:
+*   **k4spi4n** (Đặng Thái Bình)
+*   **ZevsVT** / **Vũ Hoàng Phúc**
+*   **keithwalker69**
+*   **kamikaze5826**
+*   **AkasameVN26**
 
 ---
 
@@ -75,15 +66,16 @@ Mở terminal và thực thi lệnh sau để tải mã nguồn dự án:
 ```bash
 git clone https://github.com/k4spi4n/runny-ai.git
 cd runny-ai
+git checkout v0.1.0
 ```
 
 ### Bước 2: Cài đặt & Khởi chạy Backend (Supabase Local)
 Đảm bảo **Docker Desktop** đang hoạt động trên máy tính của bạn. Tại thư mục gốc của dự án:
 ```bash
-# Khởi động dịch vụ Supabase cục bộ (sẽ mất vài phút trong lần chạy đầu tiên để tải Docker Images)
+# Khởi động dịch vụ Supabase cục bộ
 supabase start
 ```
-Hệ thống sẽ tạo ra các container cho PostgreSQL, Auth, Edge Functions, và Studio. Sau khi hoàn tất, màn hình sẽ hiển thị cấu hình dịch vụ.
+Hệ thống sẽ tạo ra các container cho PostgreSQL, Auth, Edge Functions, và Studio.
 
 Tiếp theo, áp dụng cấu trúc dữ liệu và dữ liệu mẫu (migrations & seed):
 ```bash
@@ -91,7 +83,7 @@ Tiếp theo, áp dụng cấu trúc dữ liệu và dữ liệu mẫu (migration
 supabase db reset
 ```
 
-Triển khai các Serverless Edge Functions cục bộ phục vụ cho AI và thời tiết:
+Cấu hình các API key bảo mật trên Supabase Backend (để sử dụng Edge Functions proxy):
 ```bash
 supabase secrets set --local OPENROUTER_API_KEY=YOUR_OPENROUTER_API_KEY
 supabase secrets set --local GEMINI_API_KEY=YOUR_GEMINI_API_KEY
@@ -113,29 +105,21 @@ Tạo tệp `.env` từ file mẫu `.env.example`:
 *   Trên Windows (PowerShell): `copy .env.example .env`
 *   Trên macOS/Linux: `cp .env.example .env`
 
-Mở tệp `.env` bằng trình soạn thảo và điền đầy đủ các thông số cần thiết:
+Mở tệp `.env` bằng trình soạn thảo và điền các thông số kết nối Supabase (không cần điền các API key thời tiết hay AI do đã được proxy bảo mật ở backend):
 ```env
 # --- Supabase Configuration ---
 SUPABASE_URL=YOUR_LOCAL_SUPABASE_URL (Lấy từ kết quả lệnh 'supabase status' - thường là http://127.0.0.1:54321)
 SUPABASE_ANON_KEY=YOUR_LOCAL_SUPABASE_ANON_KEY (Lấy từ kết quả lệnh 'supabase status')
 
-# --- AI Configuration (OpenRouter - Chính) ---
-OPENROUTER_API_KEY=your_openrouter_api_key
+# --- AI Configuration (Edge Function Proxy) ---
+# Không cần thiết lập API key ở đây. Hãy dùng supabase secrets set trên backend.
 OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-
-# --- AI Configuration (Google Gemini - Dự phòng) ---
-GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-1.5-flash
 
 # --- Tích hợp Strava (Tùy chọn) ---
 STRAVA_CLIENT_ID=your_strava_client_id
 STRAVA_CLIENT_SECRET=your_strava_client_secret
 STRAVA_REDIRECT_URI=http://localhost:3000/
 STRAVA_VERIFY_TOKEN=your_strava_webhook_verify_token
-
-# --- Các dịch vụ thời tiết ---
-OPENWEATHER_API_KEY=your_openweather_api_key
 ```
 
 ### Bước 4: Cài đặt Thư viện & Khởi chạy Frontend
@@ -146,9 +130,6 @@ flutter pub get
 
 # Chạy ứng dụng trên trình duyệt Chrome (Web là môi trường chính kiểm thử trong v0.1.0)
 flutter run -d chrome
-
-# Hoặc chạy trên thiết bị di động / máy ảo có sẵn
-flutter run
 ```
 
 ---
