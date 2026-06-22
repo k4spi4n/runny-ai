@@ -450,26 +450,31 @@ class _MatchingTabState extends State<_MatchingTab> {
 
   Future<void> _sendRequest(MatchSuggestion s) async {
     final messenger = ScaffoldMessenger.of(context);
+    final invitationSentToText = context.translate('invitation_sent_to', [s.displayName]);
+    final errorText = context.translate('error');
     try {
       await _service.sendMatchRequest(s.userId);
-      messenger.showSnackBar(SnackBar(content: Text(context.translate('invitation_sent_to', [s.displayName]))));
+      messenger.showSnackBar(SnackBar(content: Text(invitationSentToText)));
       _refresh();
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('$errorText: $e')));
     }
   }
 
   Future<void> _respond(RunMatch m, bool accept) async {
     final messenger = ScaffoldMessenger.of(context);
+    final connectedWithText = context.translate('connected_with', [m.otherDisplayName]);
+    final invitationDeclinedText = context.translate('invitation_declined');
+    final errorText = context.translate('error');
     try {
       await _service.respondToRequest(m.id, accept: accept);
       messenger.showSnackBar(SnackBar(
           content: Text(accept
-              ? context.translate('connected_with', [m.otherDisplayName])
-              : context.translate('invitation_declined'))));
+              ? connectedWithText
+              : invitationDeclinedText)));
       _refresh();
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
+      messenger.showSnackBar(SnackBar(content: Text('$errorText: $e')));
     }
   }
 

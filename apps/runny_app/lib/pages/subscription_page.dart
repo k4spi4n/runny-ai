@@ -105,7 +105,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 32),
-                  ..._plans.map((plan) => _buildPlanCard(context, plan)).toList(),
+                  ..._plans.map((plan) => _buildPlanCard(context, plan)),
                 ],
               ),
             ),
@@ -115,7 +115,6 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   Widget _buildCurrentSubscription(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 
     return glassCard(
       context: context,

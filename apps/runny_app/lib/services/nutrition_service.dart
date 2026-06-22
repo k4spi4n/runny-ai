@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/nutrition_models.dart';
 import '../models/workout_models.dart';
 
 class NutritionService extends ChangeNotifier {
-  final SupabaseClient _supabase = Supabase.instance.client;
+
   
   NutritionGoal? _currentGoal;
   List<MealLog> _logs = [];
