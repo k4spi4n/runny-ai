@@ -33,6 +33,7 @@ flutter pub get
 3. **Triển khai Hàm Edge**: Thực hiện lệnh sau tại thư mục gốc của dự án để đưa các hàm xử lý logic lên máy chủ:
 ```bash
 supabase functions deploy openrouter
+supabase functions deploy food-recognition
 supabase functions deploy strava_webhook
 supabase functions deploy weather
 ```
@@ -45,6 +46,7 @@ cp apps/runny_app/.env.example apps/runny_app/.env
 Mở tệp `.env` và cập nhật các thông số bảo mật:
 - **Thông tin Supabase**: Địa chỉ URL và khóa Anon (Lấy tại mục Cài đặt API).
 - **Dịch vụ Trí tuệ nhân tạo**: Khóa API của OpenRouter hoặc Google Gemini.
+- **Nhận dạng món ăn**: `FOOD_RECOGNITION_PROVIDER=mock` dùng service giả lập trong Edge Function. Khi tích hợp Vision API thật, thêm secret tương ứng bằng `supabase secrets set`.
 - **Tích hợp Strava**: Mã định danh (Client ID) và mã bảo mật (Client Secret) từ hệ thống Strava.
 
 ## 3. Khởi chạy Ứng dụng

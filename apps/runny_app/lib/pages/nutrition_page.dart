@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/nutrition_service.dart';
+import '../widgets/food_recognition_panel.dart';
 import '../widgets/nutrition_components.dart';
 import '../models/nutrition_models.dart';
 import '../l10n/app_localizations.dart';
@@ -108,7 +109,10 @@ class _NutritionPageState extends State<NutritionPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _AddFoodQuickView(mealType: mealType),
+      builder: (context) => _AddFoodQuickView(
+        mealType: mealType,
+        selectedDate: _selectedDate,
+      ),
     );
   }
 
@@ -125,57 +129,112 @@ class _NutritionPageState extends State<NutritionPage> {
   }
 }
 
-class _AddFoodQuickView extends StatelessWidget {
-  final MealType mealType;
+enum _AddFoodMode { manual, image }
 
-  const _AddFoodQuickView({required this.mealType});
+class _AddFoodQuickView extends StatefulWidget {
+  final MealType mealType;
+  final DateTime selectedDate;
+
+  const _AddFoodQuickView({
+    required this.mealType,
+    required this.selectedDate,
+  });
+
+  @override
+  State<_AddFoodQuickView> createState() => _AddFoodQuickViewState();
+}
+
+class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
+  _AddFoodMode _mode = _AddFoodMode.manual;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = context;
 
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        top: 24,
-        left: 24,
-        right: 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${l10n.translate('add_food')} - ${l10n.translate(mealType.name)}',
-            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 24),
-          TextField(
-            decoration: InputDecoration(
-              hintText: l10n.translate('search_food'),
-              prefixIcon: const Icon(Icons.search),
+    return SingleChildScrollView(
+      child: Container(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          top: 24,
+          left: 24,
+          right: 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${l10n.translate('add_food')} - ${l10n.translate(widget.mealType.name)}',
+              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            l10n.translate('recent_foods'),
-            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
-          _buildQuickItem(context, 'Banana', '105 kcal'),
-          _buildQuickItem(context, 'Chicken Breast (100g)', '165 kcal'),
-          _buildQuickItem(context, 'Brown Rice (1 cup)', '216 kcal'),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: GradientButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(l10n.translate('quick_add')),
+            const SizedBox(height: 16),
+            SegmentedButton<_AddFoodMode>(
+              segments: const [
+                ButtonSegment(
+                  value: _AddFoodMode.manual,
+                  icon: Icon(Icons.edit_note),
+                  label: Text('Thủ công'),
+                ),
+                ButtonSegment(
+                  value: _AddFoodMode.image,
+                  icon: Icon(Icons.camera_alt),
+                  label: Text('Ảnh AI'),
+                ),
+              ],
+              selected: {_mode},
+              onSelectionChanged: (selection) {
+                setState(() {
+                  _mode = selection.first;
+                });
+              },
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            if (_mode == _AddFoodMode.manual)
+              _buildManualEntry(context)
+            else
+              FoodRecognitionPanel(
+                mealType: widget.mealType,
+                consumedAt: _consumedAtForSelectedDate(),
+                onSave: _saveRecognizedMeal,
+              ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildManualEntry(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = context;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          decoration: InputDecoration(
+            hintText: l10n.translate('search_food'),
+            prefixIcon: const Icon(Icons.search),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          l10n.translate('recent_foods'),
+          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 12),
+        _buildQuickItem(context, 'Banana', '105 kcal'),
+        _buildQuickItem(context, 'Chicken Breast (100g)', '165 kcal'),
+        _buildQuickItem(context, 'Brown Rice (1 cup)', '216 kcal'),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: GradientButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.translate('quick_add')),
+          ),
+        ),
+      ],
     );
   }
 
@@ -197,12 +256,41 @@ class _AddFoodQuickView extends StatelessWidget {
           fat: 5,      // Mocked
           amount: 1,
           unit: 'serving',
-          mealType: mealType,
-          consumedAt: DateTime.now(),
+          mealType: widget.mealType,
+          consumedAt: _consumedAtForSelectedDate(),
         ));
         Navigator.pop(context);
       },
     );
+  }
+
+  DateTime _consumedAtForSelectedDate() {
+    final now = DateTime.now();
+    return DateTime(
+      widget.selectedDate.year,
+      widget.selectedDate.month,
+      widget.selectedDate.day,
+      now.hour,
+      now.minute,
+      now.second,
+    );
+  }
+
+  Future<void> _saveRecognizedMeal(MealLog log) async {
+    final nutritionService = context.read<NutritionService>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    await nutritionService.addMealLog(log);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('Đã thêm "${log.foodName}" vào nhật ký ăn uống.'),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    if (mounted) {
+      Navigator.pop(context);
+    }
   }
 }
 
