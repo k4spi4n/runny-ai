@@ -22,7 +22,30 @@ Chuyển tiếp và bảo mật các yêu cầu xử lý trí tuệ nhân tạo.
 - **Chức năng**: Bảo mật khóa API và điều phối yêu cầu tới các mô hình ngôn ngữ lớn (LLM).
 - **Định dạng dữ liệu**: Tuân theo tiêu chuẩn của OpenRouter.
 
-### 2. Dịch vụ Thời tiết và Môi trường
+### 2. Nhận dạng món ăn bằng AI
+Phân tích ảnh món ăn và trả về tên món dự đoán cùng ước lượng dinh dưỡng.
+
+- **Đường dẫn Supabase Edge Function**: `POST /functions/v1/food-recognition/analyze`
+- **Đường dẫn nghiệp vụ tương đương**: `POST /api/food-recognition/analyze`
+- **Định dạng dữ liệu**: `multipart/form-data`
+- **File field**: `image` hoặc `file`
+- **Giới hạn hiện tại**: Ảnh tối đa 5MB, MIME `image/*` hoặc phần mở rộng ảnh phổ biến.
+- **Response thành công**:
+  ```json
+  {
+    "food_name": "Com ga",
+    "confidence": 0.92,
+    "nutrition": {
+      "calories": 520,
+      "protein": 35,
+      "carbs": 55,
+      "fat": 15
+    }
+  }
+  ```
+- **Ghi chú triển khai**: Hiện dùng `MockFoodRecognitionService` trong `supabase/functions/food-recognition/food_recognition_service.ts`. Khi tích hợp Vision API thật, thay implementation của `FoodRecognitionService` và cấu hình secret trên Supabase, không hard-code API key.
+
+### 3. Dịch vụ Thời tiết và Môi trường
 Cung cấp thông tin thời tiết và chất lượng không khí dựa trên vị trí địa lý.
 
 - **Đường dẫn**: `POST /functions/v1/weather`
@@ -34,7 +57,7 @@ Cung cấp thông tin thời tiết và chất lượng không khí dựa trên 
   }
   ```
 
-### 3. Tiếp nhận Dữ liệu Strava (Webhook)
+### 4. Tiếp nhận Dữ liệu Strava (Webhook)
 Lắng nghe và xử lý thông báo hoạt động từ Strava.
 
 - **Đường dẫn**: `POST /functions/v1/strava_webhook`
