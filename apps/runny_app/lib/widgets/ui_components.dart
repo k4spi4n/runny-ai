@@ -206,7 +206,7 @@ class GradientButton extends StatelessWidget {
         children: [
           icon,
           const SizedBox(width: 8),
-          label,
+          Flexible(child: label),
         ],
       ),
     );
