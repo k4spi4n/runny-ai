@@ -5,11 +5,28 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class GeminiService {
   final String _modelName;
+  final List<String> _modelList;
 
   GeminiService()
-      : _modelName = dotenv.env['OPENROUTER_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct:free' {
+      : _modelName = dotenv.env['OPENROUTER_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct:free',
+        _modelList = _parseModels(dotenv.env['OPENROUTER_MODELS']) {
     debugPrint('GeminiService: Using Supabase Edge Function proxy for OpenRouter calls.');
   }
+
+  /// Tach chuoi model phan tach boi dau phay (vd: "a:free, b:free") thanh danh sach.
+  static List<String> _parseModels(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return const [];
+    return raw
+        .split(',')
+        .map((m) => m.trim())
+        .where((m) => m.isNotEmpty)
+        .toList();
+  }
+
+  /// Phan model cho body request: uu tien danh sach fallback (mang `models`)
+  /// neu duoc cau hinh, nguoc lai gui `model` don le (Edge Function se tu bao fallback).
+  Map<String, dynamic> get _modelPayload =>
+      _modelList.isNotEmpty ? {'models': _modelList} : {'model': _modelName};
 
   bool get isConfigured => true;
 
@@ -38,7 +55,7 @@ class GeminiService {
       final response = await Supabase.instance.client.functions.invoke(
         'openrouter',
         body: {
-          'model': _modelName,
+          ..._modelPayload,
           'messages': messages,
         },
       );
@@ -81,7 +98,7 @@ class GeminiService {
       final response = await Supabase.instance.client.functions.invoke(
         'openrouter',
         body: {
-          'model': _modelName,
+          ..._modelPayload,
           'messages': messages,
           'response_format': {'type': 'json_object'},
         },
