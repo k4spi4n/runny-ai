@@ -9,12 +9,13 @@ const corsHeaders = {
 // Danh sach model free mac dinh dung lam fallback (theo thu tu uu tien).
 // OpenRouter se thu lan luot khi 1 model bi rate-limit/loi -> giam manh ti le that bai.
 // Co the ghi de bang secret: `supabase secrets set OPENROUTER_FALLBACK_MODELS="a:free,b:free"`
+// Da kiem chung con song tren OpenRouter (2026-06) + da nha cung cap khac nhau
+// + deu ho tro `response_format` (can cho structured call JSON).
+// `openrouter/free` la bo tu-dinh-tuyen: tu chon model free con rảnh -> chot cuoi de vet rate-limit.
 const DEFAULT_FALLBACK_MODELS = [
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'google/gemini-2.0-flash-exp:free',
-  'deepseek/deepseek-chat-v3-0324:free',
-  'qwen/qwen-2.5-72b-instruct:free',
-  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'qwen/qwen3-next-80b-a3b-instruct:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'openrouter/free',
 ];
 
 function getFallbackModels(): string[] {
