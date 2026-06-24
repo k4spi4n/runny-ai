@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pages/landing_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/onboarding_page.dart';
+import 'pages/reset_password_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
 import 'l10n/language_provider.dart';
@@ -40,14 +41,34 @@ class RunnyApp extends StatelessWidget {
   }
 }
 
-class AuthGate extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool _passwordRecovery = false;
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AuthState>(
       stream: Supabase.instance.client.auth.onAuthStateChange,
       builder: (context, snapshot) {
+        final event = snapshot.data?.event;
+        if (event == AuthChangeEvent.passwordRecovery) {
+          _passwordRecovery = true;
+        }
+
+        // Người dùng vừa bấm link đặt lại mật khẩu: yêu cầu đặt mật khẩu mới
+        // trước khi cho vào ứng dụng.
+        if (_passwordRecovery) {
+          return ResetPasswordPage(
+            onDone: () => setState(() => _passwordRecovery = false),
+          );
+        }
+
         final session = snapshot.data?.session;
 
         // Fallback to current session if stream hasn't emitted yet but we have data
