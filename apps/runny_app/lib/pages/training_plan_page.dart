@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/training_service.dart';
 import '../widgets/ui_components.dart';
 import 'create_training_plan_page.dart';
+import 'ai_coach_page.dart';
+import 'training_history_page.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'import_activity_page.dart';
@@ -33,24 +35,38 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      // Lấy lịch gần nhất ở một trong các trạng thái hiển thị được:
-      // active (đã tạo xong), generating (AI đang tạo), failed (tạo lỗi).
+      // Lấy lịch gần nhất ở một trong các trạng thái hiển thị tại tab này:
+      // active (đang chạy), completed (vừa hoàn thành — hiện banner chúc mừng),
+      // generating (AI đang tạo), failed (tạo lỗi). Các trạng thái abandoned/
+      // archived chỉ xuất hiện trong màn hình Lịch sử.
       final schedule = await _supabase
           .from('training_schedules')
           .select()
           .eq('user_id', user.id)
-          .inFilter('status', ['active', 'generating', 'failed'])
+          .inFilter('status', ['active', 'completed', 'generating', 'failed'])
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
 
       List<Map<String, dynamic>> workouts = [];
-      if (schedule != null && schedule['status'] == 'active') {
+      if (schedule != null && (schedule['status'] == 'active' || schedule['status'] == 'completed')) {
         workouts = List<Map<String, dynamic>>.from(await _supabase
             .from('scheduled_workouts')
             .select()
             .eq('schedule_id', schedule['id'])
             .order('date', ascending: true));
+
+        // Tự động chuyển sang 'completed' khi mọi buổi tập đã hoàn thành — để lịch
+        // được lưu vào Lịch sử. Bao phủ cả luồng liên kết lẫn tải hoạt động.
+        if (schedule['status'] == 'active' &&
+            workouts.isNotEmpty &&
+            workouts.every((w) => w['status'] == 'completed')) {
+          await _supabase
+              .from('training_schedules')
+              .update({'status': 'completed'})
+              .eq('id', schedule['id']);
+          schedule['status'] = 'completed';
+        }
       }
 
       if (mounted) {
@@ -110,10 +126,12 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
 
     final completedWorkouts = _workouts.where((w) => w['status'] == 'completed').length;
     final completionRate = _workouts.isEmpty ? 0 : ((completedWorkouts / _workouts.length) * 100).round();
-    final Map<String, dynamic> nextWorkout = _workouts.firstWhere((workout) {
-      final date = DateTime.parse(workout['date'] as String);
-      return !DateUtils.isSameDay(date, DateTime.now()) || workout['status'] == 'planned';
-    }, orElse: () => _workouts.first);
+    final allCompleted = _workouts.every((w) => w['status'] == 'completed');
+    // Buổi tập tiếp theo = buổi 'planned' gần nhất; nếu đã hoàn thành hết thì không dùng tới.
+    final Map<String, dynamic> nextWorkout = _workouts.firstWhere(
+      (workout) => workout['status'] == 'planned',
+      orElse: () => _workouts.first,
+    );
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -122,8 +140,28 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface), onPressed: _adjustPlan, tooltip: context.translate('optimize_plan_tooltip')),
+          if (!allCompleted)
+            IconButton(icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface), onPressed: _adjustPlan, tooltip: context.translate('optimize_plan_tooltip')),
+          IconButton(icon: Icon(Icons.history, color: colorScheme.onSurface), onPressed: _openHistory, tooltip: context.translate('training_history')),
           IconButton(icon: Icon(Icons.refresh, color: colorScheme.onSurface), onPressed: _fetchData),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: colorScheme.onSurface),
+            onSelected: (v) {
+              if (v == 'abandon') _abandonPlan();
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                value: 'abandon',
+                child: Row(
+                  children: [
+                    const Icon(Icons.cancel_outlined, color: Colors.redAccent, size: 20),
+                    const SizedBox(width: 10),
+                    Text(context.translate('abandon_plan')),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       body: Stack(
@@ -162,21 +200,29 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     ),
                   ),
                   const SizedBox(height: 22),
-                  Text(context.translate('next_workout'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
-                  const SizedBox(height: 12),
-                  glassCard(
-                    context: context,
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                      leading: Icon(Icons.flag, color: colorScheme.primary, size: 32),
-                      title: Text(nextWorkout['title'] ?? context.translate('next_workout'), style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold)),
-                      subtitle: Text(
-                        '${DateFormat('EEEE, dd MMM').format(DateTime.parse(nextWorkout['date'] as String))} • ${nextWorkout['target_distance_km']} km',
-                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  if (allCompleted)
+                    _buildCompletionBanner(context)
+                  else ...[
+                    Text(context.translate('next_workout'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                    const SizedBox(height: 12),
+                    glassCard(
+                      context: context,
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                        leading: Icon(Icons.flag, color: colorScheme.primary, size: 32),
+                        title: Text(nextWorkout['title'] ?? context.translate('next_workout'), style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold)),
+                        subtitle: Text(
+                          '${DateFormat('EEEE, dd MMM').format(DateTime.parse(nextWorkout['date'] as String))} • ${nextWorkout['target_distance_km']} km',
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                        trailing: ElevatedButton(
+                          onPressed: () => _askWarmUp(nextWorkout),
+                          style: primaryActionButton(context),
+                          child: Text(context.translate('warm_up')),
+                        ),
                       ),
-                      trailing: ElevatedButton(onPressed: () {}, style: primaryActionButton(context), child: Text(context.translate('warm_up'))),
                     ),
-                  ),
+                  ],
                   const SizedBox(height: 24),
                   Text(context.translate('detailed_schedule'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                   const SizedBox(height: 14),
@@ -227,6 +273,48 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     );
   }
 
+  void _askWarmUp(Map<String, dynamic> workout) {
+    final title = (workout['title'] ?? '').toString();
+    final distance = workout['target_distance_km']?.toString() ?? '';
+    final prompt = context.translate('warm_up_prompt', [title, distance]);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => AICoachPage(initialPrompt: prompt)),
+    );
+  }
+
+  Widget _buildCompletionBanner(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return glassCard(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Icon(Icons.emoji_events, color: Colors.amber, size: 48),
+          const SizedBox(height: 12),
+          Text(
+            context.translate('plan_completed_title'),
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            context.translate('plan_completed_desc'),
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 18),
+          ElevatedButton(
+            onPressed: _openCreatePlan,
+            style: primaryActionButton(context),
+            child: Text(context.translate('create_new_plan')),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _openCreatePlan() async {
     final created = await Navigator.push<bool>(
       context,
@@ -235,6 +323,46 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     if (created == true) {
       _fetchData();
     }
+  }
+
+  Future<void> _openHistory() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const TrainingHistoryPage()),
+    );
+    // Quay lại có thể đã đổi dữ liệu (vd tạo lịch mới từ lịch sử) -> làm mới.
+    if (mounted) _fetchData();
+  }
+
+  Future<void> _abandonPlan() async {
+    final id = _activeSchedule?['id'];
+    if (id == null) return;
+    final theme = Theme.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        title: Text(context.translate('abandon_plan'), style: TextStyle(color: theme.colorScheme.onSurface)),
+        content: Text(context.translate('abandon_plan_confirm'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.translate('cancel'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.translate('abandon_plan'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _supabase.from('training_schedules').update({'status': 'abandoned'}).eq('id', id);
+    } catch (e) {
+      debugPrint('Error abandoning plan: $e');
+    }
+    await _fetchData();
   }
 
   Future<void> _dismissFailedPlan() async {
@@ -268,6 +396,12 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
               onPressed: _openCreatePlan,
               style: primaryActionButton(context),
               child: Text(context.translate('create_plan_ai')),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _openHistory,
+              icon: const Icon(Icons.history),
+              label: Text(context.translate('training_history')),
             ),
           ],
         ),

@@ -9,7 +9,8 @@ import '../l10n/app_localizations.dart';
 
 class AICoachPage extends StatefulWidget {
   final Activity? initialActivity;
-  const AICoachPage({super.key, this.initialActivity});
+  final String? initialPrompt;
+  const AICoachPage({super.key, this.initialActivity, this.initialPrompt});
 
   @override
   State<AICoachPage> createState() => _AICoachPageState();
@@ -31,6 +32,9 @@ class _AICoachPageState extends State<AICoachPage> {
   void initState() {
     super.initState();
     _contextActivity = widget.initialActivity;
+    if (widget.initialPrompt != null && widget.initialPrompt!.isNotEmpty) {
+      _controller.text = widget.initialPrompt!;
+    }
     _loadHistory();
   }
 
