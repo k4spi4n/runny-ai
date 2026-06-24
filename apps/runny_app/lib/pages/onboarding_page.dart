@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/training_service.dart';
 import '../widgets/ui_components.dart';
@@ -79,6 +80,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
   bool _isLoading = false;
   int _currentStep = 0;
 
+  DateTime _startDate = DateTime.now();
+  DateTime? _endDate;
+  bool _letAiDecideEnd = true;
+
   @override
   void dispose() {
     _pageController.dispose();
@@ -87,6 +92,36 @@ class _OnboardingContentState extends State<OnboardingContent> {
     _maxHrController.dispose();
     _goalController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickStartDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        _startDate = picked;
+        if (_endDate != null && !_endDate!.isAfter(_startDate)) {
+          _endDate = _startDate.add(const Duration(days: 7));
+        }
+      });
+    }
+  }
+
+  Future<void> _pickEndDate() async {
+    final initial = _endDate ?? _startDate.add(const Duration(days: 28));
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: _startDate.add(const Duration(days: 1)),
+      lastDate: _startDate.add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() => _endDate = picked);
+    }
   }
 
   void _nextPage() {
@@ -132,9 +167,17 @@ class _OnboardingContentState extends State<OnboardingContent> {
         'has_completed_onboarding': true,
       }).eq('id', user.id);
 
-      await _trainingService.createGoalBasedPlan(goal);
+      // Khởi tạo lịch tập ở chế độ nền — không chặn người dùng chờ AI.
+      await _trainingService.startPlanGeneration(
+        goal: goal,
+        startDate: _startDate,
+        endDate: _letAiDecideEnd ? null : _endDate,
+      );
 
       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.translate('plan_generation_started'))),
+        );
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const DashboardPage()),
         );
@@ -238,9 +281,39 @@ class _OnboardingContentState extends State<OnboardingContent> {
               color: isDark ? Colors.white : Colors.black87
             )),
             const SizedBox(height: 12),
-            Text(context.translate('training_goal_desc'), 
+            Text(context.translate('training_goal_desc'),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: isDark ? Colors.white70 : Colors.black54)),
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
+            _OnboardingDateTile(
+              icon: Icons.play_circle_outline,
+              label: context.translate('plan_start_date'),
+              value: DateFormat('dd/MM/yyyy').format(_startDate),
+              onTap: _pickStartDate,
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _letAiDecideEnd,
+              onChanged: (v) => setState(() => _letAiDecideEnd = v),
+              title: Text(
+                context.translate('let_ai_decide_end'),
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                context.translate('let_ai_decide_end_desc'),
+                style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
+              ),
+            ),
+            if (!_letAiDecideEnd) ...[
+              const SizedBox(height: 8),
+              _OnboardingDateTile(
+                icon: Icons.flag_outlined,
+                label: context.translate('plan_end_date'),
+                value: _endDate != null ? DateFormat('dd/MM/yyyy').format(_endDate!) : context.translate('plan_end_date_hint'),
+                onTap: _pickEndDate,
+              ),
+            ],
+            const SizedBox(height: 20),
             TextField(
               controller: _goalController,
               maxLines: 5,
@@ -315,6 +388,51 @@ class _StepDot extends StatelessWidget {
         const SizedBox(width: 8),
         Text(label, style: TextStyle(color: active ? (isDark ? Colors.white : Colors.black87) : (isDark ? Colors.white54 : Colors.black45))),
       ],
+    );
+  }
+}
+
+class _OnboardingDateTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  const _OnboardingDateTile({required this.icon, required this.label, required this.value, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: colorScheme.primary),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12)),
+                const SizedBox(height: 2),
+                Text(value, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const Spacer(),
+            Icon(Icons.calendar_month, color: isDark ? Colors.white54 : Colors.black45, size: 20),
+          ],
+        ),
+      ),
     );
   }
 }

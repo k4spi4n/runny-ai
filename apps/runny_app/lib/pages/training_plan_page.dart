@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/training_service.dart';
 import '../widgets/ui_components.dart';
-import 'ai_coach_page.dart';
+import 'create_training_plan_page.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'import_activity_page.dart';
@@ -33,26 +33,31 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
+      // Lấy lịch gần nhất ở một trong các trạng thái hiển thị được:
+      // active (đã tạo xong), generating (AI đang tạo), failed (tạo lỗi).
       final schedule = await _supabase
           .from('training_schedules')
           .select()
           .eq('user_id', user.id)
-          .eq('status', 'active')
+          .inFilter('status', ['active', 'generating', 'failed'])
+          .order('created_at', ascending: false)
+          .limit(1)
           .maybeSingle();
 
-      if (schedule != null) {
-        final workouts = await _supabase
+      List<Map<String, dynamic>> workouts = [];
+      if (schedule != null && schedule['status'] == 'active') {
+        workouts = List<Map<String, dynamic>>.from(await _supabase
             .from('scheduled_workouts')
             .select()
             .eq('schedule_id', schedule['id'])
-            .order('date', ascending: true);
+            .order('date', ascending: true));
+      }
 
-        if (mounted) {
-          setState(() {
-            _activeSchedule = schedule;
-            _workouts = workouts;
-          });
-        }
+      if (mounted) {
+        setState(() {
+          _activeSchedule = schedule;
+          _workouts = workouts;
+        });
       }
     } catch (e) {
       debugPrint('Error fetching training plan: $e');
@@ -89,24 +94,18 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final status = _activeSchedule?['status'] as String?;
+
+    if (status == 'generating') {
+      return _buildGeneratingState(context);
+    }
+
+    if (status == 'failed') {
+      return _buildFailedState(context);
+    }
+
     if (_activeSchedule == null || _workouts.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(context.translate('no_plan_yet'), style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              Text(context.translate('no_plan_desc'), style: TextStyle(color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
-              const SizedBox(height: 24),
-              ElevatedButton(onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const AICoachPage()));
-              }, style: primaryActionButton(context), child: Text(context.translate('create_plan_ai'))),
-            ],
-          ),
-        ),
-      );
+      return _buildEmptyState(context);
     }
 
     final completedWorkouts = _workouts.where((w) => w['status'] == 'completed').length;
@@ -224,6 +223,109 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openCreatePlan() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const CreateTrainingPlanPage()),
+    );
+    if (created == true) {
+      _fetchData();
+    }
+  }
+
+  Future<void> _dismissFailedPlan() async {
+    final id = _activeSchedule?['id'];
+    if (id == null) return;
+    try {
+      await _supabase.from('training_schedules').delete().eq('id', id);
+    } catch (e) {
+      debugPrint('Error dismissing failed plan: $e');
+    }
+    if (mounted) {
+      setState(() => _activeSchedule = null);
+    }
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.event_note, size: 56, color: colorScheme.primary),
+            const SizedBox(height: 16),
+            Text(context.translate('no_plan_yet'), style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            Text(context.translate('no_plan_desc'), style: TextStyle(color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _openCreatePlan,
+              style: primaryActionButton(context),
+              child: Text(context.translate('create_plan_ai')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGeneratingState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: colorScheme.primary),
+            const SizedBox(height: 24),
+            Text(context.translate('plan_generating_title'), style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            Text(context.translate('plan_generating_desc'), style: TextStyle(color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: _fetchData,
+              icon: const Icon(Icons.refresh),
+              label: Text(context.translate('refresh')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFailedState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 56, color: Colors.redAccent),
+            const SizedBox(height: 16),
+            Text(context.translate('plan_failed_title'), style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            Text(context.translate('plan_failed_desc'), style: TextStyle(color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _openCreatePlan,
+              style: primaryActionButton(context),
+              child: Text(context.translate('retry')),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _dismissFailedPlan,
+              child: Text(context.translate('dismiss'), style: TextStyle(color: colorScheme.onSurfaceVariant)),
+            ),
+          ],
+        ),
       ),
     );
   }

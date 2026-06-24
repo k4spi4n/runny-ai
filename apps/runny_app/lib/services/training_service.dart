@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'gemini_service.dart';
 
@@ -11,12 +13,115 @@ class TrainingService {
     }
   }
 
-  Future<void> createGoalBasedPlan(String goalPrompt) async {
+  String _dateOnly(DateTime d) => d.toIso8601String().split('T')[0];
+
+  /// Bắt đầu tạo lịch tập ở CHẾ ĐỘ NỀN.
+  ///
+  /// Chèn ngay một bản ghi `training_schedules` ở trạng thái `generating`
+  /// (thao tác nhanh, có await) rồi gọi AI bất đồng bộ mà KHÔNG chờ. Nhờ vậy
+  /// người dùng có thể rời màn hình ngay; khi AI xong, bản ghi được cập nhật
+  /// sang `active` (hoặc `failed` nếu lỗi) và trang Lịch tập sẽ hiển thị.
+  Future<void> startPlanGeneration({
+    required String goal,
+    required DateTime startDate,
+    DateTime? endDate,
+  }) async {
     _ensureGeminiReady();
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('User not logged in');
 
-    // 1. Fetch user profile and recent activities for context
+    // Dọn các placeholder generating/failed cũ để tránh tồn đọng.
+    await _supabase
+        .from('training_schedules')
+        .delete()
+        .eq('user_id', user.id)
+        .inFilter('status', ['generating', 'failed']);
+
+    final placeholder = await _supabase
+        .from('training_schedules')
+        .insert({
+          'user_id': user.id,
+          'title': 'AI đang tạo lịch tập...',
+          'goal_description': goal,
+          'start_date': _dateOnly(startDate),
+          if (endDate != null) 'end_date': _dateOnly(endDate),
+          'status': 'generating',
+        })
+        .select()
+        .single();
+
+    final scheduleId = placeholder['id'] as String;
+
+    // Fire-and-forget: chạy nền, không await để người dùng có thể rời màn hình.
+    unawaited(_runGeneration(
+      scheduleId: scheduleId,
+      userId: user.id,
+      goal: goal,
+      startDate: startDate,
+      endDate: endDate,
+    ));
+  }
+
+  Future<void> _runGeneration({
+    required String scheduleId,
+    required String userId,
+    required String goal,
+    required DateTime startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      final planJson = await _generatePlanJson(goal, startDate, endDate);
+      await _persistPlan(
+        userId: userId,
+        goal: goal,
+        startDate: startDate,
+        endDate: endDate,
+        planJson: planJson,
+        scheduleId: scheduleId,
+      );
+    } catch (e) {
+      debugPrint('Background plan generation failed: $e');
+      try {
+        await _supabase
+            .from('training_schedules')
+            .update({'status': 'failed'})
+            .eq('id', scheduleId);
+      } catch (_) {
+        // Bỏ qua: không thể đánh dấu thất bại thì trang sẽ vẫn thấy 'generating'.
+      }
+    }
+  }
+
+  /// Tạo lịch tập đồng bộ (chờ AI xong rồi lưu). Dùng cho luồng chat HLV AI.
+  Future<void> createGoalBasedPlan(
+    String goalPrompt, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    _ensureGeminiReady();
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
+    final start = startDate ?? DateTime.now();
+    final planJson = await _generatePlanJson(goalPrompt, start, endDate);
+    await _persistPlan(
+      userId: user.id,
+      goal: goalPrompt,
+      startDate: start,
+      endDate: endDate,
+      planJson: planJson,
+    );
+  }
+
+  /// Gọi AI sinh JSON lịch tập dựa trên thể trạng + 5 hoạt động gần nhất.
+  Future<Map<String, dynamic>> _generatePlanJson(
+    String goal,
+    DateTime startDate,
+    DateTime? endDate,
+  ) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
     final profile = await _supabase
         .from('profiles')
         .select()
@@ -29,10 +134,12 @@ class TrainingService {
         .order('started_at', ascending: false)
         .limit(5);
 
-    // 2. Prepare system prompt for Gemini
     const systemPrompt = '''
-Bạn là một Huấn luyện viên Chạy bộ Ảo chuyên nghiệp. 
-Nhiệm vụ của bạn là tạo ra một lịch tập luyện chi tiết dựa trên mục tiêu của người dùng.
+Bạn là một Huấn luyện viên Chạy bộ Ảo chuyên nghiệp.
+Nhiệm vụ của bạn là tạo ra một lịch tập luyện chi tiết dựa trên mục tiêu, thể trạng và lịch sử tập luyện của người dùng.
+Mỗi buổi tập dùng "day_offset" là SỐ NGÀY tính từ ngày bắt đầu (day_offset = 0 nghĩa là đúng ngày bắt đầu).
+Nếu người dùng có ngày kết thúc, toàn bộ buổi tập phải nằm trong khoảng từ ngày bắt đầu đến ngày kết thúc và trường "weeks" phải khớp với khoảng thời gian đó.
+Nếu không có ngày kết thúc, hãy tự chọn số tuần ("weeks") hợp lý cho mục tiêu.
 Phản hồi của bạn PHẢI là một đối tượng JSON có cấu trúc như sau:
 {
   "title": "Tên lịch tập",
@@ -41,7 +148,7 @@ Phản hồi của bạn PHẢI là một đối tượng JSON có cấu trúc n
   "weeks": 4,
   "workouts": [
     {
-      "day_offset": 1, 
+      "day_offset": 0,
       "title": "Chạy nhẹ nhàng",
       "description": "Chạy chậm để làm quen",
       "target_distance_km": 2.0,
@@ -52,46 +159,84 @@ Phản hồi của bạn PHẢI là một đối tượng JSON có cấu trúc n
 }
 ''';
 
-    final userContext =
-        '''
-Mục tiêu người dùng: $goalPrompt
-Thông tin người dùng: Cân nặng ${profile['weight_kg']}kg, BMI ${profile['bmi']}.
-Dữ liệu 5 buổi tập gần nhất: ${recentActivities.map((a) => 'Quãng đường: ${a['distance_km']}km, Pace: ${(a['duration_min'] / a['distance_km']).toStringAsFixed(2)}').join('; ')}
+    final durationConstraint = endDate != null
+        ? 'Ngày kết thúc mong muốn: ${_dateOnly(endDate)} (khoảng ${endDate.difference(startDate).inDays} ngày kể từ ngày bắt đầu). Hãy phân bổ buổi tập trong khoảng này.'
+        : 'Người dùng không chỉ định ngày kết thúc — hãy tự chọn số tuần ("weeks") hợp lý cho mục tiêu.';
+
+    final userContext = '''
+Mục tiêu người dùng: $goal
+Ngày bắt đầu: ${_dateOnly(startDate)}
+$durationConstraint
+Thông tin thể trạng: Cân nặng ${profile['weight_kg']}kg, Chiều cao ${profile['height_cm']}cm, BMI ${profile['bmi']}, Nhịp tim tối đa ${profile['max_hr'] ?? 'chưa rõ'} bpm.
+Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseActivities(recentActivities)}
 ''';
 
-    // 3. Call Gemini
-    final planJson = await _gemini.generateStructuredResponse(
-      userContext,
-      systemPrompt,
-    );
+    return _gemini.generateStructuredResponse(userContext, systemPrompt);
+  }
 
-    // 4. Save to Supabase
-    final schedule = await _supabase
+  String _summariseActivities(List<dynamic> activities) {
+    if (activities.isEmpty) return 'Chưa có dữ liệu hoạt động.';
+    return activities.map((a) {
+      final dist = (a['distance_km'] as num?)?.toDouble() ?? 0;
+      final dur = (a['duration_min'] as num?)?.toDouble() ?? 0;
+      final pace = dist > 0 ? (dur / dist).toStringAsFixed(2) : 'N/A';
+      return 'Quãng đường: ${dist}km, Pace: $pace';
+    }).join('; ');
+  }
+
+  /// Lưu lịch tập vào Supabase. Nếu [scheduleId] có giá trị thì cập nhật bản
+  /// ghi placeholder (luồng nền); ngược lại chèn mới (luồng đồng bộ).
+  Future<void> _persistPlan({
+    required String userId,
+    required String goal,
+    required DateTime startDate,
+    DateTime? endDate,
+    required Map<String, dynamic> planJson,
+    String? scheduleId,
+  }) async {
+    final weeks = (planJson['weeks'] as num?)?.toInt() ?? 4;
+    final computedEnd = endDate ?? startDate.add(Duration(days: weeks * 7));
+
+    final values = {
+      'user_id': userId,
+      'title': planJson['title'] ?? 'Lịch tập của bạn',
+      'target_distance_km': planJson['target_distance_km'],
+      'target_pace_min_per_km': planJson['target_pace_min_per_km'],
+      'goal_description': goal,
+      'start_date': _dateOnly(startDate),
+      'end_date': _dateOnly(computedEnd),
+      'status': 'active',
+    };
+
+    // Lưu trữ (archive) các lịch active cũ để chỉ còn 1 lịch hiện hành.
+    await _supabase
         .from('training_schedules')
-        .insert({
-          'user_id': user.id,
-          'title': planJson['title'],
-          'target_distance_km': planJson['target_distance_km'],
-          'target_pace_min_per_km': planJson['target_pace_min_per_km'],
-          'goal_description': goalPrompt,
-          'start_date': DateTime.now().toIso8601String().split('T')[0],
-          'end_date': DateTime.now()
-              .add(Duration(days: (planJson['weeks'] as int) * 7))
-              .toIso8601String()
-              .split('T')[0],
-          'status': 'active',
-        })
-        .select()
-        .single();
+        .update({'status': 'archived'})
+        .eq('user_id', userId)
+        .eq('status', 'active');
+
+    final Map<String, dynamic> schedule;
+    if (scheduleId != null) {
+      schedule = await _supabase
+          .from('training_schedules')
+          .update(values)
+          .eq('id', scheduleId)
+          .select()
+          .single();
+    } else {
+      schedule = await _supabase
+          .from('training_schedules')
+          .insert(values)
+          .select()
+          .single();
+    }
 
     final workouts = (planJson['workouts'] as List).map((w) {
+      final offset = (w['day_offset'] as num?)?.toInt() ?? 0;
       return {
         'schedule_id': schedule['id'],
-        'user_id': user.id,
-        'date': DateTime.now()
-            .add(Duration(days: w['day_offset'] as int))
-            .toIso8601String()
-            .split('T')[0],
+        'user_id': userId,
+        'date': _dateOnly(startDate.add(Duration(days: offset))),
         'title': w['title'],
         'description': w['description'],
         'target_distance_km': w['target_distance_km'],
