@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -157,7 +155,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
 
     try {
       final log = MealLog(
-        userId: Supabase.instance.client.auth.currentUser?.id ?? 'user-123',
+        userId: Supabase.instance.client.auth.currentUser?.id ?? '',
         foodName: _foodNameController.text.trim(),
         calories: double.parse(_caloriesController.text),
         protein: double.parse(_proteinController.text),

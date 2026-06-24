@@ -1,83 +1,109 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/nutrition_models.dart';
 import '../models/workout_models.dart';
 
+/// Service theo dõi dinh dưỡng, lưu trữ qua Supabase (bảng `nutrition_goals`
+/// và `meal_logs`). Dữ liệu của ~60 ngày gần nhất được nạp vào bộ nhớ để các
+/// thao tác xem theo ngày trên giao diện diễn ra tức thì.
 class NutritionService extends ChangeNotifier {
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  
+  /// Số ngày lịch sử được nạp vào bộ nhớ.
+  static const int _historyDays = 60;
+
+  /// Ước lượng năng lượng tiêu hao: ~60 kcal mỗi km chạy bộ (đơn giản hóa).
+  static const double _kcalPerKm = 60;
+
   NutritionGoal? _currentGoal;
   List<MealLog> _logs = [];
   List<Activity> _activities = [];
+  bool _isLoading = false;
+  bool _loaded = false;
+  String? _error;
 
   NutritionGoal? get currentGoal => _currentGoal;
   List<MealLog> get logs => _logs;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
 
-  NutritionService() {
-    // Mock initial data for UI development
-    _currentGoal = NutritionGoal(
-      userId: 'user-123',
-      dailyCalories: 2200,
-      proteinPercentage: 30,
-      carbsPercentage: 40,
-      fatPercentage: 30,
-    );
-    
-    _logs = [
-      MealLog(
-        userId: 'user-123',
-        foodName: 'Oatmeal with Blueberries',
-        calories: 350,
-        protein: 10,
-        carbs: 60,
-        fat: 5,
-        amount: 1,
-        unit: 'bowl',
-        mealType: MealType.breakfast,
-        consumedAt: DateTime.now().subtract(const Duration(hours: 4)),
-      ),
-      MealLog(
-        userId: 'user-123',
-        foodName: 'Grilled Chicken Salad',
-        calories: 450,
-        protein: 40,
-        carbs: 15,
-        fat: 25,
-        amount: 1,
-        unit: 'plate',
-        mealType: MealType.lunch,
-        consumedAt: DateTime.now().subtract(const Duration(hours: 1)),
-      ),
-    ];
+  String? get _uid => _supabase.auth.currentUser?.id;
 
-    _activities = [
-      Activity(
-        userId: 'user-123',
-        startedAt: DateTime.now().subtract(const Duration(hours: 2)),
-        distanceKm: 5.0,
-        durationMin: 30,
-      ),
-    ];
+  /// Nạp dữ liệu lần đầu (gọi an toàn nhiều lần — chỉ nạp một lần).
+  Future<void> ensureLoaded() async {
+    if (_loaded || _isLoading) return;
+    await refresh();
+  }
+
+  /// Nạp lại toàn bộ mục tiêu + nhật ký + hoạt động từ Supabase.
+  Future<void> refresh() async {
+    final uid = _uid;
+    if (uid == null) {
+      _error = 'Chưa đăng nhập';
+      _loaded = true;
+      notifyListeners();
+      return;
+    }
+
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final since = DateTime.now()
+          .subtract(const Duration(days: _historyDays))
+          .toIso8601String();
+
+      final goalRes = await _supabase
+          .from('nutrition_goals')
+          .select()
+          .eq('user_id', uid)
+          .maybeSingle();
+      _currentGoal = goalRes != null
+          ? NutritionGoal.fromJson(goalRes)
+          : NutritionGoal(userId: uid, dailyCalories: 2000);
+
+      final logsRes = await _supabase
+          .from('meal_logs')
+          .select()
+          .eq('user_id', uid)
+          .gte('consumed_at', since)
+          .order('consumed_at', ascending: true);
+      _logs = (logsRes as List)
+          .map((e) => MealLog.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      final actRes = await _supabase
+          .from('activities')
+          .select('user_id, started_at, distance_km, duration_min')
+          .eq('user_id', uid)
+          .gte('started_at', since);
+      _activities = (actRes as List)
+          .map((e) => Activity.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      _loaded = true;
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   DailyNutritionSummary getDailySummary(DateTime date) {
-    final dayLogs = _logs.where((log) => 
-      log.consumedAt.year == date.year && 
-      log.consumedAt.month == date.month && 
-      log.consumedAt.day == date.day
-    ).toList();
+    bool sameDay(DateTime d) =>
+        d.year == date.year && d.month == date.month && d.day == date.day;
 
-    final dayActivities = _activities.where((activity) => 
-      activity.startedAt.year == date.year && 
-      activity.startedAt.month == date.month && 
-      activity.startedAt.day == date.day
-    ).toList();
+    final dayLogs = _logs.where((log) => sameDay(log.consumedAt));
+    final dayActivities = _activities.where((a) => sameDay(a.startedAt));
 
     double totalCaloriesIn = 0;
     double totalProtein = 0;
     double totalCarbs = 0;
     double totalFat = 0;
 
-    for (var log in dayLogs) {
+    for (final log in dayLogs) {
       totalCaloriesIn += log.calories;
       totalProtein += log.protein;
       totalCarbs += log.carbs;
@@ -85,9 +111,8 @@ class NutritionService extends ChangeNotifier {
     }
 
     double totalCaloriesOut = 0;
-    for (var activity in dayActivities) {
-      // Basic calorie burn estimation: 60 kcal per km for running (simplified)
-      totalCaloriesOut += activity.distanceKm * 60;
+    for (final activity in dayActivities) {
+      totalCaloriesOut += activity.distanceKm * _kcalPerKm;
     }
 
     return DailyNutritionSummary(
@@ -97,28 +122,62 @@ class NutritionService extends ChangeNotifier {
       protein: totalProtein,
       carbs: totalCarbs,
       fat: totalFat,
-      goal: _currentGoal ?? NutritionGoal(userId: 'guest', dailyCalories: 2000),
+      goal: _currentGoal ??
+          NutritionGoal(userId: _uid ?? 'guest', dailyCalories: 2000),
     );
   }
 
+  /// Ghi nhận một món ăn. [log.userId] được ghi đè bằng người dùng hiện tại.
   Future<void> addMealLog(MealLog log) async {
-    _logs.add(log);
+    final uid = _uid;
+    if (uid == null) throw Exception('Chưa đăng nhập');
+
+    final payload = log.toJson()
+      ..remove('id')
+      ..['user_id'] = uid;
+
+    final inserted = await _supabase
+        .from('meal_logs')
+        .insert(payload)
+        .select()
+        .single();
+
+    _logs.add(MealLog.fromJson(inserted));
     notifyListeners();
-    // TODO: Implement Supabase save
   }
 
   Future<void> deleteMealLog(String id) async {
+    await _supabase.from('meal_logs').delete().eq('id', id);
     _logs.removeWhere((log) => log.id == id);
     notifyListeners();
-    // TODO: Implement Supabase delete
+  }
+
+  /// Đặt/cập nhật mục tiêu dinh dưỡng (upsert theo user_id).
+  Future<void> setGoal(NutritionGoal goal) async {
+    final uid = _uid;
+    if (uid == null) throw Exception('Chưa đăng nhập');
+
+    final payload = goal.toJson()
+      ..['user_id'] = uid
+      ..['updated_at'] = DateTime.now().toIso8601String();
+
+    final res = await _supabase
+        .from('nutrition_goals')
+        .upsert(payload, onConflict: 'user_id')
+        .select()
+        .single();
+
+    _currentGoal = NutritionGoal.fromJson(res);
+    notifyListeners();
   }
 
   List<MealLog> getLogsForMealType(MealType type, DateTime date) {
-    return _logs.where((log) => 
-      log.mealType == type &&
-      log.consumedAt.year == date.year && 
-      log.consumedAt.month == date.month && 
-      log.consumedAt.day == date.day
-    ).toList();
+    return _logs
+        .where((log) =>
+            log.mealType == type &&
+            log.consumedAt.year == date.year &&
+            log.consumedAt.month == date.month &&
+            log.consumedAt.day == date.day)
+        .toList();
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/nutrition_service.dart';
 import '../widgets/food_recognition_panel.dart';
 import '../widgets/nutrition_components.dart';
@@ -19,6 +20,14 @@ class NutritionPage extends StatefulWidget {
 
 class _NutritionPageState extends State<NutritionPage> {
   DateTime _selectedDate = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<NutritionService>().ensureLoaded();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,8 +56,14 @@ class _NutritionPageState extends State<NutritionPage> {
               decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
             ),
           ),
+          if (nutritionService.isLoading && nutritionService.logs.isEmpty)
+            const Center(child: CircularProgressIndicator())
+          else
           SafeArea(
-            child: SingleChildScrollView(
+            child: RefreshIndicator(
+              onRefresh: () => nutritionService.refresh(),
+              child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
@@ -82,6 +97,7 @@ class _NutritionPageState extends State<NutritionPage> {
                   ),
                   const SizedBox(height: 40),
                 ],
+              ),
               ),
             ),
           ),
@@ -248,7 +264,7 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
         // Logic to add item
         final nutritionService = context.read<NutritionService>();
         nutritionService.addMealLog(MealLog(
-          userId: 'user-123',
+          userId: Supabase.instance.client.auth.currentUser?.id ?? '',
           foodName: name,
           calories: double.parse(cal.split(' ')[0]),
           protein: 10, // Mocked
@@ -411,7 +427,7 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final log = MealLog(
-        userId: 'user-123',
+        userId: Supabase.instance.client.auth.currentUser?.id ?? '',
         foodName: suggestion['foodName'] ?? 'Gợi ý AI',
         calories: (suggestion['calories'] as num).toDouble(),
         protein: (suggestion['protein'] as num).toDouble(),
