@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'training_plan_page.dart';
 import 'ai_coach_page.dart';
@@ -552,10 +553,43 @@ class _OverviewContentState extends State<OverviewContent> {
     };
   }
 
+  /// Tính chuỗi ngày tập liên tiếp (streak) tính tới hôm nay (hoặc hôm qua nếu
+  /// hôm nay chưa tập). Dựa trên các ngày có hoạt động thực tế.
+  Future<int> _fetchStreak() async {
+    final response = await Supabase.instance.client
+        .from('activities')
+        .select('started_at')
+        .order('started_at', ascending: false)
+        .limit(365);
+
+    final days = <DateTime>{};
+    for (final a in response as List) {
+      final d = DateTime.parse(a['started_at'] as String).toLocal();
+      days.add(DateTime(d.year, d.month, d.day));
+    }
+    if (days.isEmpty) return 0;
+
+    final now = DateTime.now();
+    var cursor = DateTime(now.year, now.month, now.day);
+    // Hôm nay chưa tập -> cho phép tính streak tính tới hôm qua.
+    if (!days.contains(cursor)) {
+      cursor = cursor.subtract(const Duration(days: 1));
+      if (!days.contains(cursor)) return 0;
+    }
+
+    int streak = 0;
+    while (days.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final crossAxisCount = width > 1200 ? 4 : (width > 800 ? 2 : 1);
+    // Luôn ít nhất 2 cột để cụm chỉ số gọn lại, không phải kéo dài mới thấy hoạt động.
+    final crossAxisCount = width > 800 ? 4 : 2;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -750,7 +784,7 @@ class _OverviewContentState extends State<OverviewContent> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        badgeLabel(context, 'PRO HUD'),
+                        badgeLabel(context, DateFormat('dd/MM/yyyy').format(DateTime.now())),
                         const SizedBox(height: 12),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -765,18 +799,24 @@ class _OverviewContentState extends State<OverviewContent> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                'Streak',
+                                context.translate('streak'),
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   color: Colors.white70,
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              Text(
-                                '7 Days',
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                              FutureBuilder<int>(
+                                future: _fetchStreak(),
+                                builder: (context, snapshot) {
+                                  final n = snapshot.data ?? 0;
+                                  return Text(
+                                    context.translate('streak_days', ['$n']),
+                                    style: theme.textTheme.headlineSmall?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),
@@ -792,7 +832,7 @@ class _OverviewContentState extends State<OverviewContent> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'Nutrition Status',
+              context.translate('nutrition_status'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
@@ -810,7 +850,7 @@ class _OverviewContentState extends State<OverviewContent> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'Performance Stats',
+              context.translate('performance_stats'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
