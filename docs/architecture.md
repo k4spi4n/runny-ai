@@ -21,8 +21,8 @@ flowchart TB
     end
     
     subgraph External [Dịch vụ Tích hợp Bên thứ ba]
-        OpenRouter[Cổng AI OpenRouter]
-        Gemini[AI Google Gemini]
+        Groq[AI Groq - chính]
+        OpenRouter[Cổng AI OpenRouter - fallback]
         Strava[Nền tảng Strava]
         Weather[Dữ liệu Thời tiết & Khí hậu]
     end
@@ -35,8 +35,8 @@ flowchart TB
     Services <--> DB
     Services <--> Functions
     
+    Functions <--> Groq
     Functions <--> OpenRouter
-    Functions <--> Gemini
     Functions <--> Weather
     Strava -- Webhooks --> Functions
     Strava <--> Services
@@ -47,7 +47,7 @@ flowchart TB
 ### 1. Chu trình Phân tích và Huấn luyện AI
 1. **Kích hoạt**: Sau khi người dùng hoàn thành buổi chạy hoặc gửi thắc mắc tại trang Huấn luyện viên AI.
 2. **Thu thập Ngữ cảnh**: Ứng dụng tổng hợp dữ liệu hoạt động (quãng đường, tốc độ, nhịp tim) và thông tin cá nhân.
-3. **Yêu cầu Xử lý**: Hệ thống gửi dữ liệu tới hàm xử lý Edge để kết nối với các mô hình ngôn ngữ lớn thông qua OpenRouter.
+3. **Yêu cầu Xử lý**: Hệ thống gửi dữ liệu tới hàm xử lý Edge để kết nối với các mô hình ngôn ngữ lớn — ưu tiên Groq, tự fallback sang OpenRouter khi cần.
 4. **Lưu trữ & Phản hồi**: Kết quả phân tích được lưu trữ vào cơ sở dữ liệu và hiển thị trực quan cho người dùng.
 
 ### 2. Đồng bộ hóa Hoạt động với Strava

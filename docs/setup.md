@@ -44,7 +44,8 @@ flutter pub get
    ```
    ```env
    # supabase/functions/.env
-   OPENROUTER_API_KEY=YOUR_KEY      # AI text/chat — https://openrouter.ai/keys
+   GROQ_API_KEY=YOUR_KEY            # AI text/chat (CHÍNH) — https://console.groq.com/keys
+   OPENROUTER_API_KEY=YOUR_KEY      # AI text/chat (FALLBACK) — https://openrouter.ai/keys
    WAQI_API_KEY=YOUR_KEY            # AQI (chính) — https://aqicn.org/data-platform/token/
    OPENWEATHER_API_KEY=YOUR_KEY     # Thời tiết + AQI dự phòng — https://openweathermap.org/api
    FOOD_RECOGNITION_PROVIDER=mock   # Nhận dạng món ăn hiện dùng mock, chưa cần key
@@ -62,6 +63,7 @@ flutter pub get
 2. Áp dụng migrations lên database của dự án.
 3. Thiết lập các keys bảo mật trên cloud backend:
    ```bash
+   supabase secrets set GROQ_API_KEY=YOUR_KEY
    supabase secrets set OPENROUTER_API_KEY=YOUR_KEY
    supabase secrets set WAQI_API_KEY=YOUR_KEY
    supabase secrets set OPENWEATHER_API_KEY=YOUR_KEY
@@ -80,7 +82,7 @@ cp apps/runny_app/.env.example apps/runny_app/.env
 ```
 Mở tệp `.env` và cập nhật các thông số:
 - **SUPABASE_URL** và **SUPABASE_ANON_KEY**: Địa chỉ URL và khóa public của dự án Supabase (lấy từ kết quả lệnh `supabase status` khi chạy local, hoặc tại mục Cài đặt API trên Cloud). Lưu ý dùng **Project URL** (cổng API `http://127.0.0.1:34321` khi local) chứ không phải chuỗi kết nối database; `SUPABASE_ANON_KEY` nhận `Publishable key` (`sb_publishable_...`) hoặc `anon key` JWT, **không phải** Storage S3 Access Key.
-- **Chú ý bảo mật**: Không cấu hình các private API key (`OPENROUTER_API_KEY`, `WAQI_API_KEY`, `OPENWEATHER_API_KEY`) trong file `.env` này. Toàn bộ các dịch vụ AI và thời tiết sẽ được proxy qua Edge Functions để bảo mật 100% (tránh lộ key khi đóng gói Web app). Các key đó cấu hình ở phía server theo Bước 3.
+- **Chú ý bảo mật**: Không cấu hình các private API key (`GROQ_API_KEY`, `OPENROUTER_API_KEY`, `WAQI_API_KEY`, `OPENWEATHER_API_KEY`) trong file `.env` này. Toàn bộ các dịch vụ AI và thời tiết sẽ được proxy qua Edge Functions để bảo mật 100% (tránh lộ key khi đóng gói Web app). Các key đó cấu hình ở phía server theo Bước 3.
 
 ## 3. Khởi chạy Ứng dụng
 

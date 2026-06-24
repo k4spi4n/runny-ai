@@ -15,12 +15,12 @@ Hệ thống sử dụng chuẩn xác thực JWT thông qua dịch vụ Supabase
 
 ## Các Hàm Xử lý Máy chủ (Edge Functions)
 
-### 1. Cổng kết nối AI (OpenRouter Proxy)
+### 1. Cổng kết nối AI (AI Proxy)
 Chuyển tiếp và bảo mật các yêu cầu xử lý trí tuệ nhân tạo.
 
 - **Đường dẫn**: `POST /functions/v1/openrouter`
-- **Chức năng**: Bảo mật khóa API và điều phối yêu cầu tới các mô hình ngôn ngữ lớn (LLM).
-- **Định dạng dữ liệu**: Tuân theo tiêu chuẩn của OpenRouter.
+- **Chức năng**: Bảo mật khóa API và điều phối yêu cầu tới các mô hình ngôn ngữ lớn (LLM). Provider chính là **Groq** (suy luận nhanh nhờ LPU); khi Groq lỗi hoặc bị rate-limit (429), proxy tự **fallback sang OpenRouter**.
+- **Định dạng dữ liệu**: Tuân theo chuẩn OpenAI Chat Completions (cả Groq lẫn OpenRouter đều tương thích). Header `X-AI-Provider` cho biết provider đã phục vụ request.
 
 ### 2. Nhận dạng món ăn bằng AI
 Phân tích ảnh món ăn và trả về tên món dự đoán cùng ước lượng dinh dưỡng.

@@ -19,8 +19,8 @@ Runny AI được xây dựng trên nền tảng công nghệ hiện đại, ưu
 
 ## Dịch vụ & Tích hợp bên thứ ba
 - **Động cơ Trí tuệ nhân tạo (AI Engine)**: 
-  - [OpenRouter](https://openrouter.ai/): Truy cập đa mô hình (Llama 3.3, Claude, GPT, v.v.)
-  - [Google Gemini 1.5](https://aistudio.google.com/): Giải pháp dự phòng hiệu năng cao.
+  - [Groq](https://groq.com/) (chính): Suy luận tốc độ cao nhờ LPU (Llama 3.3 70B / 3.1 8B).
+  - [OpenRouter](https://openrouter.ai/) (fallback): Truy cập đa mô hình khi Groq lỗi/rate-limit.
 - **Dữ liệu Thể thao**: [Strava API](https://developers.strava.com/) (OAuth2 & Webhooks)
 - **Thời tiết**: [OpenWeatherMap API](https://openweathermap.org/api)
 - **Chất lượng không khí**: [WAQI API](https://aqicn.org/api/)

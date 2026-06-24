@@ -10,7 +10,7 @@ class GeminiService {
   GeminiService()
       : _modelName = dotenv.env['OPENROUTER_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct:free',
         _modelList = _parseModels(dotenv.env['OPENROUTER_MODELS']) {
-    debugPrint('GeminiService: Using Supabase Edge Function proxy for OpenRouter calls.');
+    debugPrint('GeminiService: Using Supabase Edge Function AI proxy (Groq primary, OpenRouter fallback).');
   }
 
   /// Tach chuoi model phan tach boi dau phay (vd: "a:free, b:free") thanh danh sach.
