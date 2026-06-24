@@ -49,11 +49,20 @@ Phân tích ảnh món ăn và trả về tên món dự đoán cùng ước lư
 Cung cấp thông tin thời tiết và chất lượng không khí dựa trên vị trí địa lý.
 
 - **Đường dẫn**: `POST /functions/v1/weather`
+- **Secrets yêu cầu (phía server)**: cần ít nhất **một trong hai** `WAQI_API_KEY` hoặc `OPENWEATHER_API_KEY`; thiếu cả hai sẽ trả lỗi `500`. `WAQI_API_KEY` cung cấp AQI (và nhiệt độ/độ ẩm/gió nếu trạm đo gần đó có dữ liệu); `OPENWEATHER_API_KEY` cung cấp thời tiết đầy đủ kèm AQI dự phòng.
 - **Dữ liệu đầu vào**:
   ```json
   {
     "lat": 10.762622,
     "lon": 106.660172
+  }
+  ```
+- **Response**: gộp dữ liệu thô từ các nguồn để client tự parse:
+  ```json
+  {
+    "weather": { "...": "OpenWeatherMap current weather, null nếu không có key" },
+    "waqi": { "...": "WAQI feed, null nếu không có key/không có trạm" },
+    "owm_aqi": { "...": "OpenWeatherMap air pollution, dùng làm AQI dự phòng" }
   }
   ```
 
