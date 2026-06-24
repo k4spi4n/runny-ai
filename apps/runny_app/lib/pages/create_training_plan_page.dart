@@ -111,7 +111,8 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
         children: [
           SizedBox.expand(child: DecoratedBox(decoration: BoxDecoration(gradient: sportPlatformGradient(context)))),
           SafeArea(
-            child: SingleChildScrollView(
+            child: ResponsiveContent(
+              child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: glassCard(
                 context: context,
@@ -195,6 +196,7 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
                     ),
                   ],
                 ),
+              ),
               ),
             ),
           ),

@@ -63,12 +63,13 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
                 }
                 final data = snapshot.data!;
                 final onSurface = Theme.of(context).colorScheme.onSurface;
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _GoalCard(goal: data.goal, onEditGoal: _editGoal),
+                return ResponsiveContent(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _GoalCard(goal: data.goal, onEditGoal: _editGoal),
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
@@ -106,6 +107,7 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
                             .map((log) => _LogTile(log: log, onDelete: () => _deleteLog(log))),
                       const SizedBox(height: 24),
                     ],
+                  ),
                   ),
                 );
               },
@@ -320,12 +322,18 @@ class _GoalCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('${(goal.progress * 100).toStringAsFixed(0)}% hoàn thành',
-                  style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w700)),
-              const Spacer(),
+              Flexible(
+                child: Text('${(goal.progress * 100).toStringAsFixed(0)}% hoàn thành',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w700)),
+              ),
+              const SizedBox(width: 8),
               if (reached)
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: const [
                     Icon(Icons.check_circle, color: Color(0xFF4ADE80), size: 18),
                     SizedBox(width: 6),
@@ -335,9 +343,14 @@ class _GoalCard extends StatelessWidget {
                   ],
                 )
               else
-                Text(
-                  'Còn ${goal.remaining.toStringAsFixed(1)} kg ${goal.isLosing ? "cần giảm" : "cần tăng"}',
-                  style: TextStyle(color: cs.onSurfaceVariant),
+                Flexible(
+                  child: Text(
+                    'Còn ${goal.remaining.toStringAsFixed(1)} kg ${goal.isLosing ? "cần giảm" : "cần tăng"}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
                 ),
             ],
           ),

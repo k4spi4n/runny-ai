@@ -69,7 +69,9 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 42),
-              child: glassCard(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: glassCard(
                 context: context,
                 padding: const EdgeInsets.all(28),
                 child: Column(
@@ -108,6 +110,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     ),
                   ],
                 ),
+              ),
               ),
             ),
           ),

@@ -98,13 +98,15 @@ class _TrainingHistoryPageState extends State<TrainingHistoryPage> {
                     ),
                   );
                 }
-                return RefreshIndicator(
-                  onRefresh: _refresh,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: items.length,
-                    itemBuilder: (context, index) => _buildCard(context, items[index]),
+                return ResponsiveContent(
+                  child: RefreshIndicator(
+                    onRefresh: _refresh,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: items.length,
+                      itemBuilder: (context, index) => _buildCard(context, items[index]),
+                    ),
                   ),
                 );
               },

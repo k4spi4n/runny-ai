@@ -468,3 +468,32 @@ class HoverSyncWidget extends StatelessWidget {
     );
   }
 }
+
+/// Chiều rộng tối đa thoải mái cho nội dung trên màn hình lớn (web/desktop).
+const double kContentMaxWidth = 1100;
+
+/// Giới hạn chiều rộng nội dung và canh giữa trên màn hình lớn, trong khi vẫn
+/// để vùng cuộn/nền chiếm toàn bộ chiều ngang. Bọc phần con của
+/// `SingleChildScrollView`/`ListView` để tránh nội dung bị kéo giãn trên web.
+///
+/// Theo workflow "Optimizing for Large Screens" của Flutter responsive layout.
+class ResponsiveContent extends StatelessWidget {
+  const ResponsiveContent({
+    super.key,
+    required this.child,
+    this.maxWidth = kContentMaxWidth,
+  });
+
+  final Widget child;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: child,
+      ),
+    );
+  }
+}

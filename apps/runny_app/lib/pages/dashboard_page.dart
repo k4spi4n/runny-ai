@@ -247,7 +247,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       horizontal: 20,
                       vertical: 20,
                     ),
-                    child: _pages[_selectedIndex],
+                    child: ResponsiveContent(child: _pages[_selectedIndex]),
                   ),
                 ),
               ],
@@ -1003,6 +1003,8 @@ class _OverviewContentState extends State<OverviewContent> {
                         ),
                         title: Text(
                           activity.notes ?? context.translate('run_activity'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: colorScheme.onSurface,
@@ -1010,6 +1012,8 @@ class _OverviewContentState extends State<OverviewContent> {
                         ),
                         subtitle: Text(
                           '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
                         trailing: Icon(
@@ -1143,16 +1147,23 @@ class PerformanceStatCard extends StatelessWidget {
               children: [
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: colorScheme.onSurface,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: colorScheme.onSurface,
+                    ),
                   ),
                 ),
               ],

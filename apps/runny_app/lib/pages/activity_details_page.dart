@@ -267,7 +267,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               ),
             ),
             SafeArea(
-              child: SingleChildScrollView(
+              child: ResponsiveContent(
+                child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -346,6 +347,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                     ],
                   ],
                 ),
+              ),
               ),
             ),
           ],

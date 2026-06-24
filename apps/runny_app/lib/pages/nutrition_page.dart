@@ -489,15 +489,21 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  const Icon(Icons.auto_awesome, color: Colors.amber),
-                  const SizedBox(width: 8),
-                  Text(
-                    'AI Gợi ý $mealNameVi',
-                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ],
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.auto_awesome, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'AI Gợi ý $mealNameVi',
+                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               IconButton(
                 onPressed: () => Navigator.pop(context),

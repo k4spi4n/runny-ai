@@ -166,7 +166,9 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
-          child: Column(
+          child: ResponsiveContent(
+            maxWidth: 480,
+            child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(
@@ -225,6 +227,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                 ),
               ],
             ],
+          ),
           ),
         ),
       ),

@@ -224,7 +224,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
 
   Widget _buildMetricsStep(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return SingleChildScrollView(
+    return ResponsiveContent(
+      maxWidth: 560,
+      child: SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: glassCard(
         context: context,
@@ -264,12 +266,15 @@ class _OnboardingContentState extends State<OnboardingContent> {
           ],
         ),
       ),
+      ),
     );
   }
 
   Widget _buildGoalStep(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return SingleChildScrollView(
+    return ResponsiveContent(
+      maxWidth: 560,
+      child: SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: glassCard(
         context: context,
@@ -339,6 +344,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
