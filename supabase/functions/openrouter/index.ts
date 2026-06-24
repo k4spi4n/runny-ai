@@ -25,20 +25,24 @@ function getFallbackModels(): string[] {
   return DEFAULT_FALLBACK_MODELS;
 }
 
+// OpenRouter chi cho phep toi da 3 model trong mang `models`.
+const MAX_MODELS = 3;
+
 // Chuan hoa body: dam bao luon co mang `models` de OpenRouter ap dung fallback routing.
-// - Neu client da gui `models` -> ton trong nguyen ven.
+// - Neu client da gui `models` -> giu nguyen (van cat con toi da MAX_MODELS).
 // - Neu chi gui `model` -> models = [model, ...fallback] (loai trung).
 // - Neu khong gui gi -> dung danh sach fallback.
 function applyModelFallback(body: Record<string, unknown>): Record<string, unknown> {
   const fallback = getFallbackModels();
 
   if (Array.isArray(body.models) && body.models.length > 0) {
-    return body;
+    const capped = [...new Set(body.models as unknown[])].slice(0, MAX_MODELS);
+    return { ...body, models: capped };
   }
 
   const primary = typeof body.model === 'string' ? body.model : null;
   const models = primary ? [primary, ...fallback] : [...fallback];
-  const deduped = [...new Set(models)];
+  const deduped = [...new Set(models)].slice(0, MAX_MODELS);
 
   const { model: _drop, ...rest } = body;
   return { ...rest, models: deduped };
