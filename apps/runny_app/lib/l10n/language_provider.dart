@@ -13,8 +13,9 @@ class LanguageProvider extends ChangeNotifier {
 
   static Locale _loadLocale(SharedPreferences prefs) {
     final code = prefs.getString(_localeKey);
-    if (code == 'vi') return const Locale('vi');
-    return const Locale('en');
+    // Mặc định Tiếng Việt; chỉ dùng Tiếng Anh khi người dùng đã chọn.
+    if (code == 'en') return const Locale('en');
+    return const Locale('vi');
   }
 
   Future<void> setLocale(Locale locale) async {

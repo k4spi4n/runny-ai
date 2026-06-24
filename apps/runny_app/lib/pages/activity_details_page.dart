@@ -695,9 +695,9 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                   await _updateActivityShoe(newValue);
                 },
                 items: [
-                  const DropdownMenuItem<String>(
+                  DropdownMenuItem<String>(
                     value: null,
-                    child: Text('No Shoe', style: TextStyle(fontSize: 13)),
+                    child: Text(context.translate('no_shoe'), style: const TextStyle(fontSize: 13)),
                   ),
                   ...activeShoes.map((shoe) {
                     return DropdownMenuItem<String>(

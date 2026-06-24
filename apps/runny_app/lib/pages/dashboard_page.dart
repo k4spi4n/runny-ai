@@ -343,16 +343,16 @@ class _DashboardPageState extends State<DashboardPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: colorScheme.surface,
-        title: Text('Logout', style: TextStyle(color: colorScheme.onSurface)),
+        title: Text(context.translate('logout'), style: TextStyle(color: colorScheme.onSurface)),
         content: Text(
-          'Are you sure you want to logout from Runny AI?',
+          context.translate('logout_confirm'),
           style: TextStyle(color: colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              context.translate('cancel'),
               style: TextStyle(color: colorScheme.onSurfaceVariant),
             ),
           ),
@@ -375,9 +375,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 );
               }
             },
-            child: const Text(
-              'Logout',
-              style: TextStyle(
+            child: Text(
+              context.translate('logout'),
+              style: const TextStyle(
                 color: Colors.redAccent,
                 fontWeight: FontWeight.bold,
               ),
@@ -661,7 +661,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                   ? '${weather.temperatureC!.toStringAsFixed(1)}°C'
                                   : '--';
                               final location =
-                                  weather.locationName ?? 'Unknown Location';
+                                  weather.locationName ?? context.translate('unknown_location');
 
                               return Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -893,7 +893,7 @@ class _OverviewContentState extends State<OverviewContent> {
                     ),
                   ),
                 ),
-                TextButton(onPressed: () {}, child: const Text('View All')),
+                TextButton(onPressed: () {}, child: Text(context.translate('view_all'))),
               ],
             ),
           ),

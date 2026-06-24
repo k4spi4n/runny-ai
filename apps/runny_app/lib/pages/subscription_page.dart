@@ -39,7 +39,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading subscription data: $e')),
+          SnackBar(content: Text('Lỗi khi tải dữ liệu gói đăng ký: $e')),
         );
       }
     } finally {
@@ -54,13 +54,13 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
       await _loadData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Subscription successful!')),
+          const SnackBar(content: Text('Đăng ký gói thành công!')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Subscription failed: $e')),
+          SnackBar(content: Text('Đăng ký gói thất bại: $e')),
         );
       }
     } finally {
