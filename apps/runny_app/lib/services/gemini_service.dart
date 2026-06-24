@@ -30,6 +30,35 @@ class GeminiService {
 
   bool get isConfigured => true;
 
+  /// Trích thông báo lỗi thân thiện từ phản hồi/exception của Edge Function.
+  /// Edge Function trả về `{ "error": "..." }` (tiếng Việt) cho các lỗi guardrail
+  /// (401 chưa đăng nhập, 400 đầu vào không hợp lệ, 429 quá nhiều yêu cầu).
+  String _extractError(Object error) {
+    if (error is FunctionException) {
+      final details = error.details;
+      if (details is Map && details['error'] is String) {
+        return details['error'] as String;
+      }
+      if (details is String && details.trim().isNotEmpty) {
+        return details;
+      }
+      return 'Lỗi máy chủ AI (mã ${error.status}).';
+    }
+    return error.toString();
+  }
+
+  String _errorFromData(dynamic data) {
+    try {
+      final decoded = data is String ? jsonDecode(data) : data;
+      if (decoded is Map && decoded['error'] is String) {
+        return decoded['error'] as String;
+      }
+    } catch (_) {
+      // bỏ qua, dùng fallback bên dưới
+    }
+    return 'Lỗi máy chủ AI.';
+  }
+
   Future<String> generateResponse(
     String prompt, {
     List<Map<String, String>>? history,
@@ -61,7 +90,7 @@ class GeminiService {
       );
 
       if (response.status != 200) {
-        throw Exception('OpenRouter proxy error: ${response.status} ${response.data}');
+        throw Exception(_errorFromData(response.data));
       }
 
       final decoded = response.data is String
@@ -81,6 +110,9 @@ class GeminiService {
       return content;
     } catch (e) {
       debugPrint('OpenRouter proxy call failed: $e');
+      if (e is FunctionException) {
+        throw Exception(_extractError(e));
+      }
       rethrow;
     }
   }
@@ -105,7 +137,7 @@ class GeminiService {
       );
 
       if (response.status != 200) {
-        throw Exception('OpenRouter proxy error: ${response.status} ${response.data}');
+        throw Exception(_errorFromData(response.data));
       }
 
       final decoded = response.data is String
@@ -135,6 +167,9 @@ class GeminiService {
       return jsonDecode(cleanedContent);
     } catch (e) {
       debugPrint('OpenRouter proxy structured call failed: $e');
+      if (e is FunctionException) {
+        throw Exception(_extractError(e));
+      }
       rethrow;
     }
   }

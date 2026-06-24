@@ -21,6 +21,12 @@ Chuyển tiếp và bảo mật các yêu cầu xử lý trí tuệ nhân tạo.
 - **Đường dẫn**: `POST /functions/v1/openrouter`
 - **Chức năng**: Bảo mật khóa API và điều phối yêu cầu tới các mô hình ngôn ngữ lớn (LLM). Provider chính là **Groq** (suy luận nhanh nhờ LPU); khi Groq lỗi hoặc bị rate-limit (429), proxy tự **fallback sang OpenRouter**.
 - **Định dạng dữ liệu**: Tuân theo chuẩn OpenAI Chat Completions (cả Groq lẫn OpenRouter đều tương thích). Header `X-AI-Provider` cho biết provider đã phục vụ request.
+- **Guardrails (bảo vệ phía server, không thể bỏ qua từ client)**:
+  - **Yêu cầu đăng nhập**: request phải kèm JWT của người dùng (`role = authenticated`). Thiếu → `401`.
+  - **Giới hạn chủ đề**: tự chèn system prompt giới hạn trợ lý CHỈ trả lời về chạy bộ & thể chất liên quan; câu hỏi ngoài phạm vi sẽ bị từ chối lịch sự. (Bỏ qua với các yêu cầu `response_format` nội bộ như sinh lịch tập — vốn đã đúng chủ đề.)
+  - **Kiểm tra đầu vào**: chặn payload bất thường (số tin nhắn / độ dài vượt ngưỡng). Vi phạm → `400`.
+  - **Rate-limit theo user**: mặc định 12 request/phút và 200 request/ngày (đếm atomic qua RPC `check_ai_rate_limit` + bảng `ai_rate_limit`, dùng service role). Vượt → `429`. Ngưỡng chỉnh qua secret `AI_MAX_PER_MIN` / `AI_MAX_PER_DAY` / `AI_MAX_MESSAGES` / `AI_MAX_MESSAGE_CHARS` / `AI_MAX_TOTAL_CHARS`.
+  - **Lỗi trả về** dạng `{ "error": "<thông báo tiếng Việt>" }`; client hiển thị trực tiếp thông báo này.
 
 ### 2. Nhận dạng món ăn bằng AI
 Phân tích ảnh món ăn và trả về tên món dự đoán cùng ước lượng dinh dưỡng.
@@ -95,3 +101,4 @@ Truy xuất danh sách bảng xếp hạng người dùng.
 | `ai_insights` | Lưu trữ kết quả phân tích và lời khuyên từ AI. |
 | `badges` | Quản lý danh hiệu và thành tựu của người dùng. |
 | `run_matches` | Quản lý các yêu cầu kết nối và bạn chạy bộ. |
+| `ai_rate_limit` | Bộ đếm rate-limit cho cổng AI proxy (chống spam/lạm dụng, chỉ service role truy cập). |
