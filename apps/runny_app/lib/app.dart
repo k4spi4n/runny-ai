@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'pages/login_page.dart';
+import 'pages/landing_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/onboarding_page.dart';
 import 'theme/app_theme.dart';
@@ -74,7 +74,7 @@ class AuthGate extends StatelessWidget {
             },
           );
         } else {
-          return const LoginPage();
+          return const LandingPage();
         }
       },
     );

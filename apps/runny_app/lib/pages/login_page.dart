@@ -4,7 +4,9 @@ import '../widgets/ui_components.dart';
 import '../l10n/app_localizations.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final bool initialIsSignUp;
+
+  const LoginPage({super.key, this.initialIsSignUp = false});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -14,7 +16,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _isSignUp = false;
+  late bool _isSignUp = widget.initialIsSignUp;
 
   Future<void> _handleAuth() async {
     setState(() => _isLoading = true);
