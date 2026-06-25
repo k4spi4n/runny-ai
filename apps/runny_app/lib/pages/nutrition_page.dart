@@ -464,7 +464,7 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
     try {
       final log = MealLog(
         userId: Supabase.instance.client.auth.currentUser?.id ?? '',
-        foodName: suggestion['foodName'] ?? 'Gợi ý AI',
+        foodName: suggestion['foodName'] ?? fallbackFoodName,
         calories: (suggestion['calories'] as num).toDouble(),
         protein: (suggestion['protein'] as num).toDouble(),
         carbs: (suggestion['carbs'] as num).toDouble(),
@@ -528,7 +528,7 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'AI Gợi ý $mealNameVi',
+                        'AI Gợi ý $mealName',
                         style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

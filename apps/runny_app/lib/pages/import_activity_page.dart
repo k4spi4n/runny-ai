@@ -183,27 +183,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(title: Text(context.translate('import_activity'))),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: ResponsiveContent(
-            maxWidth: 480,
-            child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.cloud_upload_outlined,
-                size: 80,
-                color: Colors.blue,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                context.translate('upload_raw_activity'),
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          SafeArea(
+      body: SafeArea(
             child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
@@ -307,9 +287,6 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               ),
             ),
           ),
-          ),
-        ),
-      ),
     );
   }
 }
