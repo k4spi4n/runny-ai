@@ -15,6 +15,7 @@ import '../widgets/nutrition_components.dart';
 import '../services/nutrition_service.dart';
 import '../models/workout_models.dart';
 import '../services/weather_service.dart';
+import '../services/gemini_service.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
@@ -410,11 +411,98 @@ class OverviewContent extends StatefulWidget {
 
 class _OverviewContentState extends State<OverviewContent> {
   late Future<WeatherSnapshot?> _weatherFuture;
+  late Future<String?> _displayNameFuture;
+  Future<String?>? _insightFuture;
+  String? _insightLang;
 
   @override
   void initState() {
     super.initState();
     _weatherFuture = _fetchLatestWeather();
+    _displayNameFuture = _fetchDisplayName();
+  }
+
+  /// Tạo (một lần cho mỗi ngôn ngữ) future lấy nhận xét AI về hiệu suất.
+  Future<String?> _insightFor(String langCode) {
+    if (_insightFuture == null || _insightLang != langCode) {
+      _insightLang = langCode;
+      _insightFuture = _fetchPerformanceInsight(langCode);
+    }
+    return _insightFuture!;
+  }
+
+  /// Gọi AI để nhận xét ngắn về xu hướng hiệu suất dựa trên các buổi chạy gần đây.
+  Future<String?> _fetchPerformanceInsight(String langCode) async {
+    try {
+      final activities = await _fetchLatestActivities();
+      if (activities.isEmpty) return null;
+
+      final buffer = StringBuffer();
+      for (final a in activities) {
+        final dateStr = DateFormat('dd/MM').format(a.startedAt.toLocal());
+        final pace = a.distanceKm > 0 ? a.durationMin / a.distanceKm : 0.0;
+        String paceStr = '--';
+        if (pace > 0) {
+          final min = pace.floor();
+          final sec = ((pace - min) * 60).round();
+          paceStr = '$min:${sec.toString().padLeft(2, '0')}';
+        }
+        buffer.writeln(
+          '- $dateStr: ${a.distanceKm.toStringAsFixed(1)} km, '
+          '${a.durationMin.toStringAsFixed(0)} phút, pace $paceStr/km'
+          '${a.avgHr != null ? ', HR ${a.avgHr} bpm' : ''}',
+        );
+      }
+
+      final langName = langCode == 'en' ? 'English' : 'Vietnamese';
+      final prompt =
+          'Đây là các buổi chạy gần đây nhất của một người dùng:\n'
+          '${buffer.toString()}\n'
+          'Hãy đưa ra nhận xét ngắn gọn (2-3 câu), tích cực và khích lệ về xu hướng hiệu suất '
+          '(quãng đường, nhịp độ, nhịp tim), kèm đúng 1 gợi ý cải thiện cụ thể. '
+          'Trả lời bằng $langName, văn phong thân thiện, không dùng markdown hay tiêu đề.';
+
+      final insight = await GeminiService().generateResponse(prompt);
+      final trimmed = insight.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    } catch (e) {
+      debugPrint('Performance insight error: $e');
+      return null;
+    }
+  }
+
+  Future<String?> _fetchDisplayName() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return null;
+    try {
+      final data = await Supabase.instance.client
+          .from('profiles')
+          .select('display_name')
+          .eq('id', user.id)
+          .maybeSingle();
+      final name = (data?['display_name'] as String?)?.trim();
+      return (name != null && name.isNotEmpty) ? name : null;
+    } catch (e) {
+      debugPrint('Display name fetch error: $e');
+      return null;
+    }
+  }
+
+  /// Lời chào theo thời điểm trong ngày, kèm tên người dùng.
+  String _greeting(BuildContext context, String? name) {
+    final hour = DateTime.now().hour;
+    final String key;
+    if (hour < 12) {
+      key = 'greeting_morning';
+    } else if (hour < 18) {
+      key = 'greeting_afternoon';
+    } else {
+      key = 'greeting_evening';
+    }
+    final displayName = (name != null && name.isNotEmpty)
+        ? name
+        : context.translate('greeting_runner');
+    return context.translate(key, [displayName]);
   }
 
   Future<void> _retryWeather({bool forceRequest = false}) async {
@@ -619,16 +707,19 @@ class _OverviewContentState extends State<OverviewContent> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            context.translate('performance_overview'),
-                            style:
-                                (width < 560
-                                        ? theme.textTheme.headlineMedium
-                                        : theme.textTheme.displaySmall)
-                                    ?.copyWith(
-                                      color: colorScheme.onSurface,
-                                      fontWeight: FontWeight.w900,
-                                    ),
+                          FutureBuilder<String?>(
+                            future: _displayNameFuture,
+                            builder: (context, snapshot) => Text(
+                              _greeting(context, snapshot.data),
+                              style:
+                                  (width < 560
+                                          ? theme.textTheme.headlineMedium
+                                          : theme.textTheme.displaySmall)
+                                      ?.copyWith(
+                                        color: colorScheme.onSurface,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                            ),
                           ),
                           const SizedBox(height: 12),
                           FutureBuilder<WeatherSnapshot?>(
@@ -863,7 +954,7 @@ class _OverviewContentState extends State<OverviewContent> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              context.translate('performance_stats'),
+              context.translate('performance_overview'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
@@ -929,6 +1020,66 @@ class _OverviewContentState extends State<OverviewContent> {
                     gradient: secondaryPulseGradient,
                   ),
                 ],
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+          FutureBuilder<String?>(
+            future: _insightFor(Localizations.localeOf(context).languageCode),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return glassCard(
+                  context: context,
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          context.translate('ai_insight_loading'),
+                          style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              final insight = snapshot.data;
+              if (insight == null || insight.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return glassCard(
+                context: context,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.auto_awesome, color: colorScheme.primary, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          context.translate('ai_insight_title'),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      insight,
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
               );
             },
           ),
