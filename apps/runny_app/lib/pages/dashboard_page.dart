@@ -37,7 +37,9 @@ class _DashboardPageState extends State<DashboardPage> {
     super.initState();
     _navSyncs = List.generate(7, (_) => HoverSync());
     _pages = [
-      const OverviewContent(),
+      OverviewContent(
+        onViewAllActivities: () => setState(() => _selectedIndex = 2),
+      ),
       const NutritionPage(),
       const ActivityHistoryPage(),
       const TrainingPlanPage(),
@@ -79,7 +81,9 @@ class _DashboardPageState extends State<DashboardPage> {
           curve: Curves.easeOutCubic,
           child: Icon(
             icon,
-            color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant,
+            color: isHovered
+                ? colorScheme.primary
+                : colorScheme.onSurfaceVariant,
           ),
         ),
       ),
@@ -89,10 +93,7 @@ class _DashboardPageState extends State<DashboardPage> {
           scale: isHovered ? 1.15 : 1.0,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
-          child: Icon(
-            selectedIcon,
-            color: colorScheme.primary,
-          ),
+          child: Icon(selectedIcon, color: colorScheme.primary),
         ),
       ),
       label: HoverSyncWidget(
@@ -277,7 +278,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             onTap: () => setState(() => _selectedIndex = index),
                             behavior: HitTestBehavior.opaque,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 300),
                                 curve: Curves.easeInOutCubic,
@@ -287,7 +290,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? theme.primaryColor.withValues(alpha: 0.15)
+                                      ? theme.primaryColor.withValues(
+                                          alpha: 0.15,
+                                        )
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(14),
                                 ),
@@ -295,14 +300,18 @@ class _DashboardPageState extends State<DashboardPage> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
-                                      isSelected ? item.selectedIcon : item.icon,
+                                      isSelected
+                                          ? item.selectedIcon
+                                          : item.icon,
                                       size: 22,
                                       color: isSelected
                                           ? theme.primaryColor
                                           : colorScheme.onSurfaceVariant,
                                     ),
                                     AnimatedSize(
-                                      duration: const Duration(milliseconds: 300),
+                                      duration: const Duration(
+                                        milliseconds: 300,
+                                      ),
                                       curve: Curves.easeInOutCubic,
                                       child: isSelected
                                           ? Row(
@@ -343,16 +352,19 @@ class _DashboardPageState extends State<DashboardPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: colorScheme.surface,
-        title: Text('Logout', style: TextStyle(color: colorScheme.onSurface)),
+        title: Text(
+          context.translate('logout'),
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         content: Text(
-          'Are you sure you want to logout from Runny AI?',
+          context.translate('logout_confirm'),
           style: TextStyle(color: colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Cancel',
+              context.translate('cancel'),
               style: TextStyle(color: colorScheme.onSurfaceVariant),
             ),
           ),
@@ -375,9 +387,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 );
               }
             },
-            child: const Text(
-              'Logout',
-              style: TextStyle(
+            child: Text(
+              context.translate('logout'),
+              style: const TextStyle(
                 color: Colors.redAccent,
                 fontWeight: FontWeight.bold,
               ),
@@ -390,7 +402,9 @@ class _DashboardPageState extends State<DashboardPage> {
 }
 
 class OverviewContent extends StatefulWidget {
-  const OverviewContent({super.key});
+  final VoidCallback? onViewAllActivities;
+
+  const OverviewContent({super.key, this.onViewAllActivities});
 
   @override
   State<OverviewContent> createState() => _OverviewContentState();
@@ -469,14 +483,12 @@ class _OverviewContentState extends State<OverviewContent> {
           lon: position.longitude,
         );
       } else {
-        lastError =
-            'Không thể lấy vị trí hiện tại. Vui lòng bật định vị hoặc kiểm tra quyền truy cập browser.';
+        lastError = 'weather_location_error';
       }
     } catch (e) {
       debugPrint('Weather fetch error: $e');
       if (e.toString().contains('503')) {
-        lastError =
-            'Lỗi kết nối Server (503). Vui lòng kiểm tra "supabase status" và đảm bảo Function "weather" đã được serve.';
+        lastError = 'weather_server_error';
       } else {
         lastError = e;
       }
@@ -578,10 +590,14 @@ class _OverviewContentState extends State<OverviewContent> {
                         children: [
                           Text(
                             context.translate('performance_overview'),
-                            style: theme.textTheme.displaySmall?.copyWith(
-                              color: colorScheme.onSurface,
-                              fontWeight: FontWeight.w900,
-                            ),
+                            style:
+                                (width < 560
+                                        ? theme.textTheme.headlineMedium
+                                        : theme.textTheme.displaySmall)
+                                    ?.copyWith(
+                                      color: colorScheme.onSurface,
+                                      fontWeight: FontWeight.w900,
+                                    ),
                           ),
                           const SizedBox(height: 12),
                           FutureBuilder<WeatherSnapshot?>(
@@ -609,7 +625,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                   children: [
                                     Text(
                                       error != null
-                                          ? 'Lỗi: $error'
+                                          ? '${context.translate('error')}: ${context.translate(error.toString())}'
                                           : context.translate(
                                               'weather_unavailable',
                                             ),
@@ -661,7 +677,8 @@ class _OverviewContentState extends State<OverviewContent> {
                                   ? '${weather.temperatureC!.toStringAsFixed(1)}°C'
                                   : '--';
                               final location =
-                                  weather.locationName ?? 'Unknown Location';
+                                  weather.locationName ??
+                                  context.translate('unknown_location');
 
                               return Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -685,7 +702,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '$tempText • ${weather.summary ?? 'Clear'}',
+                                          '$tempText - ${weather.summary ?? context.translate('clear_weather')}',
                                           style: theme.textTheme.titleLarge
                                               ?.copyWith(
                                                 color: colorScheme.onSurface,
@@ -696,7 +713,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                           children: [
                                             Flexible(
                                               child: Text(
-                                                '$location • ',
+                                                '$location - ',
                                                 style: theme
                                                     .textTheme
                                                     .bodyMedium
@@ -746,43 +763,46 @@ class _OverviewContentState extends State<OverviewContent> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        badgeLabel(context, 'PRO HUD'),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: accentPulseGradient,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                'Streak',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: Colors.white70,
+                    if (width >= 560) ...[
+                      const SizedBox(width: 16),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          badgeLabel(context, context.translate('runner_hud')),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: accentPulseGradient,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  context.translate('streak'),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.white70,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '7 Days',
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
+                                const SizedBox(height: 6),
+                                Text(
+                                  context.translate('streak_days', ['7']),
+                                  style: theme.textTheme.headlineSmall
+                                      ?.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                      ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -792,7 +812,7 @@ class _OverviewContentState extends State<OverviewContent> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'Nutrition Status',
+              context.translate('nutrition_status'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
@@ -810,7 +830,7 @@ class _OverviewContentState extends State<OverviewContent> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
-              'Performance Stats',
+              context.translate('performance_stats'),
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurface,
@@ -893,7 +913,10 @@ class _OverviewContentState extends State<OverviewContent> {
                     ),
                   ),
                 ),
-                TextButton(onPressed: () {}, child: const Text('View All')),
+                TextButton(
+                  onPressed: widget.onViewAllActivities,
+                  child: Text(context.translate('view_all')),
+                ),
               ],
             ),
           ),
@@ -969,7 +992,7 @@ class _OverviewContentState extends State<OverviewContent> {
                           ),
                         ),
                         subtitle: Text(
-                          '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr',
+                          '${activity.distanceKm.toStringAsFixed(2)} km - ${_formatDuration(activity.durationMin)} - ${context.translate('pace')} $paceStr',
                           style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
                         trailing: Icon(
@@ -1106,6 +1129,8 @@ class PerformanceStatCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 10),
                 Text(
@@ -1114,6 +1139,8 @@ class PerformanceStatCard extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                     color: colorScheme.onSurface,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

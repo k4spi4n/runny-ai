@@ -1,9 +1,9 @@
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription_models.dart';
 import '../services/subscription_service.dart';
 import '../widgets/ui_components.dart';
+import '../l10n/app_localizations.dart';
 
 class SubscriptionPage extends StatefulWidget {
   const SubscriptionPage({super.key});
@@ -39,7 +39,11 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading subscription data: $e')),
+          SnackBar(
+            content: Text(
+              context.translate('subscription_load_error', [e.toString()]),
+            ),
+          ),
         );
       }
     } finally {
@@ -54,13 +58,17 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
       await _loadData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Subscription successful!')),
+          SnackBar(content: Text(context.translate('subscription_success'))),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Subscription failed: $e')),
+          SnackBar(
+            content: Text(
+              context.translate('subscription_failed', [e.toString()]),
+            ),
+          ),
         );
       }
     } finally {
@@ -75,7 +83,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gói Đăng Ký'),
+        title: Text(context.translate('subscription')),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -86,10 +94,11 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_activeSubscription != null) _buildCurrentSubscription(context),
+                  if (_activeSubscription != null)
+                    _buildCurrentSubscription(context),
                   const SizedBox(height: 24),
                   Text(
-                    'Chọn gói phù hợp với bạn',
+                    context.translate('choose_subscription'),
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: colorScheme.onSurface,
@@ -98,7 +107,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Nâng cấp để mở khóa toàn bộ tính năng AI Coach và phân tích chuyên sâu',
+                    context.translate('subscription_pitch'),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -125,7 +134,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Gói hiện tại',
+                context.translate('current_subscription'),
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -138,9 +147,13 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                   color: Colors.green.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  'Đang hoạt động',
-                  style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold),
+                child: Text(
+                  context.translate('active'),
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -152,7 +165,9 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Hết hạn vào: ${DateFormat('dd/MM/yyyy').format(_activeSubscription!.endDate)}',
+            context.translate('expires_on', [
+              DateFormat('dd/MM/yyyy').format(_activeSubscription!.endDate),
+            ]),
             style: TextStyle(color: colorScheme.onSurfaceVariant),
           ),
         ],
@@ -163,7 +178,11 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   Widget _buildPlanCard(BuildContext context, SubscriptionPlan plan) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(
+      locale: 'vi_VN',
+      symbol: '₫',
+      decimalDigits: 0,
+    );
     final isActive = _activeSubscription?.planId == plan.id;
     final isRecommended = plan.durationType == SubscriptionDuration.monthly;
 
@@ -211,33 +230,58 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (isRecommended)
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: planColor,
-                            borderRadius: BorderRadius.circular(12),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 180,
+                      maxWidth: 320,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isRecommended)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: planColor,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              context.translate('most_popular'),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1,
+                              ),
+                            ),
                           ),
-                          child: const Text(
-                            'PHỔ BIẾN NHẤT',
-                            style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                        Text(
+                          plan.name,
+                          style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      Text(
-                        plan.name,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: planColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(16),
@@ -256,39 +300,45 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
               const SizedBox(height: 20),
               const Divider(height: 1),
               const SizedBox(height: 20),
-              ...plan.benefits.map((benefit) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: planColor.withValues(alpha: 0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.check, size: 14, color: planColor),
+              ...plan.benefits.map(
+                (benefit) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: planColor.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            benefit,
-                            style: TextStyle(
-                              color: colorScheme.onSurface.withValues(alpha: 0.9),
-                              fontSize: 15,
-                            ),
+                        child: Icon(Icons.check, size: 14, color: planColor),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          benefit,
+                          style: TextStyle(
+                            color: colorScheme.onSurface.withValues(alpha: 0.9),
+                            fontSize: 15,
                           ),
                         ),
-                      ],
-                    ),
-                  )),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton(
-                  onPressed: (isActive || _isProcessing) ? null : () => _handleSubscribe(plan),
+                  onPressed: (isActive || _isProcessing)
+                      ? null
+                      : () => _handleSubscribe(plan),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isActive ? Colors.grey.withValues(alpha: 0.2) : planColor,
+                    backgroundColor: isActive
+                        ? Colors.grey.withValues(alpha: 0.2)
+                        : planColor,
                     foregroundColor: Colors.white,
                     elevation: isActive ? 0 : 4,
                     shadowColor: planColor.withValues(alpha: 0.5),
@@ -300,11 +350,19 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                       ? const SizedBox(
                           height: 24,
                           width: 24,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 3,
+                          ),
                         )
                       : Text(
-                          isActive ? 'ĐANG SỬ DỤNG' : 'ĐĂNG KÝ NGAY',
-                          style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                          isActive
+                              ? context.translate('current_plan')
+                              : context.translate('subscribe_now'),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
                         ),
                 ),
               ),

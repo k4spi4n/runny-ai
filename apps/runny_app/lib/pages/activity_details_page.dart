@@ -123,16 +123,23 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
-        title: Text(context.translate('edit_info'), style: TextStyle(color: theme.colorScheme.onSurface)),
+        title: Text(
+          context.translate('edit_info'),
+          style: TextStyle(color: theme.colorScheme.onSurface),
+        ),
         content: TextField(
           controller: controller,
           maxLines: 3,
           style: TextStyle(color: theme.colorScheme.onSurface),
           decoration: InputDecoration(
             hintText: context.translate('enter_notes_hint'),
-            hintStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+            hintStyle: TextStyle(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+            ),
             enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
+              borderSide: BorderSide(
+                color: theme.colorScheme.outline.withValues(alpha: 0.5),
+              ),
             ),
             focusedBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: theme.colorScheme.primary),
@@ -142,7 +149,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(context.translate('cancel'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              context.translate('cancel'),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -150,7 +160,13 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               Navigator.pop(context);
               await _updateActivityNotes(newNotes);
             },
-            child: Text(context.translate('save'), style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold)),
+            child: Text(
+              context.translate('save'),
+              style: TextStyle(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -163,7 +179,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
-        title: Text(context.translate('delete_activity'), style: TextStyle(color: theme.colorScheme.onSurface)),
+        title: Text(
+          context.translate('delete_activity'),
+          style: TextStyle(color: theme.colorScheme.onSurface),
+        ),
         content: Text(
           context.translate('delete_activity_confirm'),
           style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
@@ -171,14 +190,23 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(context.translate('cancel'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              context.translate('cancel'),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
               await _deleteActivity();
             },
-            child: Text(context.translate('delete'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: Text(
+              context.translate('delete'),
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -208,7 +236,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
             onPressed: () => Navigator.pop(context, _hasChanged),
           ),
-          title: Text(_activity.notes ?? context.translate('activity_details'), style: TextStyle(color: colorScheme.onSurface)),
+          title: Text(
+            _activity.notes ?? context.translate('activity_details'),
+            style: TextStyle(color: colorScheme.onSurface),
+          ),
           backgroundColor: Colors.transparent,
           elevation: 0,
           actions: [
@@ -228,7 +259,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                     children: [
                       Icon(Icons.edit, color: colorScheme.onSurfaceVariant),
                       const SizedBox(width: 8),
-                      Text(context.translate('edit_info'), style: TextStyle(color: colorScheme.onSurface)),
+                      Text(
+                        context.translate('edit_info'),
+                        style: TextStyle(color: colorScheme.onSurface),
+                      ),
                     ],
                   ),
                 ),
@@ -238,7 +272,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                     children: [
                       const Icon(Icons.delete, color: Colors.redAccent),
                       const SizedBox(width: 8),
-                      Text(context.translate('delete_activity'), style: const TextStyle(color: Colors.redAccent)),
+                      Text(
+                        context.translate('delete_activity'),
+                        style: const TextStyle(color: Colors.redAccent),
+                      ),
                     ],
                   ),
                 ),
@@ -257,13 +294,18 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             );
           },
           backgroundColor: colorScheme.primary,
-          child: const Icon(Icons.tips_and_updates_outlined, color: Colors.white),
+          child: const Icon(
+            Icons.tips_and_updates_outlined,
+            color: Colors.white,
+          ),
         ),
         body: Stack(
           children: [
             SizedBox.expand(
               child: DecoratedBox(
-                decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
+                decoration: BoxDecoration(
+                  gradient: sportPlatformGradient(context),
+                ),
               ),
             ),
             SafeArea(
@@ -323,7 +365,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                       ),
                       const SizedBox(height: 24),
                     ],
-                    if (_activity.notes != null && _activity.notes!.isNotEmpty) ...[
+                    if (_activity.notes != null &&
+                        _activity.notes!.isNotEmpty) ...[
                       Text(
                         context.translate('notes'),
                         style: TextStyle(
@@ -412,7 +455,13 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.air, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6), size: 14),
+                        Icon(
+                          Icons.air,
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.6,
+                          ),
+                          size: 14,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           'AQI ${snapshot.aqi ?? '--'}',
@@ -451,13 +500,18 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                   children: [
                     Icon(
                       Icons.wind_power,
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.6,
+                      ),
                       size: 20,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${snapshot.windKph!.toStringAsFixed(1)} ${context.translate('km_h')}',
-                      style: TextStyle(color: colorScheme.onSurface, fontSize: 14),
+                      style: TextStyle(
+                        color: colorScheme.onSurface,
+                        fontSize: 14,
+                      ),
                     ),
                   ],
                 ),
@@ -494,7 +548,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               ),
             ],
           ),
-          Divider(color: colorScheme.outline.withValues(alpha: 0.1), height: 32),
+          Divider(
+            color: colorScheme.outline.withValues(alpha: 0.1),
+            height: 32,
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -511,8 +568,15 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             ],
           ),
           if (_activity.avgHr != null) ...[
-            Divider(color: colorScheme.outline.withValues(alpha: 0.1), height: 32),
-            _buildStatItem(context, context.translate('avg_hr'), '${_activity.avgHr} bpm'),
+            Divider(
+              color: colorScheme.outline.withValues(alpha: 0.1),
+              height: 32,
+            ),
+            _buildStatItem(
+              context,
+              context.translate('avg_hr'),
+              '${_activity.avgHr} bpm',
+            ),
           ],
         ],
       ),
@@ -569,14 +633,16 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
   Future<void> _fetchShoeInfo() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
-    
+
     try {
       final shoesRes = await Supabase.instance.client
           .from('shoes')
           .select()
           .order('name');
-      final shoesList = (shoesRes as List).map((json) => Shoe.fromJson(json)).toList();
-      
+      final shoesList = (shoesRes as List)
+          .map((json) => Shoe.fromJson(json))
+          .toList();
+
       Shoe? currentShoe;
       if (_activity.shoeId != null) {
         final index = shoesList.indexWhere((s) => s.id == _activity.shoeId);
@@ -584,7 +650,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
           currentShoe = shoesList[index];
         }
       }
-      
+
       setState(() {
         _shoes = shoesList;
         _currentShoe = currentShoe;
@@ -665,7 +731,9 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                   children: [
                     Icon(
                       Icons.run_circle_outlined,
-                      color: _currentShoe != null ? colorScheme.primary : Colors.grey,
+                      color: _currentShoe != null
+                          ? colorScheme.primary
+                          : Colors.grey,
                       size: 24,
                     ),
                     const SizedBox(width: 10),
@@ -688,21 +756,30 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               ),
               DropdownButton<String>(
                 value: _activity.shoeId,
-                hint: Text(context.translate('select_shoe'), style: const TextStyle(fontSize: 12)),
+                hint: Text(
+                  context.translate('select_shoe'),
+                  style: const TextStyle(fontSize: 12),
+                ),
                 underline: const SizedBox(),
                 icon: Icon(Icons.edit, color: colorScheme.primary, size: 18),
                 onChanged: (String? newValue) async {
                   await _updateActivityShoe(newValue);
                 },
                 items: [
-                  const DropdownMenuItem<String>(
+                  DropdownMenuItem<String>(
                     value: null,
-                    child: Text('No Shoe', style: TextStyle(fontSize: 13)),
+                    child: Text(
+                      context.translate('no_shoe'),
+                      style: const TextStyle(fontSize: 13),
+                    ),
                   ),
                   ...activeShoes.map((shoe) {
                     return DropdownMenuItem<String>(
                       value: shoe.id,
-                      child: Text(shoe.name, style: const TextStyle(fontSize: 13)),
+                      child: Text(
+                        shoe.name,
+                        style: const TextStyle(fontSize: 13),
+                      ),
                     );
                   }),
                 ],

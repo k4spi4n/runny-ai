@@ -68,7 +68,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ]);
 
       final data = results[0] as Map<String, dynamic>;
-      
+
       setState(() {
         _displayNameController.text = data['display_name'] ?? '';
         _weightController.text = (data['weight_kg'] ?? '').toString();
@@ -78,15 +78,16 @@ class _ProfilePageState extends State<ProfilePage> {
         _garminId = data['garmin_id'];
         _cityController.text = data['city'] ?? '';
         _bioController.text = data['bio'] ?? '';
-        _preferredPaceController.text = (data['preferred_pace_min_per_km'] ?? '').toString();
+        _preferredPaceController.text =
+            (data['preferred_pace_min_per_km'] ?? '').toString();
         _lookingForPartner = data['looking_for_partner'] == true;
         _activeSubscription = results[1] as UserSubscription?;
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -150,9 +151,9 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -165,8 +166,12 @@ class _ProfilePageState extends State<ProfilePage> {
       await _socialService.updateMatchingPreferences(
         lookingForPartner: _lookingForPartner,
         preferredPace: double.tryParse(_preferredPaceController.text),
-        city: _cityController.text.trim().isEmpty ? null : _cityController.text.trim(),
-        bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
+        city: _cityController.text.trim().isEmpty
+            ? null
+            : _cityController.text.trim(),
+        bio: _bioController.text.trim().isEmpty
+            ? null
+            : _bioController.text.trim(),
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -253,7 +258,10 @@ class _ProfilePageState extends State<ProfilePage> {
               icon: const Icon(Icons.logout),
               label: Text(
                 context.translate('logout'),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -277,7 +285,7 @@ class _ProfilePageState extends State<ProfilePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Gói Đăng Ký',
+                context.translate('subscription'),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -286,7 +294,10 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               if (isPremium)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.primaryColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
@@ -308,7 +319,8 @@ class _ProfilePageState extends State<ProfilePage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: (isPremium ? theme.primaryColor : Colors.grey).withValues(alpha: 0.1),
+                  color: (isPremium ? theme.primaryColor : Colors.grey)
+                      .withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -322,13 +334,17 @@ class _ProfilePageState extends State<ProfilePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isPremium ? _activeSubscription!.plan!.name : 'Gói Miễn Phí',
+                      isPremium
+                          ? _activeSubscription!.plan!.name
+                          : context.translate('subscription_free'),
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      isPremium 
-                        ? 'Hết hạn: ${_activeSubscription!.endDate.day}/${_activeSubscription!.endDate.month}/${_activeSubscription!.endDate.year}'
-                        : 'Nâng cấp để nhận thêm quyền lợi',
+                      isPremium
+                          ? context.translate('subscription_expires', [
+                              '${_activeSubscription!.endDate.day}/${_activeSubscription!.endDate.month}/${_activeSubscription!.endDate.year}',
+                            ])
+                          : context.translate('subscription_upgrade_hint'),
                       style: TextStyle(
                         fontSize: 12,
                         color: colorScheme.onSurfaceVariant,
@@ -344,7 +360,11 @@ class _ProfilePageState extends State<ProfilePage> {
                     MaterialPageRoute(builder: (_) => const SubscriptionPage()),
                   ).then((_) => _loadProfile());
                 },
-                child: Text(isPremium ? 'Quản lý' : 'Nâng cấp'),
+                child: Text(
+                  isPremium
+                      ? context.translate('manage')
+                      : context.translate('upgrade'),
+                ),
               ),
             ],
           ),
@@ -411,7 +431,9 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             decoration: InputDecoration(
               hintText: context.translate('display_name'),
-              hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+              hintStyle: TextStyle(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              ),
               border: InputBorder.none,
             ),
           ),
@@ -495,7 +517,7 @@ class _ProfilePageState extends State<ProfilePage> {
             child: OutlinedButton.icon(
               style: secondaryActionButton(context),
               icon: const Icon(Icons.timeline, size: 18),
-              label: const Text('Theo dõi cân nặng & mục tiêu'),
+              label: Text(context.translate('weight_tracking_cta')),
               onPressed: () {
                 Navigator.push(
                   context,
@@ -561,9 +583,9 @@ class _ProfilePageState extends State<ProfilePage> {
           Text(
             context.translate('partner_matching'),
             style: TextStyle(
-              fontSize: 18, 
-              fontWeight: FontWeight.bold, 
-              color: colorScheme.onSurface
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 12),
@@ -571,19 +593,31 @@ class _ProfilePageState extends State<ProfilePage> {
             contentPadding: EdgeInsets.zero,
             value: _lookingForPartner,
             onChanged: (v) => setState(() => _lookingForPartner = v),
-            title: Text(context.translate('find_partner'), style: TextStyle(color: colorScheme.onSurface)),
+            title: Text(
+              context.translate('find_partner'),
+              style: TextStyle(color: colorScheme.onSurface),
+            ),
             activeThumbColor: theme.primaryColor,
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _cityController,
-            decoration: themedInputDecoration(context, context.translate('city_region'), icon: Icons.place),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('city_region'),
+              icon: Icons.place,
+            ),
             style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _preferredPaceController,
-            decoration: themedInputDecoration(context, context.translate('preferred_pace'), suffixText: 'min/km', icon: Icons.speed),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('preferred_pace'),
+              suffixText: 'min/km',
+              icon: Icons.speed,
+            ),
             keyboardType: TextInputType.number,
             style: TextStyle(color: colorScheme.onSurface),
           ),
@@ -591,7 +625,11 @@ class _ProfilePageState extends State<ProfilePage> {
           TextField(
             controller: _bioController,
             maxLines: 3,
-            decoration: themedInputDecoration(context, context.translate('short_bio'), icon: Icons.notes),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('short_bio'),
+              icon: Icons.notes,
+            ),
             style: TextStyle(color: colorScheme.onSurface),
           ),
           const SizedBox(height: 24),
@@ -621,11 +659,13 @@ class _ProfilePageState extends State<ProfilePage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.05)
+            : Colors.black.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colorScheme.outline.withValues(alpha: 0.1)),
       ),
@@ -652,9 +692,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 Text(
-                  isConnected ? context.translate('connected') : context.translate('not_connected'),
+                  isConnected
+                      ? context.translate('connected')
+                      : context.translate('not_connected'),
                   style: TextStyle(
-                    color: isConnected ? Colors.green : colorScheme.onSurfaceVariant,
+                    color: isConnected
+                        ? Colors.green
+                        : colorScheme.onSurfaceVariant,
                     fontSize: 12,
                   ),
                 ),
@@ -664,13 +708,21 @@ class _ProfilePageState extends State<ProfilePage> {
           ElevatedButton(
             onPressed: onConnect,
             style: ElevatedButton.styleFrom(
-              backgroundColor: isConnected ? (isDark ? Colors.white12 : Colors.black12) : color,
-              foregroundColor: isConnected ? colorScheme.onSurface : Colors.white,
+              backgroundColor: isConnected
+                  ? (isDark ? Colors.white12 : Colors.black12)
+                  : color,
+              foregroundColor: isConnected
+                  ? colorScheme.onSurface
+                  : Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: Text(isConnected ? context.translate('disconnect') : context.translate('connect')),
+            child: Text(
+              isConnected
+                  ? context.translate('disconnect')
+                  : context.translate('connect'),
+            ),
           ),
         ],
       ),

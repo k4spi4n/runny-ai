@@ -85,9 +85,13 @@ class NutritionOverviewCard extends StatelessWidget {
           CircularProgressIndicator(
             value: summary.calorieCompletion,
             strokeWidth: 10,
-            backgroundColor: Theme.of(context).colorScheme.outline.withValues(alpha: 0.1),
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.outline.withValues(alpha: 0.1),
             valueColor: AlwaysStoppedAnimation<Color>(
-              summary.calorieCompletion > 1.0 ? AppTheme.error : AppTheme.primary,
+              summary.calorieCompletion > 1.0
+                  ? AppTheme.error
+                  : AppTheme.primary,
             ),
             strokeCap: StrokeCap.round,
           ),
@@ -105,7 +109,12 @@ class NutritionOverviewCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatItem(BuildContext context, String label, String value, Color color) {
+  Widget _buildStatItem(
+    BuildContext context,
+    String label,
+    String value,
+    Color color,
+  ) {
     return Column(
       children: [
         Text(
@@ -144,10 +153,10 @@ class MacroTrackingCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Macros',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+              l10n.translate('macros'),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 24),
             _buildMacroBar(
@@ -179,7 +188,13 @@ class MacroTrackingCard extends StatelessWidget {
     );
   }
 
-  Widget _buildMacroBar(BuildContext context, String label, double current, double target, Color color) {
+  Widget _buildMacroBar(
+    BuildContext context,
+    String label,
+    double current,
+    double target,
+    Color color,
+  ) {
     final progress = (current / target).clamp(0.0, 1.0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,7 +266,7 @@ class MealSection extends StatelessWidget {
                       backgroundColor: Colors.amber.withValues(alpha: 0.1),
                       foregroundColor: Colors.amber[700],
                     ),
-                    tooltip: 'AI Gợi ý thực đơn',
+                    tooltip: context.translate('ai_meal_suggestions'),
                   ),
                   const SizedBox(width: 8),
                   IconButton.filledTonal(
@@ -271,9 +286,11 @@ class MealSection extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Text(
-              'No items logged yet',
+              context.translate('no_items_logged'),
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                color: theme.colorScheme.onSurfaceVariant.withValues(
+                  alpha: 0.5,
+                ),
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -294,7 +311,9 @@ class MealSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.5),
+        ),
       ),
       child: Row(
         children: [
@@ -310,7 +329,7 @@ class MealSection extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${log.amount} ${log.unit} • ${log.protein.toInt()}g P • ${log.carbs.toInt()}g C • ${log.fat.toInt()}g F',
+                  '${log.amount} ${log.unit} - ${log.protein.toInt()}g P - ${log.carbs.toInt()}g C - ${log.fat.toInt()}g F',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

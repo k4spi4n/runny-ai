@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +8,7 @@ import '../models/food_recognition_models.dart';
 import '../models/nutrition_models.dart';
 import '../services/food_recognition_service.dart';
 import '../theme/app_theme.dart';
+import '../l10n/app_localizations.dart';
 import 'ui_components.dart';
 
 class FoodRecognitionPanel extends StatefulWidget {
@@ -38,14 +37,24 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
   final _carbsController = TextEditingController();
   final _fatController = TextEditingController();
   final _amountController = TextEditingController(text: '1');
-  final _unitController = TextEditingController(text: 'phần');
+  final _unitController = TextEditingController();
 
   Uint8List? _imageBytes;
   String? _filename;
   FoodRecognitionResult? _result;
   bool _isAnalyzing = false;
   bool _isSaving = false;
+  bool _didSetDefaultUnit = false;
   String? _errorMessage;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_didSetDefaultUnit) {
+      _unitController.text = context.translate('portion').toLowerCase();
+      _didSetDefaultUnit = true;
+    }
+  }
 
   @override
   void dispose() {
@@ -81,7 +90,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Không thể tải ảnh. Vui lòng thử lại.';
+        _errorMessage = context.translate('food_image_upload_error');
       });
     }
   }
@@ -107,7 +116,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Không thể mở camera. Vui lòng thử tải ảnh từ thư viện.';
+        _errorMessage = context.translate('food_camera_error');
       });
     }
   }
@@ -117,7 +126,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
     final filename = _filename;
     if (bytes == null || filename == null) {
       setState(() {
-        _errorMessage = 'Vui lòng chọn hoặc chụp ảnh món ăn.';
+        _errorMessage = context.translate('food_image_required');
       });
       return;
     }
@@ -128,7 +137,10 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
     });
 
     try {
-      final result = await _service.analyzeImage(bytes: bytes, filename: filename);
+      final result = await _service.analyzeImage(
+        bytes: bytes,
+        filename: filename,
+      );
       if (!mounted) return;
       setState(() {
         _result = result;
@@ -164,7 +176,9 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
         carbs: double.parse(_carbsController.text),
         fat: double.parse(_fatController.text),
         amount: double.parse(_amountController.text),
-        unit: _unitController.text.trim().isEmpty ? 'phần' : _unitController.text.trim(),
+        unit: _unitController.text.trim().isEmpty
+            ? context.translate('portion').toLowerCase()
+            : _unitController.text.trim(),
         mealType: widget.mealType,
         consumedAt: widget.consumedAt,
       );
@@ -173,7 +187,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Không thể lưu món ăn: $e';
+        _errorMessage = context.translate('food_save_error', [e.toString()]);
         _isSaving = false;
       });
     }
@@ -193,7 +207,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
               child: OutlinedButton.icon(
                 onPressed: _isAnalyzing ? null : _pickImageFile,
                 icon: const Icon(Icons.upload_file),
-                label: const Text('Tải ảnh'),
+                label: Text(context.translate('upload_photo')),
               ),
             ),
             const SizedBox(width: 12),
@@ -201,7 +215,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
               child: OutlinedButton.icon(
                 onPressed: _isAnalyzing || kIsWeb ? null : _captureImage,
                 icon: const Icon(Icons.photo_camera),
-                label: const Text('Chụp ảnh'),
+                label: Text(context.translate('capture_photo')),
               ),
             ),
           ],
@@ -212,10 +226,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
             borderRadius: BorderRadius.circular(12),
             child: AspectRatio(
               aspectRatio: 16 / 9,
-              child: Image.memory(
-                _imageBytes!,
-                fit: BoxFit.cover,
-              ),
+              child: Image.memory(_imageBytes!, fit: BoxFit.cover),
             ),
           ),
           const SizedBox(height: 12),
@@ -224,8 +235,8 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
             child: _isAnalyzing
                 ? Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      SizedBox(
+                    children: [
+                      const SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
@@ -233,11 +244,11 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
                           color: Colors.white,
                         ),
                       ),
-                      SizedBox(width: 12),
-                      Text('Đang phân tích bằng AI...'),
+                      const SizedBox(width: 12),
+                      Text(context.translate('analyzing_with_ai')),
                     ],
                   )
-                : const Text('Phân tích bằng AI'),
+                : Text(context.translate('analyze_with_ai')),
           ),
         ],
         if (_errorMessage != null) ...[
@@ -252,12 +263,18 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.error_outline, color: AppTheme.error, size: 20),
+                const Icon(
+                  Icons.error_outline,
+                  color: AppTheme.error,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _errorMessage!,
-                    style: theme.textTheme.bodySmall?.copyWith(color: AppTheme.error),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppTheme.error,
+                    ),
                   ),
                 ),
               ],
@@ -271,7 +288,9 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
             decoration: BoxDecoration(
               color: colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+              border: Border.all(
+                color: colorScheme.outline.withValues(alpha: 0.2),
+              ),
             ),
             child: Form(
               key: _formKey,
@@ -284,8 +303,10 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Kết quả nhận dạng',
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                          context.translate('recognition_result'),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                       Text(
@@ -300,18 +321,28 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _foodNameController,
-                    decoration: const InputDecoration(labelText: 'Tên món ăn dự đoán'),
+                    decoration: InputDecoration(
+                      labelText: context.translate('predicted_food_name'),
+                    ),
                     validator: _requiredText,
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
-                        child: _numberField(_caloriesController, 'Calories', suffix: 'kcal'),
+                        child: _numberField(
+                          _caloriesController,
+                          context.translate('calories'),
+                          suffix: 'kcal',
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _numberField(_proteinController, 'Protein', suffix: 'g'),
+                        child: _numberField(
+                          _proteinController,
+                          context.translate('protein'),
+                          suffix: 'g',
+                        ),
                       ),
                     ],
                   ),
@@ -319,11 +350,19 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
                   Row(
                     children: [
                       Expanded(
-                        child: _numberField(_carbsController, 'Carbs', suffix: 'g'),
+                        child: _numberField(
+                          _carbsController,
+                          context.translate('carbs'),
+                          suffix: 'g',
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _numberField(_fatController, 'Fat', suffix: 'g'),
+                        child: _numberField(
+                          _fatController,
+                          context.translate('fat'),
+                          suffix: 'g',
+                        ),
                       ),
                     ],
                   ),
@@ -331,13 +370,18 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
                   Row(
                     children: [
                       Expanded(
-                        child: _numberField(_amountController, 'Khẩu phần'),
+                        child: _numberField(
+                          _amountController,
+                          context.translate('portion'),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextFormField(
                           controller: _unitController,
-                          decoration: const InputDecoration(labelText: 'Đơn vị'),
+                          decoration: InputDecoration(
+                            labelText: context.translate('unit'),
+                          ),
                           validator: _requiredText,
                         ),
                       ),
@@ -359,7 +403,11 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
                               ),
                             )
                           : const Icon(Icons.check),
-                      label: Text(_isSaving ? 'Đang lưu...' : 'Xác nhận và lưu'),
+                      label: Text(
+                        _isSaving
+                            ? context.translate('saving')
+                            : context.translate('confirm_save'),
+                      ),
                     ),
                   ),
                 ],
@@ -383,7 +431,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
       validator: (value) {
         final parsed = double.tryParse(value ?? '');
         if (parsed == null || parsed < 0) {
-          return 'Không hợp lệ';
+          return context.translate('invalid_value');
         }
         return null;
       },
@@ -392,7 +440,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
 
   String? _requiredText(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Bắt buộc';
+      return context.translate('required_field');
     }
     return null;
   }
