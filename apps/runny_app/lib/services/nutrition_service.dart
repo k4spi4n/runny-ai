@@ -171,6 +171,21 @@ class NutritionService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Các món người dùng từng ăn — mỗi tên xuất hiện một lần, mới nhất trước —
+  /// để gợi ý thêm nhanh trong màn hình nhập thủ công.
+  List<MealLog> get recentDistinctFoods {
+    final seen = <String>{};
+    final result = <MealLog>[];
+    // _logs được sắp xếp tăng dần theo thời gian -> duyệt ngược để lấy bản mới nhất.
+    for (final log in _logs.reversed) {
+      final key = log.foodName.trim().toLowerCase();
+      if (key.isEmpty || seen.contains(key)) continue;
+      seen.add(key);
+      result.add(log);
+    }
+    return result;
+  }
+
   List<MealLog> getLogsForMealType(MealType type, DateTime date) {
     return _logs
         .where((log) =>

@@ -193,6 +193,26 @@ class _AddFoodQuickView extends StatefulWidget {
 class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
   _AddFoodMode _mode = _AddFoodMode.manual;
 
+  final _nameCtrl = TextEditingController();
+  final _caloriesCtrl = TextEditingController();
+  final _proteinCtrl = TextEditingController();
+  final _carbsCtrl = TextEditingController();
+  final _fatCtrl = TextEditingController();
+  final _amountCtrl = TextEditingController(text: '1');
+  final _unitCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _caloriesCtrl.dispose();
+    _proteinCtrl.dispose();
+    _carbsCtrl.dispose();
+    _fatCtrl.dispose();
+    _amountCtrl.dispose();
+    _unitCtrl.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -255,63 +275,203 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
   Widget _buildManualEntry(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = context;
+    final nutritionService = context.watch<NutritionService>();
+
+    final query = _nameCtrl.text.trim().toLowerCase();
+    final recent = nutritionService.recentDistinctFoods
+        .where((f) => query.isEmpty || f.foodName.toLowerCase().contains(query))
+        .take(8)
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
+          controller: _nameCtrl,
+          textCapitalization: TextCapitalization.sentences,
+          onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
             hintText: l10n.translate('search_food'),
             prefixIcon: const Icon(Icons.search),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
+        if (recent.isNotEmpty) ...[
+          Text(
+            l10n.translate('recent_foods'),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...recent.map((f) => _buildRecentItem(context, f)),
+          const SizedBox(height: 20),
+        ],
         Text(
-          l10n.translate('recent_foods'),
+          l10n.translate('custom_food'),
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: 12),
-        _buildQuickItem(context, 'Banana', '105 kcal'),
-        _buildQuickItem(context, 'Chicken Breast (100g)', '165 kcal'),
-        _buildQuickItem(context, 'Brown Rice (1 cup)', '216 kcal'),
-        const SizedBox(height: 24),
+        Row(
+          children: [
+            Expanded(
+              child: _numberField(_amountCtrl, l10n.translate('amount')),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _unitCtrl,
+                decoration: InputDecoration(
+                  labelText: l10n.translate('unit'),
+                  hintText: l10n.translate('portion').toLowerCase(),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _numberField(_caloriesCtrl, '${l10n.translate('calories')} (kcal)'),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _numberField(_proteinCtrl, '${l10n.translate('protein')} (g)'),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _numberField(_carbsCtrl, '${l10n.translate('carbs')} (g)'),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _numberField(_fatCtrl, '${l10n.translate('fat')} (g)'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
         SizedBox(
           width: double.infinity,
           child: GradientButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.translate('quick_add')),
+            onPressed: _addCustomFood,
+            child: Text(l10n.translate('add_food')),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildQuickItem(BuildContext context, String name, String cal) {
+  Widget _numberField(TextEditingController controller, String label) {
+    return TextField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(labelText: label),
+    );
+  }
+
+  /// Một món đã từng ăn — nhấn để thêm nhanh với đúng thông số dinh dưỡng cũ.
+  Widget _buildRecentItem(BuildContext context, MealLog food) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      title: Text(name),
-      subtitle: Text(cal),
-      trailing: const Icon(Icons.add_circle_outline),
-      onTap: () {
-        // Logic to add item
-        final nutritionService = context.read<NutritionService>();
-        nutritionService.addMealLog(MealLog(
-          userId: Supabase.instance.client.auth.currentUser?.id ?? '',
-          foodName: name,
-          calories: double.parse(cal.split(' ')[0]),
-          protein: 10, // Mocked
-          carbs: 20,   // Mocked
-          fat: 5,      // Mocked
-          amount: 1,
-          unit: 'serving',
-          mealType: widget.mealType,
-          consumedAt: _consumedAtForSelectedDate(),
-        ));
-        Navigator.pop(context);
-      },
+      leading: CircleAvatar(
+        backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
+        child: Icon(Icons.restaurant, color: colorScheme.primary, size: 20),
+      ),
+      title: Text(food.foodName),
+      subtitle: Text(
+        '${food.calories.toStringAsFixed(0)} kcal • '
+        'P ${food.protein.toStringAsFixed(0)} · '
+        'C ${food.carbs.toStringAsFixed(0)} · '
+        'F ${food.fat.toStringAsFixed(0)}',
+        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+      ),
+      trailing: Icon(Icons.add_circle, color: colorScheme.primary),
+      onTap: () => _addExistingFood(food),
     );
+  }
+
+  Future<void> _addExistingFood(MealLog source) async {
+    final nutritionService = context.read<NutritionService>();
+    final messenger = ScaffoldMessenger.of(context);
+    final successMessage = context.translate('meal_added_log', [source.foodName]);
+    final errorPrefix = context.translate('error');
+    try {
+      await nutritionService.addMealLog(MealLog(
+        userId: Supabase.instance.client.auth.currentUser?.id ?? '',
+        foodName: source.foodName,
+        calories: source.calories,
+        protein: source.protein,
+        carbs: source.carbs,
+        fat: source.fat,
+        amount: source.amount,
+        unit: source.unit,
+        mealType: widget.mealType,
+        consumedAt: _consumedAtForSelectedDate(),
+      ));
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(successMessage), backgroundColor: Colors.green),
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('$errorPrefix: $e'), backgroundColor: Colors.redAccent),
+      );
+    }
+  }
+
+  Future<void> _addCustomFood() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final name = _nameCtrl.text.trim();
+    final calories = double.tryParse(_caloriesCtrl.text.trim().replaceAll(',', '.'));
+
+    if (name.isEmpty || calories == null || calories <= 0) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(context.translate('food_entry_required')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    double parse(TextEditingController c, [double fallback = 0]) =>
+        double.tryParse(c.text.trim().replaceAll(',', '.')) ?? fallback;
+
+    final unit = _unitCtrl.text.trim().isEmpty
+        ? context.translate('portion').toLowerCase()
+        : _unitCtrl.text.trim();
+
+    final nutritionService = context.read<NutritionService>();
+    final successMessage = context.translate('meal_added_log', [name]);
+    final errorPrefix = context.translate('error');
+    try {
+      await nutritionService.addMealLog(MealLog(
+        userId: Supabase.instance.client.auth.currentUser?.id ?? '',
+        foodName: name,
+        calories: calories,
+        protein: parse(_proteinCtrl),
+        carbs: parse(_carbsCtrl),
+        fat: parse(_fatCtrl),
+        amount: parse(_amountCtrl, 1),
+        unit: unit,
+        mealType: widget.mealType,
+        consumedAt: _consumedAtForSelectedDate(),
+      ));
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(successMessage), backgroundColor: Colors.green),
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('$errorPrefix: $e'), backgroundColor: Colors.redAccent),
+      );
+    }
   }
 
   DateTime _consumedAtForSelectedDate() {
