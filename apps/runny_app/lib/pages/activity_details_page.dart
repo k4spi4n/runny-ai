@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/workout_models.dart';
 import '../models/shoe_models.dart';
@@ -732,11 +733,11 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.run_circle_outlined,
+                      FontAwesomeIcons.shoePrints,
                       color: _currentShoe != null
                           ? colorScheme.primary
                           : Colors.grey,
-                      size: 24,
+                      size: 20,
                     ),
                     const SizedBox(width: 10),
                     Expanded(

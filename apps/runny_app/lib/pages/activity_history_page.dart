@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -1140,9 +1141,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          Icons.run_circle_outlined,
+                          FontAwesomeIcons.shoePrints,
                           color: shoe.isActive ? (isOverLimit ? Colors.redAccent : colorScheme.primary) : Colors.grey,
-                          size: 26,
+                          size: 20,
                         ),
                       ),
                       const SizedBox(width: 14),

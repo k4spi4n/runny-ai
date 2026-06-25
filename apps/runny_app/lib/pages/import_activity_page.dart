@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/activity_parser.dart';
@@ -233,7 +234,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                             decoration: themedInputDecoration(
                               context,
                               context.translate('select_shoe'),
-                              icon: Icons.directions_run,
+                              icon: FontAwesomeIcons.shoePrints,
                             ),
                             dropdownColor: colorScheme.surface,
                             isExpanded: true,
