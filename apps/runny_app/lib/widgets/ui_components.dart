@@ -294,6 +294,7 @@ InputDecoration themedInputDecoration(
   String label, {
   String? hint,
   IconData? icon,
+  Widget? prefixIcon,
   String? suffixText,
 }) {
   final theme = Theme.of(context);
@@ -301,12 +302,14 @@ InputDecoration themedInputDecoration(
     labelText: label,
     hintText: hint,
     suffixText: suffixText,
-    prefixIcon: icon != null
-        ? Icon(
-            icon,
-            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
-          )
-        : null,
+    prefixIcon: prefixIcon ??
+        (icon != null
+            ? Icon(
+                icon,
+                color:
+                    theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+              )
+            : null),
     filled: true,
     fillColor: theme.brightness == Brightness.dark
         ? Colors.white.withValues(alpha: 0.08)

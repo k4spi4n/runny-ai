@@ -1140,7 +1140,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                           color: (shoe.isActive ? colorScheme.primary : Colors.grey).withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
+                        child: FaIcon(
                           FontAwesomeIcons.shoePrints,
                           color: shoe.isActive ? (isOverLimit ? Colors.redAccent : colorScheme.primary) : Colors.grey,
                           size: 20,

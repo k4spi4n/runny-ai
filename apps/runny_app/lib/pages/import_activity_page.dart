@@ -234,7 +234,12 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                             decoration: themedInputDecoration(
                               context,
                               context.translate('select_shoe'),
-                              icon: FontAwesomeIcons.shoePrints,
+                              prefixIcon: FaIcon(
+                                FontAwesomeIcons.shoePrints,
+                                size: 18,
+                                color: colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.7),
+                              ),
                             ),
                             dropdownColor: colorScheme.surface,
                             isExpanded: true,

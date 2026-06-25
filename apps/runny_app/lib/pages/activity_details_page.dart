@@ -732,7 +732,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               Expanded(
                 child: Row(
                   children: [
-                    Icon(
+                    FaIcon(
                       FontAwesomeIcons.shoePrints,
                       color: _currentShoe != null
                           ? colorScheme.primary
