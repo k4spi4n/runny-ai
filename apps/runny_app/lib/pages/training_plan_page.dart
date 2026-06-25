@@ -231,34 +231,13 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                       _workouts.length,
                       (index) {
                         final workout = _workouts[index];
-                        final date = DateTime.parse(workout['date'] as String);
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 14),
-                          child: glassCard(
-                            context: context,
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                              leading: CircleAvatar(
-                                backgroundColor: _getStatusColor(workout['status']),
-                                child: const Icon(Icons.directions_run, color: Colors.white),
-                              ),
-                              title: Text(workout['title'], style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('${DateFormat('EEEE, dd/MM').format(date)} • ${workout['target_distance_km']} km', style: TextStyle(color: colorScheme.onSurfaceVariant)),
-                                  if (workout['description'] != null)
-                                    Text(workout['description'], style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7), fontSize: 13)),
-                                ],
-                              ),
-                              trailing: workout['status'] == 'planned'
-                                  ? ElevatedButton(
-                                      onPressed: () => _showAddActivityOptions(workout),
-                                      style: primaryActionButton(context),
-                                      child: Text(context.translate('add_activity')),
-                                    )
-                                  : Icon(_getStatusIcon(workout['status']), color: _getStatusColor(workout['status'])),
-                            ),
+                          child: _WorkoutScheduleCard(
+                            workout: workout,
+                            statusColor: _getStatusColor(workout['status']),
+                            statusIcon: _getStatusIcon(workout['status']),
+                            onAddActivity: () => _showAddActivityOptions(workout),
                           ),
                         );
                       },
@@ -739,6 +718,121 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       }
       setState(() => _isLoading = false);
     }
+  }
+}
+
+/// Thẻ buổi tập trong "Lịch chi tiết". Mặc định chỉ hiện tiêu đề; nhấn mũi tên
+/// để mở chi tiết (ngày, quãng đường, mô tả) và nút thao tác — tránh tràn chữ
+/// trên màn hình hẹp (mobile).
+class _WorkoutScheduleCard extends StatefulWidget {
+  final Map<String, dynamic> workout;
+  final Color statusColor;
+  final IconData statusIcon;
+  final VoidCallback onAddActivity;
+
+  const _WorkoutScheduleCard({
+    required this.workout,
+    required this.statusColor,
+    required this.statusIcon,
+    required this.onAddActivity,
+  });
+
+  @override
+  State<_WorkoutScheduleCard> createState() => _WorkoutScheduleCardState();
+}
+
+class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final workout = widget.workout;
+    final date = DateTime.parse(workout['date'] as String);
+    final description = workout['description'] as String?;
+
+    return glassCard(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: widget.statusColor,
+                    child: const Icon(Icons.directions_run, color: Colors.white),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      workout['title'] ?? '',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(Icons.keyboard_arrow_down, color: colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox(width: double.infinity),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${DateFormat('EEEE, dd/MM').format(date)} • ${workout['target_distance_km']} km',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
+                  if (description != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7), fontSize: 13),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: workout['status'] == 'planned'
+                        ? ElevatedButton(
+                            onPressed: widget.onAddActivity,
+                            style: primaryActionButton(context),
+                            child: Text(context.translate('add_activity')),
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(widget.statusIcon, color: widget.statusColor),
+                              const SizedBox(width: 8),
+                              Text(
+                                context.translate('status_${workout['status']}'),
+                                style: TextStyle(color: colorScheme.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 200),
+          ),
+        ],
+      ),
+    );
   }
 }
 
