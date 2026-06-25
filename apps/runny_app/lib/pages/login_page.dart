@@ -28,7 +28,11 @@ class _LoginPageState extends State<LoginPage> {
         );
 
         if (res.session != null) {
-          // Confirm email TẮT: đã đăng nhập ngay, AuthGate sẽ tự điều hướng.
+          // Confirm email TẮT: đã đăng nhập ngay. LoginPage được push đè lên
+          // AuthGate, nên phải pop về gốc để AuthGate điều hướng vào onboarding.
+          if (mounted) {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
         } else if (res.user != null &&
             (res.user!.identities == null || res.user!.identities!.isEmpty)) {
           // Supabase trả về user "giả" khi email đã tồn tại (chống dò email).
@@ -52,6 +56,10 @@ class _LoginPageState extends State<LoginPage> {
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
+        // Đăng nhập thành công: pop LoginPage để AuthGate (gốc) vào dashboard.
+        if (mounted) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
       }
     } on AuthException catch (e) {
       if (mounted) {
