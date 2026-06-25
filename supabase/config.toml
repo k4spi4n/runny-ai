@@ -30,3 +30,7 @@ enable_confirmations = false
 
 [functions]
 # verify_jwt = true
+
+[analytics]
+enabled = true
+port = 44327

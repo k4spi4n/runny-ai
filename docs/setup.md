@@ -1,29 +1,23 @@
-# Hướng dẫn Thiết lập Dự án Runny AI
+# Setup Guide
 
-Tài liệu này cung cấp các bước chi tiết để cấu hình, cài đặt và vận hành hệ thống Runny AI trên môi trường phát triển cục bộ và môi trường máy chủ.
+This guide will help you get the Runny AI project up and running on your local machine.
 
-## 1. Yêu cầu Hệ thống
+## Prerequisites
 
-Trước khi bắt đầu, hãy đảm bảo máy tính của bạn đã cài đặt các công cụ sau:
+- **Flutter SDK**: `^3.12.0`
+- **Dart SDK**: `^3.0.0`
+- **Supabase CLI**: For local backend development (optional but recommended)
+- **Git**
 
-- **Flutter SDK**: Phiên bản `^3.12.0`
-- **Dart SDK**: Phiên bản `^3.0.0`
-- **Docker Desktop**: Bắt buộc khi phát triển với backend Supabase cục bộ.
-- **Supabase CLI**: Công cụ quản trị phía máy chủ và các hàm Edge.
-- **Git**: Công cụ quản lý mã nguồn và phiên bản.
+## Installation
 
-## 2. Quy trình Cài đặt Chi tiết
-
-### Bước 1: Sao chép Mã nguồn & Checkout Tag
-Sử dụng Git để tải mã nguồn dự án về máy tính và chuyển về tag phát hành:
+### 1. Clone the repository
 ```bash
-git clone https://github.com/k4spi4n/runny-ai.git
+git clone https://github.com/your-repo/runny-ai.git
 cd runny-ai
-git checkout v0.1.0
 ```
 
-### Bước 2: Cài đặt Dependencies Frontend
-Di chuyển vào thư mục ứng dụng và khởi tạo các thư viện phụ thuộc:
+### 2. Frontend Setup (Flutter)
 ```bash
 cd apps/runny_app
 flutter pub get
@@ -78,20 +72,33 @@ flutter pub get
 ### Bước 4: Cấu hình Biến môi trường Client (.env)
 Tạo tệp cấu hình hệ thống từ tệp mẫu:
 ```bash
-cp apps/runny_app/.env.example apps/runny_app/.env
+supabase functions deploy openrouter
+supabase functions deploy strava_webhook
+supabase functions deploy weather
 ```
 Mở tệp `.env` và cập nhật các thông số:
 - **SUPABASE_URL** và **SUPABASE_ANON_KEY**: Địa chỉ URL và khóa public của dự án Supabase (lấy từ kết quả lệnh `supabase status` khi chạy local, hoặc tại mục Cài đặt API trên Cloud). Lưu ý dùng **Project URL** (cổng API `http://127.0.0.1:34321` khi local) chứ không phải chuỗi kết nối database; `SUPABASE_ANON_KEY` nhận `Publishable key` (`sb_publishable_...`) hoặc `anon key` JWT, **không phải** Storage S3 Access Key.
 - **Chú ý bảo mật**: Không cấu hình các private API key (`GROQ_API_KEY`, `OPENROUTER_API_KEY`, `WAQI_API_KEY`, `OPENWEATHER_API_KEY`) trong file `.env` này. Toàn bộ các dịch vụ AI và thời tiết sẽ được proxy qua Edge Functions để bảo mật 100% (tránh lộ key khi đóng gói Web app). Các key đó cấu hình ở phía server theo Bước 3.
 
-## 3. Khởi chạy Ứng dụng
-
-Sau khi hoàn tất các bước cấu hình, bạn có thể chạy thử ứng dụng trên thiết bị di động hoặc trình duyệt web (Web là môi trường chính kiểm thử trong v0.1.0):
-
+### 4. Environment Variables
+Copy the `.env.example` to `.env` in the `apps/runny_app` directory:
 ```bash
-cd apps/runny_app
-flutter run -d chrome
+cp .env.example .env
+```
+Fill in the required keys:
+- `SUPABASE_URL` & `SUPABASE_ANON_KEY`: From your Supabase Project Settings.
+- `OPENROUTER_API_KEY`: From [OpenRouter](https://openrouter.ai/).
+- `GEMINI_API_KEY`: From [Google AI Studio](https://aistudio.google.com/).
+- `STRAVA_CLIENT_ID` & `STRAVA_CLIENT_SECRET`: From [Strava API Settings](https://www.strava.com/settings/api).
+
+## Running the App
+
+To run the Flutter app on your connected device or emulator:
+```bash
+flutter run
 ```
 
----
-© 2026 Đội ngũ phát triển Runny AI. MIT License.
+## Troubleshooting
+- **Missing Dependencies**: Ensure `flutter pub get` is run in `apps/runny_app`.
+- **API Errors**: Check your `.env` file for correct keys and ensure Supabase Edge Functions are correctly deployed and accessible.
+

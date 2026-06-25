@@ -54,7 +54,11 @@ class LanguageSwitcher extends StatelessWidget {
               Text(context.translate('english')),
               if (currentLocale.languageCode == 'en') ...[
                 const Spacer(),
-                Icon(Icons.check_rounded, color: Theme.of(context).primaryColor, size: 18),
+                Icon(
+                  Icons.check_rounded,
+                  color: Theme.of(context).primaryColor,
+                  size: 18,
+                ),
               ],
             ],
           ),
@@ -68,7 +72,11 @@ class LanguageSwitcher extends StatelessWidget {
               Text(context.translate('vietnamese')),
               if (currentLocale.languageCode == 'vi') ...[
                 const Spacer(),
-                Icon(Icons.check_rounded, color: Theme.of(context).primaryColor, size: 18),
+                Icon(
+                  Icons.check_rounded,
+                  color: Theme.of(context).primaryColor,
+                  size: 18,
+                ),
               ],
             ],
           ),
@@ -84,38 +92,47 @@ LinearGradient sportPlatformGradient(BuildContext context) {
   return LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: isDark 
-      ? [const Color(0xFF050814), const Color(0xFF101233), const Color(0xFF1C1452)]
-      : [const Color(0xFFF8FAFC), const Color(0xFFF1F5F9), const Color(0xFFE2E8F0)],
+    colors: isDark
+        ? [
+            const Color(0xFF050814),
+            const Color(0xFF101233),
+            const Color(0xFF1C1452),
+          ]
+        : [
+            const Color(0xFFF8FAFC),
+            const Color(0xFFF1F5F9),
+            const Color(0xFFE2E8F0),
+          ],
   );
 }
 
 const accentPulseGradient = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
-  colors: [
-    Color(0xFFF85F2B),
-    Color(0xFFFFC66A),
-  ],
+  colors: [Color(0xFFF85F2B), Color(0xFFFFC66A)],
 );
 
 const secondaryPulseGradient = LinearGradient(
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
-  colors: [
-    Color(0xFF3CABFF),
-    Color(0xFF5E5BFF),
-  ],
+  colors: [Color(0xFF3CABFF), Color(0xFF5E5BFF)],
 );
 
-BoxDecoration glassDecoration(BuildContext context, {BorderRadius borderRadius = const BorderRadius.all(Radius.circular(24))}) {
+BoxDecoration glassDecoration(
+  BuildContext context, {
+  BorderRadius borderRadius = const BorderRadius.all(Radius.circular(24)),
+}) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   return BoxDecoration(
-    color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.7),
+    color: isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.white.withValues(alpha: 0.7),
     borderRadius: borderRadius,
     border: Border.all(
-      color: isDark ? Colors.white.withValues(alpha: 0.16) : Colors.black.withValues(alpha: 0.08), 
-      width: 1.2
+      color: isDark
+          ? Colors.white.withValues(alpha: 0.16)
+          : Colors.black.withValues(alpha: 0.08),
+      width: 1.2,
     ),
     boxShadow: [
       BoxShadow(
@@ -141,25 +158,25 @@ Widget glassCard({
         decoration: glassDecoration(context, borderRadius: borderRadius),
         child: Material(
           color: Colors.transparent,
-          child: Padding(
-            padding: padding,
-            child: child,
-          ),
+          child: Padding(padding: padding, child: child),
         ),
       ),
     ),
   );
 }
 
-ButtonStyle primaryActionButton(BuildContext context, {Color? backgroundColor}) => ElevatedButton.styleFrom(
-      backgroundColor: backgroundColor ?? const Color(0xFFFA6B27),
-      foregroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.28),
-      textStyle: const TextStyle(fontWeight: FontWeight.w700),
-    );
+ButtonStyle primaryActionButton(
+  BuildContext context, {
+  Color? backgroundColor,
+}) => ElevatedButton.styleFrom(
+  backgroundColor: backgroundColor ?? const Color(0xFFFA6B27),
+  foregroundColor: Colors.white,
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+  elevation: 8,
+  shadowColor: Colors.black.withValues(alpha: 0.28),
+  textStyle: const TextStyle(fontWeight: FontWeight.w700),
+);
 
 class GradientButton extends StatelessWidget {
   final VoidCallback? onPressed;
@@ -243,7 +260,8 @@ class GradientButton extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Center(
               child: DefaultTextStyle(
-                style: theme.textTheme.labelLarge?.copyWith(
+                style:
+                    theme.textTheme.labelLarge?.copyWith(
                       color: isEnabled ? Colors.white : theme.disabledColor,
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
@@ -259,36 +277,58 @@ class GradientButton extends StatelessWidget {
   }
 }
 
-ButtonStyle secondaryActionButton(BuildContext context) => OutlinedButton.styleFrom(
+ButtonStyle secondaryActionButton(BuildContext context) =>
+    OutlinedButton.styleFrom(
       foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
-      side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.18), width: 1.3),
+      side: BorderSide(
+        color: Theme.of(context).dividerColor.withValues(alpha: 0.18),
+        width: 1.3,
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
       textStyle: const TextStyle(fontWeight: FontWeight.w600),
     );
 
-InputDecoration themedInputDecoration(BuildContext context, String label,
-    {String? hint, IconData? icon, String? suffixText}) {
+InputDecoration themedInputDecoration(
+  BuildContext context,
+  String label, {
+  String? hint,
+  IconData? icon,
+  String? suffixText,
+}) {
   final theme = Theme.of(context);
   return InputDecoration(
     labelText: label,
     hintText: hint,
     suffixText: suffixText,
-    prefixIcon: icon != null ? Icon(icon, color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7)) : null,
+    prefixIcon: icon != null
+        ? Icon(
+            icon,
+            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+          )
+        : null,
     filled: true,
-    fillColor: theme.brightness == Brightness.dark 
-        ? Colors.white.withValues(alpha: 0.08) 
+    fillColor: theme.brightness == Brightness.dark
+        ? Colors.white.withValues(alpha: 0.08)
         : Colors.black.withValues(alpha: 0.04),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: BorderSide(color: theme.dividerColor.withValues(alpha: 0.18), width: 1.2),
+      borderSide: BorderSide(
+        color: theme.dividerColor.withValues(alpha: 0.18),
+        width: 1.2,
+      ),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
       borderSide: BorderSide(color: theme.primaryColor, width: 1.6),
     ),
-    labelStyle: TextStyle(color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7), fontWeight: FontWeight.w600),
-    hintStyle: TextStyle(color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.4)),
+    labelStyle: TextStyle(
+      color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+      fontWeight: FontWeight.w600,
+    ),
+    hintStyle: TextStyle(
+      color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.4),
+    ),
   );
 }
 
@@ -297,15 +337,17 @@ Widget badgeLabel(BuildContext context, String text, {Color? background}) {
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     decoration: BoxDecoration(
-      color: background ?? (isDark ? const Color(0xFF262F57) : const Color(0xFFE2E8F0)),
+      color:
+          background ??
+          (isDark ? const Color(0xFF262F57) : const Color(0xFFE2E8F0)),
       borderRadius: BorderRadius.circular(18),
     ),
     child: Text(
       text,
       style: TextStyle(
-        color: isDark ? Colors.white70 : Colors.black87, 
-        fontSize: 12, 
-        fontWeight: FontWeight.w700
+        color: isDark ? Colors.white70 : Colors.black87,
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
       ),
     ),
   );
@@ -327,7 +369,8 @@ class RunnyLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final effectiveTextColor = textColor ?? (isDark ? Colors.white : Colors.black);
+    final effectiveTextColor =
+        textColor ?? (isDark ? Colors.white : Colors.black);
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -353,11 +396,7 @@ class RunnyLogo extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(
-              Icons.bolt_rounded,
-              color: Colors.white,
-              size: fontSize * 1.1,
-            ),
+            Icon(Icons.bolt_rounded, color: Colors.white, size: fontSize * 1.1),
           ],
         ),
         if (showText) ...[
@@ -375,7 +414,7 @@ class RunnyLogo extends StatelessWidget {
                       fontSize: fontSize,
                       fontWeight: FontWeight.w900,
                       color: effectiveTextColor,
-                      letterSpacing: -0.5,
+                      letterSpacing: 0,
                       height: 1,
                     ),
                   ),
@@ -385,7 +424,7 @@ class RunnyLogo extends StatelessWidget {
                       fontSize: fontSize,
                       fontWeight: FontWeight.w300,
                       color: effectiveTextColor.withValues(alpha: 0.7),
-                      letterSpacing: -0.5,
+                      letterSpacing: 0,
                       height: 1,
                     ),
                   ),
@@ -450,11 +489,7 @@ class HoverSyncWidget extends StatelessWidget {
   final HoverSync sync;
   final Widget Function(BuildContext context, bool isHovered) builder;
 
-  const HoverSyncWidget({
-    super.key,
-    required this.sync,
-    required this.builder,
-  });
+  const HoverSyncWidget({super.key, required this.sync, required this.builder});
 
   @override
   Widget build(BuildContext context) {

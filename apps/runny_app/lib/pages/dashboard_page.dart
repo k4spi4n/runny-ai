@@ -38,7 +38,9 @@ class _DashboardPageState extends State<DashboardPage> {
     super.initState();
     _navSyncs = List.generate(7, (_) => HoverSync());
     _pages = [
-      const OverviewContent(),
+      OverviewContent(
+        onViewAllActivities: () => setState(() => _selectedIndex = 2),
+      ),
       const NutritionPage(),
       const ActivityHistoryPage(),
       const TrainingPlanPage(),
@@ -80,7 +82,9 @@ class _DashboardPageState extends State<DashboardPage> {
           curve: Curves.easeOutCubic,
           child: Icon(
             icon,
-            color: isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant,
+            color: isHovered
+                ? colorScheme.primary
+                : colorScheme.onSurfaceVariant,
           ),
         ),
       ),
@@ -90,10 +94,7 @@ class _DashboardPageState extends State<DashboardPage> {
           scale: isHovered ? 1.15 : 1.0,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
-          child: Icon(
-            selectedIcon,
-            color: colorScheme.primary,
-          ),
+          child: Icon(selectedIcon, color: colorScheme.primary),
         ),
       ),
       label: HoverSyncWidget(
@@ -278,7 +279,9 @@ class _DashboardPageState extends State<DashboardPage> {
                             onTap: () => setState(() => _selectedIndex = index),
                             behavior: HitTestBehavior.opaque,
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 300),
                                 curve: Curves.easeInOutCubic,
@@ -288,7 +291,9 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: isSelected
-                                      ? theme.primaryColor.withValues(alpha: 0.15)
+                                      ? theme.primaryColor.withValues(
+                                          alpha: 0.15,
+                                        )
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(14),
                                 ),
@@ -296,14 +301,18 @@ class _DashboardPageState extends State<DashboardPage> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Icon(
-                                      isSelected ? item.selectedIcon : item.icon,
+                                      isSelected
+                                          ? item.selectedIcon
+                                          : item.icon,
                                       size: 22,
                                       color: isSelected
                                           ? theme.primaryColor
                                           : colorScheme.onSurfaceVariant,
                                     ),
                                     AnimatedSize(
-                                      duration: const Duration(milliseconds: 300),
+                                      duration: const Duration(
+                                        milliseconds: 300,
+                                      ),
                                       curve: Curves.easeInOutCubic,
                                       child: isSelected
                                           ? Row(
@@ -391,7 +400,9 @@ class _DashboardPageState extends State<DashboardPage> {
 }
 
 class OverviewContent extends StatefulWidget {
-  const OverviewContent({super.key});
+  final VoidCallback? onViewAllActivities;
+
+  const OverviewContent({super.key, this.onViewAllActivities});
 
   @override
   State<OverviewContent> createState() => _OverviewContentState();
@@ -470,14 +481,12 @@ class _OverviewContentState extends State<OverviewContent> {
           lon: position.longitude,
         );
       } else {
-        lastError =
-            'Không thể lấy vị trí hiện tại. Vui lòng bật định vị hoặc kiểm tra quyền truy cập browser.';
+        lastError = 'weather_location_error';
       }
     } catch (e) {
       debugPrint('Weather fetch error: $e');
       if (e.toString().contains('503')) {
-        lastError =
-            'Lỗi kết nối Server (503). Vui lòng kiểm tra "supabase status" và đảm bảo Function "weather" đã được serve.';
+        lastError = 'weather_server_error';
       } else {
         lastError = e;
       }
@@ -612,10 +621,14 @@ class _OverviewContentState extends State<OverviewContent> {
                         children: [
                           Text(
                             context.translate('performance_overview'),
-                            style: theme.textTheme.displaySmall?.copyWith(
-                              color: colorScheme.onSurface,
-                              fontWeight: FontWeight.w900,
-                            ),
+                            style:
+                                (width < 560
+                                        ? theme.textTheme.headlineMedium
+                                        : theme.textTheme.displaySmall)
+                                    ?.copyWith(
+                                      color: colorScheme.onSurface,
+                                      fontWeight: FontWeight.w900,
+                                    ),
                           ),
                           const SizedBox(height: 12),
                           FutureBuilder<WeatherSnapshot?>(
@@ -643,7 +656,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                   children: [
                                     Text(
                                       error != null
-                                          ? 'Lỗi: $error'
+                                          ? '${context.translate('error')}: ${context.translate(error.toString())}'
                                           : context.translate(
                                               'weather_unavailable',
                                             ),
@@ -719,7 +732,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                           CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          '$tempText • ${weather.summary ?? 'Clear'}',
+                                          '$tempText - ${weather.summary ?? context.translate('clear_weather')}',
                                           style: theme.textTheme.titleLarge
                                               ?.copyWith(
                                                 color: colorScheme.onSurface,
@@ -730,7 +743,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                           children: [
                                             Flexible(
                                               child: Text(
-                                                '$location • ',
+                                                '$location - ',
                                                 style: theme
                                                     .textTheme
                                                     .bodyMedium
@@ -820,9 +833,9 @@ class _OverviewContentState extends State<OverviewContent> {
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -1152,6 +1165,8 @@ class PerformanceStatCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 10),
                 FittedBox(
@@ -1165,6 +1180,8 @@ class PerformanceStatCard extends StatelessWidget {
                       color: colorScheme.onSurface,
                     ),
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

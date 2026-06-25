@@ -39,7 +39,10 @@ class _NutritionPageState extends State<NutritionPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(l10n.translate('nutrition'), style: TextStyle(color: colorScheme.onSurface)),
+        title: Text(
+          l10n.translate('nutrition'),
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -53,7 +56,9 @@ class _NutritionPageState extends State<NutritionPage> {
         children: [
           SizedBox.expand(
             child: DecoratedBox(
-              decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
+              decoration: BoxDecoration(
+                gradient: sportPlatformGradient(context),
+              ),
             ),
           ),
           if (nutritionService.isLoading && nutritionService.logs.isEmpty)
@@ -73,27 +78,55 @@ class _NutritionPageState extends State<NutritionPage> {
                   const SizedBox(height: 24),
                   MealSection(
                     title: l10n.translate('breakfast'),
-                    logs: nutritionService.getLogsForMealType(MealType.breakfast, _selectedDate),
+                    logs: nutritionService.getLogsForMealType(
+                      MealType.breakfast,
+                      _selectedDate,
+                    ),
                     onAdd: () => _showAddFoodModal(context, MealType.breakfast),
-                    onAISuggest: () => _showAISuggestionsModal(context, MealType.breakfast, summary),
+                    onAISuggest: () => _showAISuggestionsModal(
+                      context,
+                      MealType.breakfast,
+                      summary,
+                    ),
                   ),
                   MealSection(
                     title: l10n.translate('lunch'),
-                    logs: nutritionService.getLogsForMealType(MealType.lunch, _selectedDate),
+                    logs: nutritionService.getLogsForMealType(
+                      MealType.lunch,
+                      _selectedDate,
+                    ),
                     onAdd: () => _showAddFoodModal(context, MealType.lunch),
-                    onAISuggest: () => _showAISuggestionsModal(context, MealType.lunch, summary),
+                    onAISuggest: () => _showAISuggestionsModal(
+                      context,
+                      MealType.lunch,
+                      summary,
+                    ),
                   ),
                   MealSection(
                     title: l10n.translate('dinner'),
-                    logs: nutritionService.getLogsForMealType(MealType.dinner, _selectedDate),
+                    logs: nutritionService.getLogsForMealType(
+                      MealType.dinner,
+                      _selectedDate,
+                    ),
                     onAdd: () => _showAddFoodModal(context, MealType.dinner),
-                    onAISuggest: () => _showAISuggestionsModal(context, MealType.dinner, summary),
+                    onAISuggest: () => _showAISuggestionsModal(
+                      context,
+                      MealType.dinner,
+                      summary,
+                    ),
                   ),
                   MealSection(
                     title: l10n.translate('snack'),
-                    logs: nutritionService.getLogsForMealType(MealType.snack, _selectedDate),
+                    logs: nutritionService.getLogsForMealType(
+                      MealType.snack,
+                      _selectedDate,
+                    ),
                     onAdd: () => _showAddFoodModal(context, MealType.snack),
-                    onAISuggest: () => _showAISuggestionsModal(context, MealType.snack, summary),
+                    onAISuggest: () => _showAISuggestionsModal(
+                      context,
+                      MealType.snack,
+                      summary,
+                    ),
                   ),
                   const SizedBox(height: 40),
                 ],
@@ -125,22 +158,22 @@ class _NutritionPageState extends State<NutritionPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => _AddFoodQuickView(
-        mealType: mealType,
-        selectedDate: _selectedDate,
-      ),
+      builder: (context) =>
+          _AddFoodQuickView(mealType: mealType, selectedDate: _selectedDate),
     );
   }
 
-  void _showAISuggestionsModal(BuildContext context, MealType mealType, DailyNutritionSummary summary) {
+  void _showAISuggestionsModal(
+    BuildContext context,
+    MealType mealType,
+    DailyNutritionSummary summary,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _AISuggestionsView(
-        mealType: mealType,
-        summary: summary,
-      ),
+      builder: (context) =>
+          _AISuggestionsView(mealType: mealType, summary: summary),
     );
   }
 }
@@ -151,10 +184,7 @@ class _AddFoodQuickView extends StatefulWidget {
   final MealType mealType;
   final DateTime selectedDate;
 
-  const _AddFoodQuickView({
-    required this.mealType,
-    required this.selectedDate,
-  });
+  const _AddFoodQuickView({required this.mealType, required this.selectedDate});
 
   @override
   State<_AddFoodQuickView> createState() => _AddFoodQuickViewState();
@@ -182,20 +212,22 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
           children: [
             Text(
               '${l10n.translate('add_food')} - ${l10n.translate(widget.mealType.name)}',
-              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 16),
             SegmentedButton<_AddFoodMode>(
-              segments: const [
+              segments: [
                 ButtonSegment(
                   value: _AddFoodMode.manual,
-                  icon: Icon(Icons.edit_note),
-                  label: Text('Thủ công'),
+                  icon: const Icon(Icons.edit_note),
+                  label: Text(l10n.translate('manual_entry')),
                 ),
                 ButtonSegment(
                   value: _AddFoodMode.image,
-                  icon: Icon(Icons.camera_alt),
-                  label: Text('Ảnh AI'),
+                  icon: const Icon(Icons.camera_alt),
+                  label: Text(l10n.translate('ai_photo')),
                 ),
               ],
               selected: {_mode},
@@ -236,7 +268,9 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
         const SizedBox(height: 24),
         Text(
           l10n.translate('recent_foods'),
-          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: 12),
         _buildQuickItem(context, 'Banana', '105 kcal'),
@@ -295,13 +329,12 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
   Future<void> _saveRecognizedMeal(MealLog log) async {
     final nutritionService = context.read<NutritionService>();
     final messenger = ScaffoldMessenger.of(context);
+    final successMessage = context.translate('meal_added_log', [log.foodName]);
 
     await nutritionService.addMealLog(log);
+    if (!mounted) return;
     messenger.showSnackBar(
-      SnackBar(
-        content: Text('Đã thêm "${log.foodName}" vào nhật ký ăn uống.'),
-        backgroundColor: Colors.green,
-      ),
+      SnackBar(content: Text(successMessage), backgroundColor: Colors.green),
     );
 
     if (mounted) {
@@ -314,10 +347,7 @@ class _AISuggestionsView extends StatefulWidget {
   final MealType mealType;
   final DailyNutritionSummary summary;
 
-  const _AISuggestionsView({
-    required this.mealType,
-    required this.summary,
-  });
+  const _AISuggestionsView({required this.mealType, required this.summary});
 
   @override
   State<_AISuggestionsView> createState() => _AISuggestionsViewState();
@@ -346,12 +376,13 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
       final mealNameVi = widget.mealType == MealType.breakfast
           ? 'Bữa sáng'
           : widget.mealType == MealType.lunch
-              ? 'Bữa trưa'
-              : widget.mealType == MealType.dinner
-                  ? 'Bữa tối'
-                  : 'Bữa phụ';
+          ? 'Bữa trưa'
+          : widget.mealType == MealType.dinner
+          ? 'Bữa tối'
+          : 'Bữa phụ';
 
-      final prompt = """
+      final prompt =
+          """
       Act as a professional sports nutritionist and AI diet coach. 
       Suggest exactly 3 healthy, clean food options for a runner's $mealNameVi meal.
       The user's daily goals and current progress:
@@ -387,7 +418,7 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
       """;
 
       final response = await _geminiService.generateResponse(prompt);
-      
+
       // Clean up markdown markers if any
       var cleanResponse = response.trim();
       if (cleanResponse.startsWith('```')) {
@@ -405,7 +436,9 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
       if (decoded is List) {
         if (mounted) {
           setState(() {
-            _suggestions = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+            _suggestions = decoded
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList();
             _isLoading = false;
           });
         }
@@ -425,6 +458,9 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
   Future<void> _addSuggestedMeal(Map<String, dynamic> suggestion) async {
     final nutritionService = context.read<NutritionService>();
     final messenger = ScaffoldMessenger.of(context);
+    final fallbackFoodName = context.translate('ai_suggestion_fallback');
+    final defaultUnit = context.translate('portion').toLowerCase();
+    final errorPrefix = context.translate('error');
     try {
       final log = MealLog(
         userId: Supabase.instance.client.auth.currentUser?.id ?? '',
@@ -434,23 +470,25 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
         carbs: (suggestion['carbs'] as num).toDouble(),
         fat: (suggestion['fat'] as num).toDouble(),
         amount: (suggestion['amount'] as num).toDouble(),
-        unit: suggestion['unit'] ?? 'phần',
+        unit: suggestion['unit'] ?? defaultUnit,
         mealType: widget.mealType,
         consumedAt: DateTime.now(),
       );
+      final successMessage = context.translate('meal_added_menu', [
+        log.foodName,
+      ]);
 
       await nutritionService.addMealLog(log);
+      if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(
-          content: Text('Đã thêm "${log.foodName}" vào thực đơn!'),
-          backgroundColor: Colors.green,
-        ),
+        SnackBar(content: Text(successMessage), backgroundColor: Colors.green),
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {
+      if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Lỗi: $e'),
+          content: Text('$errorPrefix: $e'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -463,13 +501,7 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    final mealNameVi = widget.mealType == MealType.breakfast
-        ? 'Bữa sáng'
-        : widget.mealType == MealType.lunch
-            ? 'Bữa trưa'
-            : widget.mealType == MealType.dinner
-                ? 'Bữa tối'
-                : 'Bữa phụ';
+    final mealName = context.translate(widget.mealType.name);
 
     return Container(
       decoration: BoxDecoration(
@@ -520,8 +552,10 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
                   const CircularProgressIndicator(color: AppTheme.primary),
                   const SizedBox(height: 16),
                   Text(
-                    'AI đang tính toán lượng calories và dinh dưỡng tối ưu...',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+                    context.translate('ai_suggestions_loading'),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -532,10 +566,14 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
               padding: const EdgeInsets.symmetric(vertical: 30.0),
               child: Column(
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+                  const Icon(
+                    Icons.error_outline,
+                    color: Colors.redAccent,
+                    size: 48,
+                  ),
                   const SizedBox(height: 12),
                   Text(
-                    'Không thể tải gợi ý. Vui lòng kiểm tra lại kết nối hoặc API Key.',
+                    context.translate('ai_suggestions_error'),
                     style: theme.textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
@@ -543,7 +581,7 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
                   ElevatedButton(
                     onPressed: _fetchSuggestions,
                     style: primaryActionButton(context),
-                    child: const Text('Thử lại'),
+                    child: Text(context.translate('retry')),
                   ),
                 ],
               ),
@@ -552,13 +590,21 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
             Column(
               children: [
                 ..._suggestions.map((suggestion) {
-                  final calories = (suggestion['calories'] as num).toStringAsFixed(0);
-                  final protein = (suggestion['protein'] as num).toStringAsFixed(0);
+                  final calories = (suggestion['calories'] as num)
+                      .toStringAsFixed(0);
+                  final protein = (suggestion['protein'] as num)
+                      .toStringAsFixed(0);
                   final carbs = (suggestion['carbs'] as num).toStringAsFixed(0);
                   final fat = (suggestion['fat'] as num).toStringAsFixed(0);
-                  final foodName = suggestion['foodName'] ?? 'Không rõ';
-                  final amount = (suggestion['amount'] as num).toStringAsFixed(0);
-                  final unit = suggestion['unit'] ?? 'phần';
+                  final foodName =
+                      suggestion['foodName'] ??
+                      context.translate('unknown_food');
+                  final amount = (suggestion['amount'] as num).toStringAsFixed(
+                    0,
+                  );
+                  final unit =
+                      suggestion['unit'] ??
+                      context.translate('portion').toLowerCase();
 
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
@@ -587,25 +633,32 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
                                   children: [
                                     Text(
                                       foodName,
-                                      style: theme.textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Khẩu phần: $amount $unit',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: colorScheme.onSurfaceVariant,
-                                      ),
+                                      '${context.translate('portion')}: $amount $unit',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
                                     ),
                                   ],
                                 ),
                               ),
                               const SizedBox(width: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppTheme.primary.withValues(alpha: 0.1),
+                                  color: AppTheme.primary.withValues(
+                                    alpha: 0.1,
+                                  ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
@@ -620,18 +673,36 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              _buildMacroMiniBadge('Đạm', '${protein}g', Colors.redAccent),
-                              _buildMacroMiniBadge('Carbs', '${carbs}g', Colors.blueAccent),
-                              _buildMacroMiniBadge('Chất béo', '${fat}g', Colors.orangeAccent),
+                              _buildMacroMiniBadge(
+                                context.translate('protein'),
+                                '${protein}g',
+                                Colors.redAccent,
+                              ),
+                              _buildMacroMiniBadge(
+                                context.translate('carbs'),
+                                '${carbs}g',
+                                Colors.blueAccent,
+                              ),
+                              _buildMacroMiniBadge(
+                                context.translate('fat'),
+                                '${fat}g',
+                                Colors.orangeAccent,
+                              ),
                               IconButton(
                                 onPressed: () => _addSuggestedMeal(suggestion),
-                                icon: const Icon(Icons.add_circle, color: AppTheme.primary, size: 28),
+                                icon: const Icon(
+                                  Icons.add_circle,
+                                  color: AppTheme.primary,
+                                  size: 28,
+                                ),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
-                                tooltip: 'Thêm vào nhật ký',
+                                tooltip: context.translate('add_to_log'),
                               ),
                             ],
                           ),
