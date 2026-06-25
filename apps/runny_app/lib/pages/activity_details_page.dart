@@ -309,7 +309,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               ),
             ),
             SafeArea(
-              child: SingleChildScrollView(
+              child: ResponsiveContent(
+                child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -389,6 +390,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                     ],
                   ],
                 ),
+              ),
               ),
             ),
           ],
@@ -768,10 +770,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                 items: [
                   DropdownMenuItem<String>(
                     value: null,
-                    child: Text(
-                      context.translate('no_shoe'),
-                      style: const TextStyle(fontSize: 13),
-                    ),
+                    child: Text(context.translate('no_shoe'), style: const TextStyle(fontSize: 13)),
                   ),
                   ...activeShoes.map((shoe) {
                     return DropdownMenuItem<String>(

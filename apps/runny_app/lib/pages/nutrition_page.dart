@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/nutrition_service.dart';
 import '../widgets/food_recognition_panel.dart';
 import '../widgets/nutrition_components.dart';
@@ -19,6 +20,14 @@ class NutritionPage extends StatefulWidget {
 
 class _NutritionPageState extends State<NutritionPage> {
   DateTime _selectedDate = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<NutritionService>().ensureLoaded();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,8 +61,14 @@ class _NutritionPageState extends State<NutritionPage> {
               ),
             ),
           ),
+          if (nutritionService.isLoading && nutritionService.logs.isEmpty)
+            const Center(child: CircularProgressIndicator())
+          else
           SafeArea(
-            child: SingleChildScrollView(
+            child: RefreshIndicator(
+              onRefresh: () => nutritionService.refresh(),
+              child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
@@ -115,6 +130,7 @@ class _NutritionPageState extends State<NutritionPage> {
                   ),
                   const SizedBox(height: 40),
                 ],
+              ),
               ),
             ),
           ),
@@ -281,20 +297,18 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
       onTap: () {
         // Logic to add item
         final nutritionService = context.read<NutritionService>();
-        nutritionService.addMealLog(
-          MealLog(
-            userId: 'user-123',
-            foodName: name,
-            calories: double.parse(cal.split(' ')[0]),
-            protein: 10, // Mocked
-            carbs: 20, // Mocked
-            fat: 5, // Mocked
-            amount: 1,
-            unit: 'serving',
-            mealType: widget.mealType,
-            consumedAt: _consumedAtForSelectedDate(),
-          ),
-        );
+        nutritionService.addMealLog(MealLog(
+          userId: Supabase.instance.client.auth.currentUser?.id ?? '',
+          foodName: name,
+          calories: double.parse(cal.split(' ')[0]),
+          protein: 10, // Mocked
+          carbs: 20,   // Mocked
+          fat: 5,      // Mocked
+          amount: 1,
+          unit: 'serving',
+          mealType: widget.mealType,
+          consumedAt: _consumedAtForSelectedDate(),
+        ));
         Navigator.pop(context);
       },
     );
@@ -449,8 +463,8 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
     final errorPrefix = context.translate('error');
     try {
       final log = MealLog(
-        userId: 'user-123',
-        foodName: suggestion['foodName'] ?? fallbackFoodName,
+        userId: Supabase.instance.client.auth.currentUser?.id ?? '',
+        foodName: suggestion['foodName'] ?? 'Gợi ý AI',
         calories: (suggestion['calories'] as num).toDouble(),
         protein: (suggestion['protein'] as num).toDouble(),
         carbs: (suggestion['carbs'] as num).toDouble(),
@@ -514,11 +528,9 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        context.translate('ai_suggestions_title', [mealName]),
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 2,
+                        'AI Gợi ý $mealNameVi',
+                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),

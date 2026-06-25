@@ -5,13 +5,59 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class GeminiService {
   final String _modelName;
+  final List<String> _modelList;
 
   GeminiService()
-      : _modelName = dotenv.env['OPENROUTER_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct:free' {
-    debugPrint('GeminiService: Using Supabase Edge Function proxy for OpenRouter calls.');
+      : _modelName = dotenv.env['OPENROUTER_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct:free',
+        _modelList = _parseModels(dotenv.env['OPENROUTER_MODELS']) {
+    debugPrint('GeminiService: Using Supabase Edge Function AI proxy (Groq primary, OpenRouter fallback).');
   }
 
+  /// Tach chuoi model phan tach boi dau phay (vd: "a:free, b:free") thanh danh sach.
+  static List<String> _parseModels(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return const [];
+    return raw
+        .split(',')
+        .map((m) => m.trim())
+        .where((m) => m.isNotEmpty)
+        .toList();
+  }
+
+  /// Phan model cho body request: uu tien danh sach fallback (mang `models`)
+  /// neu duoc cau hinh, nguoc lai gui `model` don le (Edge Function se tu bao fallback).
+  Map<String, dynamic> get _modelPayload =>
+      _modelList.isNotEmpty ? {'models': _modelList} : {'model': _modelName};
+
   bool get isConfigured => true;
+
+  /// Trích thông báo lỗi thân thiện từ phản hồi/exception của Edge Function.
+  /// Edge Function trả về `{ "error": "..." }` (tiếng Việt) cho các lỗi guardrail
+  /// (401 chưa đăng nhập, 400 đầu vào không hợp lệ, 429 quá nhiều yêu cầu).
+  String _extractError(Object error) {
+    if (error is FunctionException) {
+      final details = error.details;
+      if (details is Map && details['error'] is String) {
+        return details['error'] as String;
+      }
+      if (details is String && details.trim().isNotEmpty) {
+        return details;
+      }
+      return 'Lỗi máy chủ AI (mã ${error.status}).';
+    }
+    return error.toString();
+  }
+
+  String _errorFromData(dynamic data) {
+    try {
+      final decoded = data is String ? jsonDecode(data) : data;
+      if (decoded is Map && decoded['error'] is String) {
+        return decoded['error'] as String;
+      }
+    } catch (_) {
+      // bỏ qua, dùng fallback bên dưới
+    }
+    return 'Lỗi máy chủ AI.';
+  }
 
   Future<String> generateResponse(
     String prompt, {
@@ -38,13 +84,13 @@ class GeminiService {
       final response = await Supabase.instance.client.functions.invoke(
         'openrouter',
         body: {
-          'model': _modelName,
+          ..._modelPayload,
           'messages': messages,
         },
       );
 
       if (response.status != 200) {
-        throw Exception('OpenRouter proxy error: ${response.status} ${response.data}');
+        throw Exception(_errorFromData(response.data));
       }
 
       final decoded = response.data is String
@@ -64,6 +110,9 @@ class GeminiService {
       return content;
     } catch (e) {
       debugPrint('OpenRouter proxy call failed: $e');
+      if (e is FunctionException) {
+        throw Exception(_extractError(e));
+      }
       rethrow;
     }
   }
@@ -81,14 +130,14 @@ class GeminiService {
       final response = await Supabase.instance.client.functions.invoke(
         'openrouter',
         body: {
-          'model': _modelName,
+          ..._modelPayload,
           'messages': messages,
           'response_format': {'type': 'json_object'},
         },
       );
 
       if (response.status != 200) {
-        throw Exception('OpenRouter proxy error: ${response.status} ${response.data}');
+        throw Exception(_errorFromData(response.data));
       }
 
       final decoded = response.data is String
@@ -118,6 +167,9 @@ class GeminiService {
       return jsonDecode(cleanedContent);
     } catch (e) {
       debugPrint('OpenRouter proxy structured call failed: $e');
+      if (e is FunctionException) {
+        throw Exception(_extractError(e));
+      }
       rethrow;
     }
   }

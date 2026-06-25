@@ -75,12 +75,13 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
                 }
                 final data = snapshot.data!;
                 final onSurface = Theme.of(context).colorScheme.onSurface;
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _GoalCard(goal: data.goal, onEditGoal: _editGoal),
+                return ResponsiveContent(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _GoalCard(goal: data.goal, onEditGoal: _editGoal),
                       const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
@@ -137,6 +138,7 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
                         ),
                       const SizedBox(height: 24),
                     ],
+                  ),
                   ),
                 );
               },
@@ -423,49 +425,36 @@ class _GoalCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                context.translate('percent_complete', [
-                  (goal.progress * 100).toStringAsFixed(0),
-                ]),
-                style: TextStyle(
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w700,
-                ),
+              Flexible(
+                child: Text('${(goal.progress * 100).toStringAsFixed(0)}% hoàn thành',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w700)),
               ),
+              const SizedBox(width: 8),
               if (reached)
                 Row(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.check_circle,
-                      color: Color(0xFF4ADE80),
-                      size: 18,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      context.translate('goal_reached'),
-                      style: TextStyle(
-                        color: Color(0xFF4ADE80),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+                  children: const [
+                    Icon(Icons.check_circle, color: Color(0xFF4ADE80), size: 18),
+                    SizedBox(width: 6),
+                    Text('Đã đạt mục tiêu!',
+                        style: TextStyle(
+                            color: Color(0xFF4ADE80), fontWeight: FontWeight.w700)),
                   ],
                 )
               else
-                Text(
-                  context.translate('weight_remaining', [
-                    goal.remaining.toStringAsFixed(1),
-                    context.translate(
-                      goal.isLosing ? 'lose_weight' : 'gain_weight',
-                    ),
-                  ]),
-                  style: TextStyle(color: cs.onSurfaceVariant),
+                Flexible(
+                  child: Text(
+                    'Còn ${goal.remaining.toStringAsFixed(1)} kg ${goal.isLosing ? "cần giảm" : "cần tăng"}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                    style: TextStyle(color: cs.onSurfaceVariant),
+                  ),
                 ),
             ],
           ),

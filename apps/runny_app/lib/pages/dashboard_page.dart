@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'training_plan_page.dart';
 import 'ai_coach_page.dart';
@@ -247,7 +248,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       horizontal: 20,
                       vertical: 20,
                     ),
-                    child: _pages[_selectedIndex],
+                    child: ResponsiveContent(child: _pages[_selectedIndex]),
                   ),
                 ),
               ],
@@ -352,10 +353,7 @@ class _DashboardPageState extends State<DashboardPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: colorScheme.surface,
-        title: Text(
-          context.translate('logout'),
-          style: TextStyle(color: colorScheme.onSurface),
-        ),
+        title: Text(context.translate('logout'), style: TextStyle(color: colorScheme.onSurface)),
         content: Text(
           context.translate('logout_confirm'),
           style: TextStyle(color: colorScheme.onSurfaceVariant),
@@ -564,10 +562,43 @@ class _OverviewContentState extends State<OverviewContent> {
     };
   }
 
+  /// Tính chuỗi ngày tập liên tiếp (streak) tính tới hôm nay (hoặc hôm qua nếu
+  /// hôm nay chưa tập). Dựa trên các ngày có hoạt động thực tế.
+  Future<int> _fetchStreak() async {
+    final response = await Supabase.instance.client
+        .from('activities')
+        .select('started_at')
+        .order('started_at', ascending: false)
+        .limit(365);
+
+    final days = <DateTime>{};
+    for (final a in response as List) {
+      final d = DateTime.parse(a['started_at'] as String).toLocal();
+      days.add(DateTime(d.year, d.month, d.day));
+    }
+    if (days.isEmpty) return 0;
+
+    final now = DateTime.now();
+    var cursor = DateTime(now.year, now.month, now.day);
+    // Hôm nay chưa tập -> cho phép tính streak tính tới hôm qua.
+    if (!days.contains(cursor)) {
+      cursor = cursor.subtract(const Duration(days: 1));
+      if (!days.contains(cursor)) return 0;
+    }
+
+    int streak = 0;
+    while (days.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
-    final crossAxisCount = width > 1200 ? 4 : (width > 800 ? 2 : 1);
+    // Luôn ít nhất 2 cột để cụm chỉ số gọn lại, không phải kéo dài mới thấy hoạt động.
+    final crossAxisCount = width > 800 ? 4 : 2;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -677,8 +708,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                   ? '${weather.temperatureC!.toStringAsFixed(1)}°C'
                                   : '--';
                               final location =
-                                  weather.locationName ??
-                                  context.translate('unknown_location');
+                                  weather.locationName ?? context.translate('unknown_location');
 
                               return Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -763,42 +793,45 @@ class _OverviewContentState extends State<OverviewContent> {
                         ],
                       ),
                     ),
-                    if (width >= 560) ...[
-                      const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          badgeLabel(context, context.translate('runner_hud')),
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 14,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: accentPulseGradient,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  context.translate('streak'),
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: Colors.white70,
-                                  ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        badgeLabel(context, DateFormat('dd/MM/yyyy').format(DateTime.now())),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: accentPulseGradient,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                context.translate('streak'),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: Colors.white70,
                                 ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  context.translate('streak_days', ['7']),
-                                  style: theme.textTheme.headlineSmall
-                                      ?.copyWith(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                ),
-                              ],
-                            ),
+                              ),
+                              const SizedBox(height: 6),
+                              FutureBuilder<int>(
+                                future: _fetchStreak(),
+                                builder: (context, snapshot) {
+                                  final n = snapshot.data ?? 0;
+                                  return Text(
+                                    context.translate('streak_days', ['$n']),
+                                    style: theme.textTheme.headlineSmall?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -913,10 +946,7 @@ class _OverviewContentState extends State<OverviewContent> {
                     ),
                   ),
                 ),
-                TextButton(
-                  onPressed: widget.onViewAllActivities,
-                  child: Text(context.translate('view_all')),
-                ),
+                TextButton(onPressed: () {}, child: Text(context.translate('view_all'))),
               ],
             ),
           ),
@@ -986,13 +1016,17 @@ class _OverviewContentState extends State<OverviewContent> {
                         ),
                         title: Text(
                           activity.notes ?? context.translate('run_activity'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: colorScheme.onSurface,
                           ),
                         ),
                         subtitle: Text(
-                          '${activity.distanceKm.toStringAsFixed(2)} km - ${_formatDuration(activity.durationMin)} - ${context.translate('pace')} $paceStr',
+                          '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
                         trailing: Icon(
@@ -1126,6 +1160,8 @@ class PerformanceStatCard extends StatelessWidget {
               children: [
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -1133,11 +1169,16 @@ class PerformanceStatCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: colorScheme.onSurface,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: colorScheme.onSurface,
+                    ),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

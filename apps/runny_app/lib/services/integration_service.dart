@@ -1,14 +1,21 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class IntegrationService {
   final _supabase = Supabase.instance.client;
 
-  // Placeholder Strava Config (In a real app, these should be in .env)
-  final String _stravaClientId = 'YOUR_STRAVA_CLIENT_ID';
-  final String _stravaRedirectUri = 'http://localhost:3000/'; // Adjust for production
+  // Cấu hình Strava đọc từ .env (xem .env.example: STRAVA_CLIENT_ID,
+  // STRAVA_REDIRECT_URI). Không hardcode credentials trong mã nguồn.
+  String get _stravaClientId => dotenv.env['STRAVA_CLIENT_ID'] ?? '';
+  String get _stravaRedirectUri =>
+      dotenv.env['STRAVA_REDIRECT_URI'] ?? 'http://localhost:3000/';
 
   Future<void> connectStrava() async {
+    if (_stravaClientId.isEmpty) {
+      throw 'Chưa cấu hình STRAVA_CLIENT_ID trong .env';
+    }
+
     final authUrl = Uri.parse(
       'https://www.strava.com/oauth/authorize'
       '?client_id=$_stravaClientId'

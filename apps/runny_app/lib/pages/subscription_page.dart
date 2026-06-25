@@ -39,11 +39,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              context.translate('subscription_load_error', [e.toString()]),
-            ),
-          ),
+          SnackBar(content: Text('Lỗi khi tải dữ liệu gói đăng ký: $e')),
         );
       }
     } finally {
@@ -58,17 +54,13 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
       await _loadData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.translate('subscription_success'))),
+          const SnackBar(content: Text('Đăng ký gói thành công!')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              context.translate('subscription_failed', [e.toString()]),
-            ),
-          ),
+          SnackBar(content: Text('Đăng ký gói thất bại: $e')),
         );
       }
     } finally {
@@ -89,7 +81,8 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
+          : ResponsiveContent(
+              child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -117,6 +110,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                   ..._plans.map((plan) => _buildPlanCard(context, plan)),
                 ],
               ),
+            ),
             ),
     );
   }
@@ -236,47 +230,31 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                 alignment: WrapAlignment.spaceBetween,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minWidth: 180,
-                      maxWidth: 320,
-                    ),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (isRecommended)
                           Container(
                             margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: planColor,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Text(
-                              context.translate('most_popular'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1,
-                              ),
+                            child: const Text(
+                              'PHỔ BIẾN NHẤT',
+                              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
                             ),
                           ),
                         Text(
                           plan.name,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,

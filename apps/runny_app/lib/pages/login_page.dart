@@ -4,7 +4,9 @@ import '../widgets/ui_components.dart';
 import '../l10n/app_localizations.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final bool initialIsSignUp;
+
+  const LoginPage({super.key, this.initialIsSignUp = false});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -14,17 +16,33 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _isSignUp = false;
+  late bool _isSignUp = widget.initialIsSignUp;
 
   Future<void> _handleAuth() async {
     setState(() => _isLoading = true);
     try {
       if (_isSignUp) {
-        await Supabase.instance.client.auth.signUp(
+        final res = await Supabase.instance.client.auth.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
-        if (mounted) {
+
+        if (res.session != null) {
+          // Confirm email TẮT: đã đăng nhập ngay, AuthGate sẽ tự điều hướng.
+        } else if (res.user != null &&
+            (res.user!.identities == null || res.user!.identities!.isEmpty)) {
+          // Supabase trả về user "giả" khi email đã tồn tại (chống dò email).
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(context.translate('email_already_registered')),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+            setState(() => _isSignUp = false);
+          }
+        } else if (mounted) {
+          // Confirm email BẬT: cần xác thực qua email trước khi đăng nhập.
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(context.translate('signup_success'))),
           );
@@ -37,8 +55,21 @@ class _LoginPageState extends State<LoginPage> {
       }
     } on AuthException catch (e) {
       if (mounted) {
+        // Email chưa xác thực: cho phép gửi lại email xác thực ngay từ snackbar.
+        final notConfirmed = e.message.toLowerCase().contains('not confirmed') ||
+            e.message.toLowerCase().contains('not been confirmed');
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message), backgroundColor: Colors.redAccent),
+          SnackBar(
+            content: Text(e.message),
+            backgroundColor: Colors.redAccent,
+            action: notConfirmed
+                ? SnackBarAction(
+                    label: context.translate('resend_confirmation'),
+                    textColor: Colors.white,
+                    onPressed: _resendConfirmation,
+                  )
+                : null,
+          ),
         );
       }
     } catch (e) {
@@ -52,24 +83,103 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _signInWithProvider(OAuthProvider provider) async {
-    setState(() => _isLoading = true);
+  void _showComingSoon() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(dialogContext.translate('feature_coming_soon_title')),
+        content: Text(dialogContext.translate('feature_coming_soon_body')),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(dialogContext.translate('ok')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _resendConfirmation() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.translate('enter_email_first'))),
+      );
+      return;
+    }
     try {
-      await Supabase.instance.client.auth.signInWithOAuth(provider);
+      await Supabase.instance.client.auth.resend(
+        type: OtpType.signup,
+        email: email,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.translate('confirmation_resent'))),
+        );
+      }
     } on AuthException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.message), backgroundColor: Colors.redAccent),
         );
       }
-    } catch (e) {
+    }
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final controller = TextEditingController(text: _emailController.text.trim());
+    final email = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(dialogContext.translate('reset_password_title')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(dialogContext.translate('reset_password_hint')),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.emailAddress,
+                autofocus: true,
+                decoration: themedInputDecoration(
+                  dialogContext,
+                  dialogContext.translate('email'),
+                  icon: Icons.email,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(dialogContext.translate('cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+              child: Text(dialogContext.translate('send')),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (email == null || email.isEmpty || !mounted) return;
+
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(email);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.translate('oauth_error')), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('reset_email_sent'))),
         );
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    } on AuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: Colors.redAccent),
+        );
+      }
     }
   }
 
@@ -109,7 +219,9 @@ class _LoginPageState extends State<LoginPage> {
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 42),
-              child: glassCard(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: glassCard(
                 context: context,
                 padding: const EdgeInsets.all(28),
                 child: Column(
@@ -149,6 +261,20 @@ class _LoginPageState extends State<LoginPage> {
                             )
                           : Text(_isSignUp ? context.translate('signup') : context.translate('login')),
                     ),
+                    if (!_isSignUp)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _isLoading ? null : _handleForgotPassword,
+                          child: Text(
+                            context.translate('forgot_password'),
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.black54,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 16),
                     Wrap(
                       alignment: WrapAlignment.center,
@@ -156,13 +282,13 @@ class _LoginPageState extends State<LoginPage> {
                       spacing: 12,
                       children: [
                         OutlinedButton.icon(
-                          onPressed: _isLoading ? null : () => _signInWithProvider(OAuthProvider.google),
+                          onPressed: _isLoading ? null : _showComingSoon,
                           icon: const Icon(Icons.g_mobiledata, color: Colors.redAccent, size: 24),
                           label: Text(context.translate('google_login')),
                           style: secondaryActionButton(context),
                         ),
                         OutlinedButton.icon(
-                          onPressed: _isLoading ? null : () => _signInWithProvider(OAuthProvider.facebook),
+                          onPressed: _isLoading ? null : _showComingSoon,
                           icon: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 24),
                           label: Text(context.translate('facebook_login')),
                           style: secondaryActionButton(context),
@@ -182,6 +308,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ],
                 ),
+              ),
               ),
             ),
           ),
