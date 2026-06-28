@@ -36,7 +36,13 @@ class _AICoachPageState extends State<AICoachPage> {
   String _baseText = '';
   Activity? _contextActivity;
   // Dữ liệu người dùng chọn đính kèm vào câu hỏi để AI phân tích.
-  final Set<_ChatAttachment> _attachments = {};
+  // Mặc định bật tất cả để AI luôn có ngữ cảnh đầy đủ.
+  final Set<_ChatAttachment> _attachments = {
+    _ChatAttachment.activities,
+    _ChatAttachment.metrics,
+    _ChatAttachment.plan,
+    _ChatAttachment.nutrition,
+  };
 
   @override
   void initState() {
@@ -97,7 +103,6 @@ class _AICoachPageState extends State<AICoachPage> {
     setState(() {
       _messages.add({'role': 'user', 'content': text});
       _isLoading = true;
-      _attachments.clear();
     });
     _controller.clear();
 
@@ -214,6 +219,34 @@ class _AICoachPageState extends State<AICoachPage> {
 
     // --- Chỉ số tổng hợp ---
     if (attachments.contains(_ChatAttachment.metrics)) {
+      // Thể trạng người dùng (chiều cao, cân nặng, nhịp tim tối đa).
+      if (user != null) {
+        try {
+          final profile = await supabase
+              .from('profiles')
+              .select('height_cm, weight_kg, max_hr')
+              .eq('id', user.id)
+              .maybeSingle();
+          if (profile != null) {
+            final parts = <String>[];
+            final h = profile['height_cm'];
+            final w = profile['weight_kg'];
+            final mhr = profile['max_hr'];
+            if (h != null) parts.add('cao ${(h as num).toStringAsFixed(0)} cm');
+            if (w != null) {
+              parts.add('nặng ${(w as num).toStringAsFixed(0)} kg');
+            }
+            if (mhr != null) {
+              parts.add('nhịp tim tối đa ${(mhr as num).toInt()} bpm');
+            }
+            if (parts.isNotEmpty) {
+              buffer.writeln('• Thể trạng: ${parts.join(', ')}.');
+            }
+          }
+        } catch (e) {
+          debugPrint('Attach body stats error: $e');
+        }
+      }
       try {
         final rows = await supabase
             .from('activities')
