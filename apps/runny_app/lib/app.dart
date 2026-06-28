@@ -50,6 +50,25 @@ class AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<AuthGate> {
   bool _passwordRecovery = false;
+  bool _wasAuthenticated = false;
+
+  /// Khi vừa chuyển từ trạng thái chưa đăng nhập sang đã đăng nhập, dọn mọi
+  /// route (vd: LoginPage) đang được push đè lên AuthGate, để AuthGate (gốc)
+  /// tự điều hướng vào Onboarding/Dashboard. Làm ở đây — nguồn sự thật về auth
+  /// — đáng tin cậy hơn việc trông chờ LoginPage tự pop đúng thời điểm, vốn hay
+  /// bị "nuốt" trên web do trùng frame với lúc StreamBuilder rebuild.
+  void _syncAuthOverlay(bool isAuthenticated) {
+    if (isAuthenticated && !_wasAuthenticated) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final navigator = Navigator.of(context);
+        if (navigator.canPop()) {
+          navigator.popUntil((route) => route.isFirst);
+        }
+      });
+    }
+    _wasAuthenticated = isAuthenticated;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +92,8 @@ class _AuthGateState extends State<AuthGate> {
 
         // Fallback to current session if stream hasn't emitted yet but we have data
         final effectiveSession = session ?? Supabase.instance.client.auth.currentSession;
+
+        _syncAuthOverlay(effectiveSession != null);
 
         if (effectiveSession != null) {
           return FutureBuilder<Map<String, dynamic>?>(
