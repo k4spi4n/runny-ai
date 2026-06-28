@@ -210,6 +210,8 @@
   "import_help_generic": "COROS / Suunto / Polar...: xuất GPX/TCX/FIT trong app của hãng rồi tải lên đây.",
   "integrations": "Kết nối ứng dụng",
   "invalid_weight_height": "Vui lòng nhập cân nặng và chiều cao hợp lệ",
+  "invalid_metrics_title": "Giá trị chưa hợp lý",
+  "invalid_metrics_desc": "Vui lòng nhập thể trạng trong khoảng hợp lý dưới đây:",
   "invitation_declined": "Lời mời bị từ chối",
   "invitation_sent_to": "Đã gửi lời mời đến %s",
   "km_h": "km/h",

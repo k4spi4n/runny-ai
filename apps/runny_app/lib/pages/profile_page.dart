@@ -17,6 +17,12 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  // Khoảng giá trị hợp lý cho thể trạng (đồng bộ với cột numeric(5,2) của DB,
+  // tối đa 999.99) — chặn tràn số 22003 và dữ liệu vô lý ngay từ client.
+  static const double _minWeight = 20, _maxWeight = 300; // kg
+  static const double _minHeight = 90, _maxHeight = 250; // cm
+  static const int _minMaxHr = 80, _maxMaxHr = 230; // bpm
+
   final _supabase = Supabase.instance.client;
   final _integrationService = IntegrationService();
   final _socialService = SocialService();
@@ -108,12 +114,22 @@ class _ProfilePageState extends State<ProfilePage> {
 
     final weight = double.tryParse(weightStr);
     final height = double.tryParse(heightStr);
-    final maxHr = int.tryParse(maxHrStr);
+    final maxHr = maxHrStr.isEmpty ? null : int.tryParse(maxHrStr);
 
-    if (weight == null || height == null) {
+    if (weight == null || height == null || (maxHrStr.isNotEmpty && maxHr == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.translate('invalid_weight_height'))),
       );
+      return;
+    }
+
+    // Kiểm tra khoảng hợp lý -> hiện dialog hướng dẫn thay vì để DB ném lỗi tràn số.
+    if (weight < _minWeight ||
+        weight > _maxWeight ||
+        height < _minHeight ||
+        height > _maxHeight ||
+        (maxHr != null && (maxHr < _minMaxHr || maxHr > _maxMaxHr))) {
+      _showInvalidMetricsDialog();
       return;
     }
 
@@ -158,6 +174,68 @@ class _ProfilePageState extends State<ProfilePage> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  /// Dialog nhắc người dùng nhập thể trạng trong khoảng hợp lý (thay vì để lộ
+  /// lỗi tràn số thô của PostgreSQL lên giao diện).
+  void _showInvalidMetricsDialog() {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        title: Text(
+          context.translate('invalid_metrics_title'),
+          style: TextStyle(color: theme.colorScheme.onSurface),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.translate('invalid_metrics_desc'),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            _metricRangeRow(context, Icons.monitor_weight,
+                context.translate('weight'),
+                '${_minWeight.toInt()} – ${_maxWeight.toInt()} kg'),
+            _metricRangeRow(context, Icons.height,
+                context.translate('height'),
+                '${_minHeight.toInt()} – ${_maxHeight.toInt()} cm'),
+            _metricRangeRow(context, Icons.favorite,
+                context.translate('max_hr_label'), '$_minMaxHr – $_maxMaxHr bpm'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.translate('ok')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricRangeRow(
+      BuildContext context, IconData icon, String label, String range) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(label,
+                style: TextStyle(color: colorScheme.onSurfaceVariant)),
+          ),
+          Text(range,
+              style: TextStyle(
+                  color: colorScheme.onSurface, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveMatching() async {

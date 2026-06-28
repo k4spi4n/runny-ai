@@ -15,6 +15,17 @@ class TrainingService {
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T')[0];
 
+  /// Ép giá trị số do AI sinh về khoảng an toàn để không làm tràn cột numeric
+  /// của DB (numeric(5,2) tối đa 999.99; numeric(7,2) tối đa 99999.99). AI đôi
+  /// khi trả pace theo giây hoặc quãng đường theo mét -> nếu không kẹp lại sẽ
+  /// gây lỗi 22003 và lịch tập âm thầm bị đánh dấu 'failed'. Trả null nếu không
+  /// phải số hợp lệ.
+  num? _safeNumeric(dynamic value, {required double max, double min = 0}) {
+    final d = value is num ? value.toDouble() : double.tryParse('$value');
+    if (d == null || d.isNaN || d.isInfinite) return null;
+    return d.clamp(min, max);
+  }
+
   /// Bắt đầu tạo lịch tập ở CHẾ ĐỘ NỀN.
   ///
   /// Chèn ngay một bản ghi `training_schedules` ở trạng thái `generating`
@@ -200,8 +211,10 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
     final values = {
       'user_id': userId,
       'title': planJson['title'] ?? 'Lịch tập của bạn',
-      'target_distance_km': planJson['target_distance_km'],
-      'target_pace_min_per_km': planJson['target_pace_min_per_km'],
+      'target_distance_km':
+          _safeNumeric(planJson['target_distance_km'], max: 99999.99),
+      'target_pace_min_per_km':
+          _safeNumeric(planJson['target_pace_min_per_km'], max: 999.99),
       'goal_description': goal,
       'start_date': _dateOnly(startDate),
       'end_date': _dateOnly(computedEnd),
@@ -239,9 +252,12 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
         'date': _dateOnly(startDate.add(Duration(days: offset))),
         'title': w['title'],
         'description': w['description'],
-        'target_distance_km': w['target_distance_km'],
-        'target_duration_min': w['target_duration_min'],
-        'target_pace_min_per_km': w['target_pace_min_per_km'],
+        'target_distance_km':
+            _safeNumeric(w['target_distance_km'], max: 99999.99),
+        'target_duration_min':
+            _safeNumeric(w['target_duration_min'], max: 99999.99),
+        'target_pace_min_per_km':
+            _safeNumeric(w['target_pace_min_per_km'], max: 999.99),
         'status': 'planned',
       };
     }).toList();

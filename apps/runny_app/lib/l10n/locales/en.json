@@ -210,6 +210,8 @@
   "import_help_generic": "COROS / Suunto / Polar...: export GPX/TCX/FIT from the brand app, then upload here.",
   "integrations": "Integrations",
   "invalid_weight_height": "Please enter valid weight and height",
+  "invalid_metrics_title": "Value out of range",
+  "invalid_metrics_desc": "Please enter your body metrics within the reasonable ranges below:",
   "invitation_declined": "Invitation declined",
   "invitation_sent_to": "Invitation sent to %s",
   "km_h": "km/h",
