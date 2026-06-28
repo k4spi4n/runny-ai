@@ -8,10 +8,15 @@ import 'app.dart';
 import 'theme/theme_provider.dart';
 import 'l10n/language_provider.dart';
 import 'services/nutrition_service.dart';
+import 'services/strava_redirect.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
+
+  // Bắt mã callback của Strava (và dọn URL) TRƯỚC khi Supabase khởi tạo để
+  // Supabase không nhầm `?code=` của Strava là callback đăng nhập PKCE.
+  captureStravaRedirect();
 
   final prefs = await SharedPreferences.getInstance();
 

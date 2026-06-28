@@ -193,15 +193,61 @@ class _ProfilePageState extends State<ProfilePage> {
     final messenger = ScaffoldMessenger.of(context);
     final disconnectedStravaText = context.translate('disconnected_strava');
     final errorText = context.translate('error');
+
+    // Tạm thời: tính năng kết nối Strava đang phát triển -> chỉ hiện thông báo.
+    // (Đường nhập liệu chính hiện tại là import file GPX/FIT/TCX.)
+    if (_stravaId == null) {
+      _showComingSoonDialog();
+      return;
+    }
+
     try {
-      if (_stravaId != null) {
-        await _integrationService.disconnectStrava();
-        messenger.showSnackBar(SnackBar(content: Text(disconnectedStravaText)));
-      } else {
-        await _integrationService.connectStrava();
-      }
+      await _integrationService.disconnectStrava();
+      messenger.showSnackBar(SnackBar(content: Text(disconnectedStravaText)));
       _loadProfile();
     } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('$errorText: $e')));
+    }
+  }
+
+  void _showComingSoonDialog() {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        title: Text(
+          context.translate('feature_in_development'),
+          style: TextStyle(color: theme.colorScheme.onSurface),
+        ),
+        content: Text(
+          context.translate('feature_in_development_desc'),
+          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.translate('ok')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _syncStrava() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final errorText = context.translate('error');
+    messenger.showSnackBar(
+      SnackBar(content: Text(context.translate('strava_syncing'))),
+    );
+    try {
+      final imported = await _integrationService.syncStrava();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(context.translate('strava_synced', ['$imported']))),
+      );
+    } catch (e) {
+      if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('$errorText: $e')));
     }
   }
@@ -555,6 +601,7 @@ class _ProfilePageState extends State<ProfilePage> {
             icon: Icons.directions_run,
             isConnected: _stravaId != null,
             onConnect: _connectStrava,
+            onSync: _syncStrava,
             color: const Color(0xFFFC4C02),
           ),
           const SizedBox(height: 16),
@@ -655,6 +702,7 @@ class _ProfilePageState extends State<ProfilePage> {
     required bool isConnected,
     required VoidCallback onConnect,
     required Color color,
+    VoidCallback? onSync,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -705,6 +753,14 @@ class _ProfilePageState extends State<ProfilePage> {
               ],
             ),
           ),
+          if (isConnected && onSync != null) ...[
+            IconButton(
+              onPressed: onSync,
+              icon: Icon(Icons.sync, color: color),
+              tooltip: context.translate('strava_sync'),
+            ),
+            const SizedBox(width: 4),
+          ],
           ElevatedButton(
             onPressed: onConnect,
             style: ElevatedButton.styleFrom(

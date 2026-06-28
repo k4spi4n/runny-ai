@@ -16,19 +16,65 @@ class IntegrationService {
       throw 'Chưa cấu hình STRAVA_CLIENT_ID trong .env';
     }
 
+    // state=strava giúp phân biệt callback của Strava với mã `code` của Supabase
+    // (PKCE) khi cùng quay về URL gốc của ứng dụng.
     final authUrl = Uri.parse(
       'https://www.strava.com/oauth/authorize'
       '?client_id=$_stravaClientId'
       '&redirect_uri=$_stravaRedirectUri'
       '&response_type=code'
+      '&approval_prompt=auto'
+      '&state=strava'
       '&scope=activity:read_all,profile:read_all'
     );
 
-    if (await canLaunchUrl(authUrl)) {
-      await launchUrl(authUrl, mode: LaunchMode.externalApplication);
-    } else {
-      throw 'Could not launch Strava auth URL';
+    // Trên web mở cùng tab ('_self') để sau khi cấp quyền, Strava redirect quay
+    // lại đúng URL ứng dụng và mã `code` được xử lý. Tham số này bị bỏ qua ngoài web.
+    await launchUrl(
+      authUrl,
+      mode: LaunchMode.platformDefault,
+      webOnlyWindowName: '_self',
+    );
+  }
+
+  /// Đổi authorization code lấy token (qua Edge Function, secret ở server) và
+  /// nhập ngay hoạt động gần đây. Trả về số hoạt động đã nhập.
+  Future<int> exchangeStravaCode(String code) async {
+    try {
+      final res = await _supabase.functions.invoke(
+        'strava_oauth',
+        body: {'action': 'connect', 'code': code},
+      );
+      return _importedFrom(res.data);
+    } on FunctionException catch (e) {
+      throw _functionError(e);
     }
+  }
+
+  /// Đồng bộ thủ công: nhập các hoạt động chạy gần đây từ Strava.
+  Future<int> syncStrava() async {
+    try {
+      final res = await _supabase.functions.invoke(
+        'strava_oauth',
+        body: {'action': 'sync'},
+      );
+      return _importedFrom(res.data);
+    } on FunctionException catch (e) {
+      throw _functionError(e);
+    }
+  }
+
+  int _importedFrom(dynamic data) {
+    if (data is Map && data['imported'] is num) {
+      return (data['imported'] as num).toInt();
+    }
+    return 0;
+  }
+
+  String _functionError(FunctionException e) {
+    final d = e.details;
+    if (d is Map && d['error'] != null) return d['error'].toString();
+    return 'Strava: ${e.reasonPhrase ?? e.details ?? e.status}';
   }
 
   Future<void> connectGarmin() async {
