@@ -194,22 +194,20 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
   _AddFoodMode _mode = _AddFoodMode.manual;
 
   final _nameCtrl = TextEditingController();
+  final _customNameCtrl = TextEditingController();
   final _caloriesCtrl = TextEditingController();
   final _proteinCtrl = TextEditingController();
   final _carbsCtrl = TextEditingController();
   final _fatCtrl = TextEditingController();
-  final _amountCtrl = TextEditingController(text: '1');
-  final _unitCtrl = TextEditingController();
 
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _customNameCtrl.dispose();
     _caloriesCtrl.dispose();
     _proteinCtrl.dispose();
     _carbsCtrl.dispose();
     _fatCtrl.dispose();
-    _amountCtrl.dispose();
-    _unitCtrl.dispose();
     super.dispose();
   }
 
@@ -334,22 +332,13 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _numberField(_amountCtrl, l10n.translate('amount')),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _unitCtrl,
-                decoration: InputDecoration(
-                  labelText: l10n.translate('unit'),
-                  hintText: l10n.translate('portion').toLowerCase(),
-                ),
-              ),
-            ),
-          ],
+        TextField(
+          controller: _customNameCtrl,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: InputDecoration(
+            labelText: l10n.translate('food_name'),
+            prefixIcon: const Icon(Icons.restaurant_menu),
+          ),
         ),
         const SizedBox(height: 12),
         _numberField(_caloriesCtrl, '${l10n.translate('calories')} (kcal)'),
@@ -445,7 +434,7 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
 
   Future<void> _addCustomFood() async {
     final messenger = ScaffoldMessenger.of(context);
-    final name = _nameCtrl.text.trim();
+    final name = _customNameCtrl.text.trim();
     final calories = double.tryParse(_caloriesCtrl.text.trim().replaceAll(',', '.'));
 
     if (name.isEmpty || calories == null || calories <= 0) {
@@ -461,9 +450,8 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
     double parse(TextEditingController c, [double fallback = 0]) =>
         double.tryParse(c.text.trim().replaceAll(',', '.')) ?? fallback;
 
-    final unit = _unitCtrl.text.trim().isEmpty
-        ? context.translate('portion').toLowerCase()
-        : _unitCtrl.text.trim();
+    // Bỏ trường số lượng/đơn vị ở form tự chọn -> dùng mặc định 1 phần.
+    final unit = context.translate('portion').toLowerCase();
 
     final nutritionService = context.read<NutritionService>();
     final successMessage = context.translate('meal_added_log', [name]);
@@ -476,7 +464,7 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
         protein: parse(_proteinCtrl),
         carbs: parse(_carbsCtrl),
         fat: parse(_fatCtrl),
-        amount: parse(_amountCtrl, 1),
+        amount: 1,
         unit: unit,
         mealType: widget.mealType,
         consumedAt: _consumedAtForSelectedDate(),
