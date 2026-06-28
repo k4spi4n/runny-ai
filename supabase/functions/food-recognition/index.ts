@@ -4,7 +4,20 @@ import {
   FoodRecognitionError,
 } from './food_recognition_service.ts';
 
-const maxImageBytes = 5 * 1024 * 1024;
+// =============================================================================
+// Food recognition proxy (Groq vision). Giu API key o server, ap dat guardrails
+// chong lam dung & spam giong function `openrouter`:
+//   1. Yeu cau user da dang nhap (JWT role == authenticated).
+//   2. Kiem tra dinh dang/kich thuoc anh (multipart, magic-byte, min/max size).
+//   3. Rate-limit theo user qua RPC check_ai_rate_limit (han muc rieng, chat hon
+//      chat vi goi vision nang hon). Fail-open neu ha tang chua cau hinh.
+//   4. Loc noi dung: model tu choi anh khong phai mon an (xu ly trong service).
+// =============================================================================
+
+// Groq nhan anh base64 toi da 4MB; base64 phinh ~4/3 lan so voi raw, cong them
+// phan data-URL prefix + JSON wrapping -> gioi han raw an toan ~2.8MB.
+const maxImageBytes = 2_900_000;
+const minImageBytes = 1024; // < 1KB gan nhu chac chan khong phai anh mon an that
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,6 +30,89 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+function envInt(name: string, fallback: number): number {
+  const v = parseInt(Deno.env.get(name) ?? '', 10);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+}
+
+// Han muc rieng cho nhan dien anh: chat hon chat van ban vi goi vision ton kem hon.
+// Dung chung bo dem voi function openrouter (cung bang ai_rate_limit theo user).
+const FOOD_MAX_PER_MIN = () => envInt('FOOD_AI_MAX_PER_MIN', 6);
+const FOOD_MAX_PER_DAY = () => envInt('FOOD_AI_MAX_PER_DAY', 50);
+
+// --- Guardrail 1: lay user id tu JWT. Tra null neu khong phai user da dang nhap. ---
+function getUserId(req: Request): string | null {
+  const auth = req.headers.get('Authorization') ?? req.headers.get('authorization');
+  if (!auth) return null;
+  const token = auth.replace(/^Bearer\s+/i, '').trim();
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+  try {
+    let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    b64 += '='.repeat((4 - (b64.length % 4)) % 4); // bu padding base64url
+    const payload = JSON.parse(atob(b64));
+    if (payload.role !== 'authenticated') return null; // tu choi anon key
+    return typeof payload.sub === 'string' ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
+// --- Guardrail 3: rate-limit theo user (chong spam). Fail-open neu chua cau hinh. ---
+async function checkRateLimit(userId: string): Promise<{ allowed: boolean; reason?: string }> {
+  const url = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !serviceKey) {
+    console.warn('Rate limit skipped: SUPABASE_URL/SERVICE_ROLE_KEY not set.');
+    return { allowed: true };
+  }
+  try {
+    const res = await fetch(`${url}/rest/v1/rpc/check_ai_rate_limit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        p_user_id: userId,
+        p_max_per_min: FOOD_MAX_PER_MIN(),
+        p_max_per_day: FOOD_MAX_PER_DAY(),
+      }),
+    });
+    if (!res.ok) {
+      console.warn(`check_ai_rate_limit RPC returned ${res.status}`);
+      return { allowed: true }; // fail-open
+    }
+    const data = await res.json();
+    return { allowed: data?.allowed !== false, reason: data?.reason };
+  } catch (e) {
+    console.warn(`check_ai_rate_limit RPC failed: ${e}`);
+    return { allowed: true }; // fail-open
+  }
+}
+
+// --- Guardrail 2: xac thuc anh that bang magic-byte (phong thu sau, khong tin
+// vao content-type/ten file do client gui). Tra ve mime chuan hoac null. ---
+function detectImageMime(bytes: Uint8Array): string | null {
+  if (bytes.length < 12) return null;
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    return 'image/png';
+  }
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return 'image/gif';
+  if (
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) {
+    return 'image/webp';
+  }
+  if (bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+    return 'image/heic';
+  }
+  return null;
 }
 
 serve(async (req) => {
@@ -34,6 +130,12 @@ serve(async (req) => {
   }
 
   try {
+    // --- Guardrail 1: yeu cau user da dang nhap. ---
+    const userId = getUserId(req);
+    if (!userId) {
+      return jsonResponse({ error: 'Bạn cần đăng nhập để dùng tính năng nhận diện món ăn.' }, 401);
+    }
+
     const contentType = req.headers.get('content-type') ?? '';
     if (!contentType.toLowerCase().includes('multipart/form-data')) {
       return jsonResponse(
@@ -49,26 +151,38 @@ serve(async (req) => {
       return jsonResponse({ error: 'No image file was uploaded.' }, 400);
     }
 
-    const looksLikeImage =
-      uploadedFile.type.toLowerCase().startsWith('image/') ||
-      /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(uploadedFile.name);
-
-    if (!looksLikeImage) {
-      return jsonResponse({ error: 'Uploaded file must be an image.' }, 415);
-    }
-
     if (uploadedFile.size > maxImageBytes) {
       return jsonResponse(
         { error: `Image is too large. Maximum size is ${maxImageBytes / 1024 / 1024}MB.` },
         413,
       );
     }
+    if (uploadedFile.size < minImageBytes) {
+      return jsonResponse({ error: 'Ảnh quá nhỏ hoặc rỗng. Vui lòng chọn ảnh món ăn rõ ràng.' }, 400);
+    }
 
     const bytes = new Uint8Array(await uploadedFile.arrayBuffer());
+
+    // --- Guardrail 2: xac thuc anh that (magic-byte), khong tin content-type client. ---
+    const mime = detectImageMime(bytes);
+    if (!mime) {
+      return jsonResponse({ error: 'Tệp tải lên không phải ảnh hợp lệ.' }, 415);
+    }
+
+    // --- Guardrail 3: rate-limit theo user (chong spam). ---
+    const rate = await checkRateLimit(userId);
+    if (!rate.allowed) {
+      const msg = rate.reason === 'day'
+        ? 'Bạn đã đạt giới hạn nhận diện món ăn trong ngày. Vui lòng thử lại vào ngày mai.'
+        : 'Bạn đang gửi yêu cầu quá nhanh. Vui lòng chờ một lát rồi thử lại.';
+      return jsonResponse({ error: msg }, 429);
+    }
+
+    // --- Guardrail 4: loc noi dung (tu choi anh khong phai mon an) o trong service. ---
     const service = createFoodRecognitionService();
     const result = await service.analyze({
       filename: uploadedFile.name,
-      contentType: uploadedFile.type,
+      contentType: mime,
       byteLength: uploadedFile.size,
       bytes,
     });

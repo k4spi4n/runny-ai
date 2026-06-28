@@ -18,7 +18,8 @@ class FoodRecognitionException implements Exception {
 }
 
 class FoodRecognitionService {
-  static const int maxImageBytes = 5 * 1024 * 1024;
+  // Khop gioi han server: Groq nhan anh base64 <= 4MB (~2.8MB raw sau khi phinh).
+  static const int maxImageBytes = 2900000;
 
   final SupabaseClient _supabase;
   final http.Client _httpClient;
@@ -43,7 +44,7 @@ class FoodRecognitionService {
     }
 
     if (bytes.length > maxImageBytes) {
-      throw const FoodRecognitionException('Anh qua lon. Vui long chon anh nho hon 5MB.');
+      throw const FoodRecognitionException('Anh qua lon. Vui long chon anh nho hon 2.8MB.');
     }
 
     final supabaseUrl = dotenv.env['SUPABASE_URL'];
@@ -178,8 +179,11 @@ class FoodRecognitionService {
     return trimmed;
   }
 
+  // Mock chi bat khi dev co tinh dat FOOD_RECOGNITION_MOCK=true trong .env client.
+  // Mac dinh TAT: de loi that tu server (chua dang nhap / vuot han muc / khong phai
+  // mon an) duoc hien thi cho nguoi dung thay vi bi thay bang du lieu gia.
   bool get _shouldUseMockFallback {
-    return (dotenv.env['FOOD_RECOGNITION_PROVIDER'] ?? 'mock').toLowerCase() == 'mock';
+    return (dotenv.env['FOOD_RECOGNITION_MOCK'] ?? 'false').toLowerCase() == 'true';
   }
 
   FoodRecognitionResult _mockAnalyze(String filename) {
