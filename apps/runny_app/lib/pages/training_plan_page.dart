@@ -187,13 +187,22 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                         const SizedBox(height: 12),
                         Text(context.translate('ai_keeping_pace'), style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
                         const SizedBox(height: 20),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
+                        // Row 3 cột co giãn -> luôn nằm cùng hàng và nén lại trên
+                        // mobile thay vì xuống dòng tốn không gian.
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _PlanMetricCard(label: context.translate('workout'), value: '${_workouts.length}', icon: Icons.fitness_center),
-                            _PlanMetricCard(label: context.translate('completed'), value: '$completionRate%', icon: Icons.check_circle),
-                            _PlanMetricCard(label: context.translate('goal'), value: nextWorkout['target_distance_km']?.toString() ?? '---', icon: Icons.track_changes),
+                            Expanded(
+                              child: _PlanMetricCard(label: context.translate('workout'), value: '${_workouts.length}', icon: Icons.fitness_center),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _PlanMetricCard(label: context.translate('completed'), value: '$completionRate%', icon: Icons.check_circle),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _PlanMetricCard(label: context.translate('goal'), value: nextWorkout['target_distance_km']?.toString() ?? '---', icon: Icons.track_changes),
+                            ),
                           ],
                         ),
                       ],
@@ -205,22 +214,16 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                   else ...[
                     Text(context.translate('next_workout'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
                     const SizedBox(height: 12),
-                    glassCard(
-                      context: context,
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                        leading: Icon(Icons.flag, color: colorScheme.primary, size: 32),
-                        title: Text(nextWorkout['title'] ?? context.translate('next_workout'), style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold)),
-                        subtitle: Text(
-                          '${DateFormat('EEEE, dd MMM').format(DateTime.parse(nextWorkout['date'] as String))} • ${nextWorkout['target_distance_km']} km',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
-                        ),
-                        trailing: ElevatedButton(
-                          onPressed: () => _askWarmUp(nextWorkout),
-                          style: primaryActionButton(context),
-                          child: Text(context.translate('warm_up')),
-                        ),
-                      ),
+                    // Dùng cùng thẻ gập (mũi tên) như lịch chi tiết, mở sẵn và có
+                    // thêm nút "Khởi động" cho buổi tập sắp tới.
+                    _WorkoutScheduleCard(
+                      workout: nextWorkout,
+                      statusColor: _getStatusColor(nextWorkout['status']),
+                      statusIcon: _getStatusIcon(nextWorkout['status']),
+                      onAddActivity: () => _showAddActivityOptions(nextWorkout),
+                      onReschedule: () => _rescheduleWorkout(nextWorkout),
+                      onWarmUp: () => _askWarmUp(nextWorkout),
+                      initiallyExpanded: true,
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -238,6 +241,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                             statusColor: _getStatusColor(workout['status']),
                             statusIcon: _getStatusIcon(workout['status']),
                             onAddActivity: () => _showAddActivityOptions(workout),
+                            onReschedule: () => _rescheduleWorkout(workout),
                           ),
                         );
                       },
@@ -466,6 +470,47 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         return Icons.update;
       default:
         return Icons.directions_run;
+    }
+  }
+
+  /// Đổi lịch (ngày) cho một buổi tập theo ý người dùng.
+  Future<void> _rescheduleWorkout(Map<String, dynamic> workout) async {
+    final firstDate = DateTime.now().subtract(const Duration(days: 365));
+    final lastDate = DateTime.now().add(const Duration(days: 365));
+    final current =
+        DateTime.tryParse(workout['date'] as String? ?? '') ?? DateTime.now();
+    // Kẹp ngày khởi tạo trong [firstDate, lastDate] để tránh assertion.
+    final initial = current.isBefore(firstDate)
+        ? firstDate
+        : (current.isAfter(lastDate) ? lastDate : current);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: lastDate,
+    );
+    if (picked == null) return;
+
+    final newDate = DateFormat('yyyy-MM-dd').format(picked);
+    setState(() => _isLoading = true);
+    try {
+      await _supabase
+          .from('scheduled_workouts')
+          .update({'date': newDate})
+          .eq('id', workout['id']);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.translate('reschedule_success'))),
+        );
+      }
+      await _fetchData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -729,12 +774,19 @@ class _WorkoutScheduleCard extends StatefulWidget {
   final Color statusColor;
   final IconData statusIcon;
   final VoidCallback onAddActivity;
+  final VoidCallback onReschedule;
+  // Chỉ buổi tập sắp tới mới có nút "Khởi động" (null -> ẩn).
+  final VoidCallback? onWarmUp;
+  final bool initiallyExpanded;
 
   const _WorkoutScheduleCard({
     required this.workout,
     required this.statusColor,
     required this.statusIcon,
     required this.onAddActivity,
+    required this.onReschedule,
+    this.onWarmUp,
+    this.initiallyExpanded = false,
   });
 
   @override
@@ -742,7 +794,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
 }
 
 class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
-  bool _expanded = false;
+  late bool _expanded = widget.initiallyExpanded;
 
   @override
   Widget build(BuildContext context) {
@@ -804,25 +856,43 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                     ),
                   ],
                   const SizedBox(height: 14),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: workout['status'] == 'planned'
-                        ? ElevatedButton(
-                            onPressed: widget.onAddActivity,
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (workout['status'] == 'planned') ...[
+                        if (widget.onWarmUp != null)
+                          ElevatedButton.icon(
+                            onPressed: widget.onWarmUp,
                             style: primaryActionButton(context),
-                            child: Text(context.translate('add_activity')),
-                          )
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(widget.statusIcon, color: widget.statusColor),
-                              const SizedBox(width: 8),
-                              Text(
-                                context.translate('status_${workout['status']}'),
-                                style: TextStyle(color: colorScheme.onSurfaceVariant),
-                              ),
-                            ],
+                            icon: const Icon(Icons.local_fire_department, size: 18),
+                            label: Text(context.translate('warm_up')),
                           ),
+                        OutlinedButton.icon(
+                          onPressed: widget.onAddActivity,
+                          icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                          label: Text(context.translate('attach_activity')),
+                        ),
+                      ] else
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(widget.statusIcon, color: widget.statusColor),
+                            const SizedBox(width: 8),
+                            Text(
+                              context.translate('status_${workout['status']}'),
+                              style: TextStyle(color: colorScheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      // Nút "Đặt lịch" có cho mọi buổi tập để đổi ngày theo ý muốn.
+                      OutlinedButton.icon(
+                        onPressed: widget.onReschedule,
+                        icon: const Icon(Icons.event_repeat, size: 18),
+                        label: Text(context.translate('reschedule')),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -850,21 +920,29 @@ class _PlanMetricCard extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      width: 150,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.14) : Colors.black.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: colorScheme.primary, size: 24),
-          const SizedBox(height: 12),
-          Text(value, style: TextStyle(color: colorScheme.onSurface, fontSize: 20, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
-          Text(label, style: TextStyle(color: colorScheme.onSurfaceVariant)),
+          Icon(icon, color: colorScheme.primary, size: 22),
+          const SizedBox(height: 10),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(value, style: TextStyle(color: colorScheme.onSurface, fontSize: 20, fontWeight: FontWeight.w900)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+          ),
         ],
       ),
     );
