@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'training_plan_page.dart';
 import 'ai_coach_page.dart';
@@ -431,11 +432,38 @@ class _OverviewContentState extends State<OverviewContent> {
     return _insightFuture!;
   }
 
+  // Khoá lưu nhận xét AI đã cache (SharedPreferences).
+  static const _insightTextKey = 'dash_insight_text';
+  static const _insightSigKey = 'dash_insight_sig';
+  static const _insightLangKey = 'dash_insight_lang';
+
+  /// Chữ ký của tập buổi chạy gần đây: nhận xét chỉ đổi khi tập này đổi (có buổi
+  /// chạy mới / sửa). Nhờ vậy không gọi lại AI mỗi lần mở lại tab Tổng quan.
+  String _activitiesSignature(List<Activity> activities) {
+    return activities
+        .map((a) => a.id ?? a.startedAt.millisecondsSinceEpoch.toString())
+        .join('|');
+  }
+
   /// Gọi AI để nhận xét ngắn về xu hướng hiệu suất dựa trên các buổi chạy gần đây.
+  /// Có cache bền (SharedPreferences) theo ngôn ngữ + chữ ký buổi chạy: chỉ tạo
+  /// nhận xét mới khi có buổi chạy mới, tránh cập nhật (và tốn quota AI) liên tục.
   Future<String?> _fetchPerformanceInsight(String langCode) async {
     try {
       final activities = await _fetchLatestActivities();
       if (activities.isEmpty) return null;
+
+      final signature = _activitiesSignature(activities);
+      final prefs = await SharedPreferences.getInstance();
+
+      // Dùng lại nhận xét đã cache khi cùng ngôn ngữ và tập buổi chạy không đổi.
+      final cachedText = prefs.getString(_insightTextKey);
+      if (cachedText != null &&
+          cachedText.isNotEmpty &&
+          prefs.getString(_insightLangKey) == langCode &&
+          prefs.getString(_insightSigKey) == signature) {
+        return cachedText;
+      }
 
       final buffer = StringBuffer();
       for (final a in activities) {
@@ -464,7 +492,13 @@ class _OverviewContentState extends State<OverviewContent> {
 
       final insight = await GeminiService().generateResponse(prompt);
       final trimmed = insight.trim();
-      return trimmed.isEmpty ? null : trimmed;
+      if (trimmed.isEmpty) return null;
+
+      // Lưu cache để các lần mở sau dùng lại cho tới khi có buổi chạy mới.
+      await prefs.setString(_insightTextKey, trimmed);
+      await prefs.setString(_insightSigKey, signature);
+      await prefs.setString(_insightLangKey, langCode);
+      return trimmed;
     } catch (e) {
       debugPrint('Performance insight error: $e');
       return null;
@@ -798,13 +832,13 @@ class _OverviewContentState extends State<OverviewContent> {
                               final tempText = weather.temperatureC != null
                                   ? '${weather.temperatureC!.toStringAsFixed(1)}°C'
                                   : '--';
-                              final location =
-                                  weather.locationName ?? context.translate('unknown_location');
 
+                              // Chi hien nhiet do + AQI, bo cac thong tin phu
+                              // (tom tat thoi tiet, dia diem).
                               return Row(
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  if (weather.icon != null)
+                                  if (weather.icon != null) ...[
                                     Image.network(
                                       'https://openweathermap.org/img/wn/${weather.icon}@2x.png',
                                       width: 56,
@@ -816,65 +850,41 @@ class _OverviewContentState extends State<OverviewContent> {
                                                 size: 32,
                                               ),
                                     ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          '$tempText - ${weather.summary ?? context.translate('clear_weather')}',
-                                          style: theme.textTheme.titleLarge
-                                              ?.copyWith(
-                                                color: colorScheme.onSurface,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          children: [
-                                            Flexible(
-                                              child: Text(
-                                                '$location - ',
-                                                style: theme
-                                                    .textTheme
-                                                    .bodyMedium
-                                                    ?.copyWith(
-                                                      color: colorScheme
-                                                          .onSurfaceVariant,
-                                                    ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 2,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: weather.aqiColor
-                                                    .withValues(alpha: 0.2),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                                border: Border.all(
-                                                  color: weather.aqiColor
-                                                      .withValues(alpha: 0.5),
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Text(
-                                                'AQI ${weather.aqi ?? '--'} - ${weather.aqiLabel}',
-                                                style: theme.textTheme.bodySmall
-                                                    ?.copyWith(
-                                                      color: weather.aqiColor,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                    const SizedBox(width: 12),
+                                  ],
+                                  Flexible(
+                                    child: Text(
+                                      tempText,
+                                      style: theme.textTheme.titleLarge
+                                          ?.copyWith(
+                                            color: colorScheme.onSurface,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: weather.aqiColor
+                                          .withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: weather.aqiColor
+                                            .withValues(alpha: 0.5),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'AQI ${weather.aqi ?? '--'} - ${weather.aqiLabel}',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: weather.aqiColor,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ],
