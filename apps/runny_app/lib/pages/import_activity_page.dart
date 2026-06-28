@@ -8,6 +8,8 @@ import '../l10n/app_localizations.dart';
 import '../widgets/ui_components.dart';
 import '../models/shoe_models.dart';
 
+enum _ImportOutcome { imported, duplicate, failed }
+
 class ImportActivityPage extends StatefulWidget {
   final String? scheduledWorkoutId;
   const ImportActivityPage({super.key, this.scheduledWorkoutId});
@@ -48,132 +50,161 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     }
   }
 
-  Future<void> _pickAndImportFile() async {
-    final localizations = AppLocalizations.of(context);
+  Future<void> _pickAndImportFiles() async {
+    final l = AppLocalizations.of(context);
     try {
       setState(() {
         _isLoading = true;
-        _statusMessage =
-            localizations?.translate('selecting_file') ?? 'selecting_file';
+        _statusMessage = l?.translate('selecting_file') ?? 'selecting_file';
       });
 
-      FilePickerResult? result = await FilePicker.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['gpx', 'fit'],
+        allowedExtensions: ['gpx', 'fit', 'tcx'],
+        allowMultiple: true,
         withData: true,
       );
 
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        final extension = file.extension?.toLowerCase();
-
+      if (result == null || result.files.isEmpty) {
         setState(() {
           _statusMessage =
-              localizations?.translate('analyzing_file', [file.name]) ??
-              'analyzing_file';
+              l?.translate('import_cancelled') ?? 'import_cancelled';
+        });
+        return;
+      }
+
+      int imported = 0;
+      int duplicate = 0;
+      int failed = 0;
+      String? firstImportedId;
+
+      for (var i = 0; i < result.files.length; i++) {
+        final file = result.files[i];
+        setState(() {
+          _statusMessage = l?.translate('importing_progress', [
+                '${i + 1}',
+                '${result.files.length}',
+              ]) ??
+              'importing_progress';
         });
 
-        // Parse file
-        final bytes = file.bytes;
-        if (bytes == null) {
-          throw Exception(
-            localizations?.translate('read_file_error') ?? 'read_file_error',
-          );
-        }
-
-        final parsedActivity = await ActivityParser.parse(
-          bytes,
-          extension ?? '',
-        );
-
-        WeatherSnapshot? weatherSnapshot;
-        if (parsedActivity.startLat != null &&
-            parsedActivity.startLon != null) {
-          try {
-            setState(() {
-              _statusMessage =
-                  localizations?.translate('fetching_weather') ??
-                  'fetching_weather';
-            });
-            weatherSnapshot = await _weatherService.fetchWeatherSnapshot(
-              lat: parsedActivity.startLat!,
-              lon: parsedActivity.startLon!,
-            );
-          } catch (e) {
-            weatherSnapshot = null;
+        try {
+          final outcome = await _importOne(file, l);
+          switch (outcome.$1) {
+            case _ImportOutcome.imported:
+              imported++;
+              firstImportedId ??= outcome.$2;
+              break;
+            case _ImportOutcome.duplicate:
+              duplicate++;
+              break;
+            case _ImportOutcome.failed:
+              failed++;
+              break;
           }
+        } catch (e) {
+          failed++;
+          debugPrint('Import file ${file.name} error: $e');
         }
+      }
 
-        setState(() {
-          _statusMessage =
-              localizations?.translate('saving_to_db') ?? 'saving_to_db';
-        });
+      // Mở từ một buổi tập -> gắn hoạt động đầu tiên nhập được vào buổi tập đó.
+      if (widget.scheduledWorkoutId != null && firstImportedId != null) {
+        await Supabase.instance.client
+            .from('scheduled_workouts')
+            .update({'activity_id': firstImportedId, 'status': 'completed'})
+            .eq('id', widget.scheduledWorkoutId!);
+      }
 
-        // Save to Supabase
-        final activityRes = await Supabase.instance.client
-            .from('activities')
-            .insert({
-              'user_id': Supabase.instance.client.auth.currentUser!.id,
-              'started_at': parsedActivity.startedAt.toIso8601String(),
-              'distance_km': parsedActivity.distanceKm,
-              'duration_min': parsedActivity.durationMin,
-              'avg_hr': parsedActivity.avgHr,
-              'elevation_gain_m': parsedActivity.elevationGainM,
-              'data_points': parsedActivity.dataPoints,
-              'start_lat': parsedActivity.startLat,
-              'start_lon': parsedActivity.startLon,
-              'weather_summary': weatherSnapshot?.summary,
-              'temperature_c': weatherSnapshot?.temperatureC,
-              'aqi': weatherSnapshot?.aqi,
-              'weather_json': weatherSnapshot?.toJson(),
-              'weather_fetched_at': weatherSnapshot?.fetchedAt
-                  .toIso8601String(),
-              'notes':
-                  localizations?.translate('imported_from', [file.name]) ??
-                  'imported_from',
-              if (_selectedShoeId != null) 'shoe_id': _selectedShoeId,
-            })
-            .select('id')
-            .single();
+      setState(() {
+        _statusMessage = l?.translate('imported_summary', [
+              '$imported',
+              '$duplicate',
+              '$failed',
+            ]) ??
+            'imported_summary';
+      });
 
-        final activityId = activityRes['id'] as String;
-
-        if (widget.scheduledWorkoutId != null) {
-          await Supabase.instance.client
-              .from('scheduled_workouts')
-              .update({'activity_id': activityId, 'status': 'completed'})
-              .eq('id', widget.scheduledWorkoutId!);
-        }
-
-        setState(() {
-          _statusMessage =
-              localizations?.translate('import_success') ?? 'import_success';
-        });
-
-        if (mounted) {
-          Future.delayed(const Duration(milliseconds: 1000), () {
-            if (mounted) {
-              Navigator.pop(context, true);
-            }
-          });
-        }
-      } else {
-        setState(() {
-          _statusMessage =
-              localizations?.translate('import_cancelled') ??
-              'import_cancelled';
+      // Chỉ tự đóng khi có ít nhất 1 hoạt động được nhập.
+      if (mounted && imported > 0) {
+        Future.delayed(const Duration(milliseconds: 1300), () {
+          if (mounted) Navigator.pop(context, true);
         });
       }
     } catch (e) {
       setState(() {
         _statusMessage =
-            '${localizations?.translate('import_error') ?? 'import_error'}: $e';
+            '${l?.translate('import_error') ?? 'import_error'}: $e';
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  /// Nhập một file. Trả về (kết quả, id hoạt động nếu có).
+  Future<(_ImportOutcome, String?)> _importOne(
+    PlatformFile file,
+    AppLocalizations? l,
+  ) async {
+    final bytes = file.bytes;
+    if (bytes == null) return (_ImportOutcome.failed, null);
+
+    final parsed = await ActivityParser.parse(
+      bytes,
+      file.extension?.toLowerCase() ?? '',
+    );
+
+    final uid = Supabase.instance.client.auth.currentUser!.id;
+    final startedIso = parsed.startedAt.toIso8601String();
+
+    // Chống trùng: đã có hoạt động cùng thời điểm bắt đầu cho user này.
+    final existing = await Supabase.instance.client
+        .from('activities')
+        .select('id')
+        .eq('user_id', uid)
+        .eq('started_at', startedIso)
+        .maybeSingle();
+    if (existing != null) {
+      return (_ImportOutcome.duplicate, existing['id'] as String);
+    }
+
+    WeatherSnapshot? weather;
+    if (parsed.startLat != null && parsed.startLon != null) {
+      try {
+        weather = await _weatherService.fetchWeatherSnapshot(
+          lat: parsed.startLat!,
+          lon: parsed.startLon!,
+        );
+      } catch (_) {
+        weather = null;
+      }
+    }
+
+    final res = await Supabase.instance.client
+        .from('activities')
+        .insert({
+          'user_id': uid,
+          'started_at': startedIso,
+          'distance_km': parsed.distanceKm,
+          'duration_min': parsed.durationMin,
+          'avg_hr': parsed.avgHr,
+          'elevation_gain_m': parsed.elevationGainM,
+          'data_points': parsed.dataPoints,
+          'start_lat': parsed.startLat,
+          'start_lon': parsed.startLon,
+          'weather_summary': weather?.summary,
+          'temperature_c': weather?.temperatureC,
+          'aqi': weather?.aqi,
+          'weather_json': weather?.toJson(),
+          'weather_fetched_at': weather?.fetchedAt.toIso8601String(),
+          'notes':
+              l?.translate('imported_from', [file.name]) ?? 'imported_from',
+          if (_selectedShoeId != null) 'shoe_id': _selectedShoeId,
+        })
+        .select('id')
+        .single();
+
+    return (_ImportOutcome.imported, res['id'] as String);
   }
 
   @override
@@ -227,6 +258,15 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                           ),
                           textAlign: TextAlign.center,
                         ),
+                        const SizedBox(height: 6),
+                        Text(
+                          context.translate('multi_file_hint'),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                         if (_activeShoes.isNotEmpty) ...[
                           const SizedBox(height: 24),
                           DropdownButtonFormField<String>(
@@ -269,7 +309,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                           const Center(child: CircularProgressIndicator())
                         else
                           GradientButton.icon(
-                            onPressed: _pickAndImportFile,
+                            onPressed: _pickAndImportFiles,
                             icon: const Icon(
                               Icons.file_upload,
                               color: Colors.white,
@@ -286,6 +326,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                             textAlign: TextAlign.center,
                           ),
                         ],
+                        const SizedBox(height: 16),
+                        _buildExportHelp(context),
                       ],
                     ),
                   ),
@@ -293,6 +335,51 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               ),
             ),
           ),
+    );
+  }
+
+  /// Hướng dẫn ngắn gọn cách export file từ các nền tảng phổ biến.
+  Widget _buildExportHelp(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    Widget row(String key) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.chevron_right, size: 16, color: colorScheme.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  context.translate(key),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+    return Theme(
+      data: theme.copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(bottom: 8),
+        leading: Icon(Icons.help_outline, color: colorScheme.primary),
+        title: Text(
+          context.translate('import_help_title'),
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        children: [
+          row('import_help_strava'),
+          row('import_help_garmin'),
+          row('import_help_generic'),
+        ],
+      ),
     );
   }
 }

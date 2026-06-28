@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:gpx/gpx.dart';
 import 'package:fit_tool/fit_tool.dart';
+import 'package:xml/xml.dart';
 
 class ParsedActivity {
   final DateTime startedAt;
@@ -32,9 +33,171 @@ class ActivityParser {
       return _parseGpx(bytes);
     } else if (extension == 'fit') {
       return _parseFit(bytes);
+    } else if (extension == 'tcx') {
+      return _parseTcx(bytes);
     } else {
       throw Exception('Định dạng không hỗ trợ: $extension');
     }
+  }
+
+  /// Parse TCX (XML từ Garmin/COROS/Strava...). TCX thường kèm nhịp tim và quãng
+  /// đường tích luỹ (DistanceMeters) -> chính xác hơn GPX cho pace/HR.
+  static Future<ParsedActivity> _parseTcx(Uint8List bytes) async {
+    final doc = XmlDocument.parse(utf8.decode(bytes));
+
+    String? childText(XmlElement parent, String name) {
+      for (final e in parent.findElements(name)) {
+        return e.innerText.trim();
+      }
+      return null;
+    }
+
+    final trackpoints = doc.findAllElements('Trackpoint').toList();
+    if (trackpoints.isEmpty) {
+      throw Exception('Không tìm thấy Trackpoint trong file TCX.');
+    }
+
+    DateTime? startedAt;
+    DateTime? endedAt;
+    double? startLat;
+    double? startLon;
+    double minEle = double.infinity;
+    double maxEle = double.negativeInfinity;
+
+    final times = <double>[];
+    final distances = <double>[]; // km tích luỹ
+    final elevations = <double>[];
+    final paces = <double>[];
+    final hrs = <double>[];
+
+    double cumKm = 0.0;
+    double? prevLat;
+    double? prevLon;
+    double hrSum = 0;
+    int hrCount = 0;
+
+    for (final tp in trackpoints) {
+      final timeStr = childText(tp, 'Time');
+      final time = timeStr != null ? DateTime.tryParse(timeStr) : null;
+      startedAt ??= time;
+      if (time != null) endedAt = time;
+      final timeOffset = (startedAt != null && time != null)
+          ? time.difference(startedAt).inSeconds.toDouble()
+          : (times.isNotEmpty ? times.last : 0.0);
+
+      double? lat, lon;
+      for (final pos in tp.findElements('Position')) {
+        lat = double.tryParse(childText(pos, 'LatitudeDegrees') ?? '');
+        lon = double.tryParse(childText(pos, 'LongitudeDegrees') ?? '');
+      }
+      if (lat != null && lon != null) {
+        startLat ??= lat;
+        startLon ??= lon;
+      }
+
+      // Quãng đường: ưu tiên DistanceMeters (tích luỹ); thiếu thì dùng haversine.
+      final distM = double.tryParse(childText(tp, 'DistanceMeters') ?? '');
+      if (distM != null) {
+        cumKm = distM / 1000.0;
+      } else if (lat != null &&
+          lon != null &&
+          prevLat != null &&
+          prevLon != null) {
+        cumKm += _haversine(prevLat, prevLon, lat, lon);
+      }
+      if (lat != null && lon != null) {
+        prevLat = lat;
+        prevLon = lon;
+      }
+
+      final ele = double.tryParse(childText(tp, 'AltitudeMeters') ?? '');
+      if (ele != null) {
+        if (ele < minEle) minEle = ele;
+        if (ele > maxEle) maxEle = ele;
+      }
+
+      double hr = 0;
+      for (final hrEl in tp.findElements('HeartRateBpm')) {
+        final v = double.tryParse(childText(hrEl, 'Value') ?? '');
+        if (v != null) hr = v;
+      }
+      if (hr > 0) {
+        hrs.add(hr);
+        hrSum += hr;
+        hrCount++;
+      }
+
+      if (times.isNotEmpty) {
+        final dDist = cumKm - distances.last;
+        final dTime = timeOffset - times.last;
+        if (dTime > 0 && dDist > 0) {
+          final pace = (dTime / 60.0) / dDist;
+          paces.add(pace > 20 ? 20 : pace);
+        } else {
+          paces.add(paces.isNotEmpty ? paces.last : 0.0);
+        }
+      } else {
+        paces.add(0.0);
+      }
+
+      times.add(timeOffset);
+      distances.add(cumKm);
+      elevations.add(ele ?? 0.0);
+    }
+
+    startedAt ??= DateTime.now();
+    endedAt ??= startedAt;
+
+    // Thời lượng: ưu tiên tổng Lap/TotalTimeSeconds, không thì theo mốc thời gian.
+    double lapSeconds = 0;
+    for (final lap in doc.findAllElements('Lap')) {
+      final secs = double.tryParse(childText(lap, 'TotalTimeSeconds') ?? '');
+      if (secs != null) lapSeconds += secs;
+    }
+    final durationMin = lapSeconds > 0
+        ? lapSeconds / 60.0
+        : endedAt.difference(startedAt).inSeconds / 60.0;
+
+    final elevationGain =
+        (maxEle != double.negativeInfinity && minEle != double.infinity)
+        ? (maxEle - minEle)
+        : 0.0;
+
+    int? avgHr;
+    if (hrCount > 0) {
+      avgHr = (hrSum / hrCount).round();
+    } else {
+      // Dự phòng: lấy trung bình AverageHeartRateBpm của các Lap.
+      double lapHrSum = 0;
+      int lapHrCount = 0;
+      for (final lap in doc.findAllElements('Lap')) {
+        for (final avg in lap.findElements('AverageHeartRateBpm')) {
+          final v = double.tryParse(childText(avg, 'Value') ?? '');
+          if (v != null) {
+            lapHrSum += v;
+            lapHrCount++;
+          }
+        }
+      }
+      if (lapHrCount > 0) avgHr = (lapHrSum / lapHrCount).round();
+    }
+
+    return ParsedActivity(
+      startedAt: startedAt,
+      distanceKm: distances.isNotEmpty ? distances.last : 0.0,
+      durationMin: durationMin,
+      avgHr: avgHr,
+      elevationGainM: elevationGain,
+      startLat: startLat,
+      startLon: startLon,
+      dataPoints: {
+        'times': times,
+        'distances': distances,
+        'elevations': elevations,
+        'paces': paces,
+        'hrs': hrs,
+      },
+    );
   }
 
   static Future<ParsedActivity> _parseGpx(Uint8List bytes) async {
