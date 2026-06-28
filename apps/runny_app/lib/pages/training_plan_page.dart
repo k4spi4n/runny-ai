@@ -173,94 +173,90 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             child: Container(width: 220, height: 220, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [colorScheme.primary.withValues(alpha: 0.08), Colors.transparent]))),
           ),
           SafeArea(
-            // Dùng CustomScrollView (lazy) thay cho SingleChildScrollView+Column:
-            // trên web, SingleChildScrollView paint TẤT CẢ con cùng lúc (không
-            // cull), nên lịch dài (hàng chục buổi tập, mỗi thẻ có ClipRRect +
-            // boxShadow blur) làm tràn giới hạn layer của CanvasKit -> body trắng
-            // mà không ném lỗi. SliverList chỉ build/paint các thẻ trong vùng nhìn.
-            child: CustomScrollView(
-              slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  sliver: SliverToBoxAdapter(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  glassCard(
+                    context: context,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        glassCard(
-                          context: context,
-                          child: Column(
+                        Text(context.translate('plan_details'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: colorScheme.onSurface)),
+                        const SizedBox(height: 12),
+                        Text(context.translate('ai_keeping_pace'), style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
+                        const SizedBox(height: 20),
+                        // Row 3 cột co giãn -> luôn nằm cùng hàng và nén lại trên
+                        // mobile thay vì xuống dòng tốn không gian.
+                        // Bọc IntrinsicHeight: Row nằm trong vùng cuộn dọc (chiều
+                        // cao không giới hạn) nên CrossAxisAlignment.stretch sẽ ép
+                        // con cao vô hạn -> lỗi layout "forces an infinite height"
+                        // làm cả trang trắng (ở release Flutter không in lỗi này).
+                        // IntrinsicHeight cho Row một chiều cao xác định = thẻ cao
+                        // nhất, vừa hợp lệ vừa giữ 3 thẻ cao bằng nhau.
+                        IntrinsicHeight(
+                          child: Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Text(context.translate('plan_details'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: colorScheme.onSurface)),
-                              const SizedBox(height: 12),
-                              Text(context.translate('ai_keeping_pace'), style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
-                              const SizedBox(height: 20),
-                              // Row 3 cột co giãn -> luôn nằm cùng hàng và nén lại trên
-                              // mobile thay vì xuống dòng tốn không gian.
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Expanded(
-                                    child: _PlanMetricCard(label: context.translate('workout'), value: '${_workouts.length}', icon: Icons.fitness_center),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _PlanMetricCard(label: context.translate('completed'), value: '$completionRate%', icon: Icons.check_circle),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _PlanMetricCard(label: context.translate('goal'), value: nextWorkout['target_distance_km']?.toString() ?? '---', icon: Icons.track_changes),
-                                  ),
-                                ],
+                              Expanded(
+                                child: _PlanMetricCard(label: context.translate('workout'), value: '${_workouts.length}', icon: Icons.fitness_center),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _PlanMetricCard(label: context.translate('completed'), value: '$completionRate%', icon: Icons.check_circle),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _PlanMetricCard(label: context.translate('goal'), value: nextWorkout['target_distance_km']?.toString() ?? '---', icon: Icons.track_changes),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 22),
-                        if (allCompleted)
-                          _buildCompletionBanner(context)
-                        else ...[
-                          Text(context.translate('next_workout'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
-                          const SizedBox(height: 12),
-                          // Dùng cùng thẻ gập (mũi tên) như lịch chi tiết, mở sẵn và có
-                          // thêm nút "Khởi động" cho buổi tập sắp tới.
-                          _WorkoutScheduleCard(
-                            workout: nextWorkout,
-                            statusColor: _getStatusColor(nextWorkout['status']),
-                            statusIcon: _getStatusIcon(nextWorkout['status']),
-                            onAddActivity: () => _showAddActivityOptions(nextWorkout),
-                            onReschedule: () => _rescheduleWorkout(nextWorkout),
-                            onWarmUp: () => _askWarmUp(nextWorkout),
-                            initiallyExpanded: true,
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        Text(context.translate('detailed_schedule'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
-                        const SizedBox(height: 14),
                       ],
                     ),
                   ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                  sliver: SliverList.builder(
-                    itemCount: _workouts.length,
-                    itemBuilder: (context, index) {
-                      final workout = _workouts[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: _WorkoutScheduleCard(
-                          workout: workout,
-                          statusColor: _getStatusColor(workout['status']),
-                          statusIcon: _getStatusIcon(workout['status']),
-                          onAddActivity: () => _showAddActivityOptions(workout),
-                          onReschedule: () => _rescheduleWorkout(workout),
-                        ),
-                      );
-                    },
+                  const SizedBox(height: 22),
+                  if (allCompleted)
+                    _buildCompletionBanner(context)
+                  else ...[
+                    Text(context.translate('next_workout'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                    const SizedBox(height: 12),
+                    // Dùng cùng thẻ gập (mũi tên) như lịch chi tiết, mở sẵn và có
+                    // thêm nút "Khởi động" cho buổi tập sắp tới.
+                    _WorkoutScheduleCard(
+                      workout: nextWorkout,
+                      statusColor: _getStatusColor(nextWorkout['status']),
+                      statusIcon: _getStatusIcon(nextWorkout['status']),
+                      onAddActivity: () => _showAddActivityOptions(nextWorkout),
+                      onReschedule: () => _rescheduleWorkout(nextWorkout),
+                      onWarmUp: () => _askWarmUp(nextWorkout),
+                      initiallyExpanded: true,
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  Text(context.translate('detailed_schedule'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                  const SizedBox(height: 14),
+                  Column(
+                    children: List.generate(
+                      _workouts.length,
+                      (index) {
+                        final workout = _workouts[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: _WorkoutScheduleCard(
+                            workout: workout,
+                            statusColor: _getStatusColor(workout['status']),
+                            statusIcon: _getStatusIcon(workout['status']),
+                            onAddActivity: () => _showAddActivityOptions(workout),
+                            onReschedule: () => _rescheduleWorkout(workout),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],

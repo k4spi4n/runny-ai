@@ -1,5 +1,4 @@
 import 'dart:ui';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../theme/theme_provider.dart';
@@ -151,27 +150,17 @@ Widget glassCard({
   EdgeInsetsGeometry padding = const EdgeInsets.all(24),
   BorderRadius borderRadius = const BorderRadius.all(Radius.circular(24)),
 }) {
-  final card = Container(
-    decoration: glassDecoration(context, borderRadius: borderRadius),
-    child: Material(
-      color: Colors.transparent,
-      child: Padding(padding: padding, child: child),
-    ),
-  );
-
-  // Trên web (CanvasKit), nhiều BackdropFilter trong cùng một trang cuộn (vd
-  // lịch tập có hàng chục thẻ buổi tập) khiến cả layer không paint được -> body
-  // trắng mà KHÔNG ném lỗi Dart. Nền mờ đục + viền của glassDecoration đã đủ tạo
-  // hiệu ứng kính, nên bỏ blur thật trên web; vẫn giữ blur cho mobile.
-  if (kIsWeb) {
-    return ClipRRect(borderRadius: borderRadius, child: card);
-  }
-
   return ClipRRect(
     borderRadius: borderRadius,
     child: BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-      child: card,
+      child: Container(
+        decoration: glassDecoration(context, borderRadius: borderRadius),
+        child: Material(
+          color: Colors.transparent,
+          child: Padding(padding: padding, child: child),
+        ),
+      ),
     ),
   );
 }
