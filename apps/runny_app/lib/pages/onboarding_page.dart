@@ -68,6 +68,12 @@ class OnboardingContent extends StatefulWidget {
 }
 
 class _OnboardingContentState extends State<OnboardingContent> {
+  // Khoảng giá trị hợp lý cho thể trạng (đồng bộ với ProfilePage và cột
+  // numeric(5,2) của DB) — ép người dùng nhập đúng ngay khi đăng ký.
+  static const double _minWeight = 20, _maxWeight = 300; // kg
+  static const double _minHeight = 90, _maxHeight = 250; // cm
+  static const int _minMaxHr = 80, _maxMaxHr = 230; // bpm
+
   final _pageController = PageController();
   final _trainingService = TrainingService();
   final _supabase = Supabase.instance.client;
@@ -77,6 +83,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
   final _maxHrController = TextEditingController();
   final _goalController = TextEditingController();
 
+  String? _gender;
   bool _isLoading = false;
   int _currentStep = 0;
 
@@ -126,11 +133,101 @@ class _OnboardingContentState extends State<OnboardingContent> {
 
   void _nextPage() {
     if (_currentStep < 1) {
+      // Bắt buộc nhập đúng thể trạng (trong khoảng hợp lý) trước khi qua bước
+      // mục tiêu — không cho bỏ qua bằng giá trị thiếu/vô lý.
+      if (!_validateMetrics()) return;
       _pageController.nextPage(duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
       setState(() => _currentStep++);
     } else {
       _finishOnboarding();
     }
+  }
+
+  /// Kiểm tra cân nặng, chiều cao, nhịp tim tối đa: bắt buộc nhập và phải nằm
+  /// trong khoảng hợp lý. Hiện snackbar nếu thiếu, dialog nếu ngoài khoảng.
+  bool _validateMetrics() {
+    final weight = double.tryParse(_weightController.text.trim().replaceAll(',', '.'));
+    final height = double.tryParse(_heightController.text.trim().replaceAll(',', '.'));
+    // Nhịp tim tối đa KHÔNG bắt buộc; chỉ kiểm tra khoảng nếu người dùng nhập.
+    final maxHrStr = _maxHrController.text.trim();
+    final maxHr = maxHrStr.isEmpty ? null : int.tryParse(maxHrStr);
+
+    if (weight == null || height == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.translate('onboarding_info_required'))),
+      );
+      return false;
+    }
+
+    if (weight < _minWeight ||
+        weight > _maxWeight ||
+        height < _minHeight ||
+        height > _maxHeight ||
+        (maxHrStr.isNotEmpty && (maxHr == null || maxHr < _minMaxHr || maxHr > _maxMaxHr))) {
+      _showInvalidMetricsDialog();
+      return false;
+    }
+    return true;
+  }
+
+  /// Dialog nhắc nhập thể trạng trong khoảng hợp lý (đồng bộ với ProfilePage).
+  void _showInvalidMetricsDialog() {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        title: Text(
+          context.translate('invalid_metrics_title'),
+          style: TextStyle(color: theme.colorScheme.onSurface),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              context.translate('invalid_metrics_desc'),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            _metricRangeRow(context, Icons.monitor_weight,
+                context.translate('weight'),
+                '${_minWeight.toInt()} – ${_maxWeight.toInt()} kg'),
+            _metricRangeRow(context, Icons.height, context.translate('height'),
+                '${_minHeight.toInt()} – ${_maxHeight.toInt()} cm'),
+            _metricRangeRow(context, Icons.favorite,
+                context.translate('max_hr_label'), '$_minMaxHr – $_maxMaxHr bpm'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.translate('ok')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metricRangeRow(
+      BuildContext context, IconData icon, String label, String range) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(label,
+                style: TextStyle(color: colorScheme.onSurfaceVariant)),
+          ),
+          Text(range,
+              style: TextStyle(
+                  color: colorScheme.onSurface, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
   }
 
   Future<void> _finishOnboarding() async {
@@ -143,7 +240,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
     final height = double.tryParse(heightStr);
     final maxHr = int.tryParse(maxHrStr);
 
-    if (weight == null || height == null || goal.isEmpty) {
+    // Thể trạng đã được kiểm tra ở bước trước (_validateMetrics); kiểm tra lại
+    // để chắc chắn, đồng thời yêu cầu nhập mục tiêu.
+    if (!_validateMetrics()) return;
+    if (goal.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.translate('onboarding_info_required'))),
       );
@@ -156,14 +256,15 @@ class _OnboardingContentState extends State<OnboardingContent> {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      final heightInM = height / 100;
-      final bmi = weight / (heightInM * heightInM);
+      final heightInM = height! / 100;
+      final bmi = weight! / (heightInM * heightInM);
 
       await _supabase.from('profiles').update({
         'weight_kg': weight,
         'height_cm': height,
         'bmi': double.parse(bmi.toStringAsFixed(2)),
         'max_hr': maxHr,
+        'gender': _gender,
         'has_completed_onboarding': true,
       }).eq('id', user.id);
 
@@ -260,6 +361,11 @@ class _OnboardingContentState extends State<OnboardingContent> {
               decoration: themedInputDecoration(context, context.translate('max_hr_label'), hint: context.translate('max_hr_hint'), suffixText: 'bpm', icon: Icons.favorite),
               keyboardType: TextInputType.number,
               style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+            ),
+            const SizedBox(height: 20),
+            GenderSelector(
+              value: _gender,
+              onChanged: (v) => setState(() => _gender = v),
             ),
             const SizedBox(height: 32),
             ElevatedButton(onPressed: _nextPage, style: primaryActionButton(context), child: Text(context.translate('next'))),

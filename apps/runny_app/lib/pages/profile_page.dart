@@ -38,6 +38,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _bioController = TextEditingController();
   final _preferredPaceController = TextEditingController();
 
+  String? _gender;
   String? _stravaId;
   String? _garminId;
   bool _lookingForPartner = false;
@@ -80,6 +81,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _weightController.text = (data['weight_kg'] ?? '').toString();
         _heightController.text = (data['height_cm'] ?? '').toString();
         _maxHrController.text = (data['max_hr'] ?? '').toString();
+        _gender = data['gender'];
         _stravaId = data['strava_id'];
         _garminId = data['garmin_id'];
         _cityController.text = data['city'] ?? '';
@@ -153,6 +155,7 @@ class _ProfilePageState extends State<ProfilePage> {
             'weight_kg': weight,
             'height_cm': height,
             'max_hr': maxHr,
+            'gender': _gender,
             'bmi': bmi,
             'has_completed_onboarding': true,
           })
@@ -623,6 +626,11 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             keyboardType: TextInputType.number,
             style: TextStyle(color: colorScheme.onSurface),
+          ),
+          const SizedBox(height: 20),
+          GenderSelector(
+            value: _gender,
+            onChanged: (v) => setState(() => _gender = v),
           ),
           const SizedBox(height: 24),
           SizedBox(

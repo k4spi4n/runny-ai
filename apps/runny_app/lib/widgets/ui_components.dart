@@ -335,6 +335,96 @@ InputDecoration themedInputDecoration(
   );
 }
 
+/// Bộ chọn giới tính dùng chung cho Onboarding & trang Cá nhân. Lưu giá trị
+/// chuẩn 'male' | 'female' | 'other'; [value] có thể null khi chưa chọn.
+class GenderSelector extends StatelessWidget {
+  final String? value;
+  final ValueChanged<String> onChanged;
+
+  const GenderSelector({super.key, required this.value, required this.onChanged});
+
+  static const List<(String, IconData, String)> _options = [
+    ('male', Icons.male, 'gender_male'),
+    ('female', Icons.female, 'gender_female'),
+    ('other', Icons.transgender, 'gender_other'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          context.translate('gender'),
+          style: TextStyle(
+            color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            for (final (key, icon, labelKey) in _options) ...[
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () => onChanged(key),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: value == key
+                          ? colorScheme.primary.withValues(alpha: 0.15)
+                          : (isDark
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : Colors.black.withValues(alpha: 0.04)),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: value == key
+                            ? colorScheme.primary
+                            : theme.dividerColor.withValues(alpha: 0.18),
+                        width: value == key ? 1.6 : 1.2,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          icon,
+                          size: 22,
+                          color: value == key
+                              ? colorScheme.primary
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          context.translate(labelKey),
+                          style: TextStyle(
+                            color: value == key
+                                ? colorScheme.primary
+                                : colorScheme.onSurface,
+                            fontWeight: value == key
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (key != _options.last.$1) const SizedBox(width: 10),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 Widget badgeLabel(BuildContext context, String text, {Color? background}) {
   final isDark = Theme.of(context).brightness == Brightness.dark;
   return Container(

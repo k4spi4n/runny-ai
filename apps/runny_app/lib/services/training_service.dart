@@ -178,11 +178,26 @@ Phản hồi của bạn PHẢI là một đối tượng JSON có cấu trúc n
 Mục tiêu người dùng: $goal
 Ngày bắt đầu: ${_dateOnly(startDate)}
 $durationConstraint
-Thông tin thể trạng: Cân nặng ${profile['weight_kg']}kg, Chiều cao ${profile['height_cm']}cm, BMI ${profile['bmi']}, Nhịp tim tối đa ${profile['max_hr'] ?? 'chưa rõ'} bpm.
+Thông tin thể trạng: Giới tính ${_genderLabel(profile['gender'])}, Cân nặng ${profile['weight_kg']}kg, Chiều cao ${profile['height_cm']}cm, BMI ${profile['bmi']}, Nhịp tim tối đa ${profile['max_hr'] ?? 'chưa rõ'} bpm.
 Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseActivities(recentActivities)}
 ''';
 
     return _gemini.generateStructuredResponse(userContext, systemPrompt);
+  }
+
+  /// Chuyển giá trị giới tính chuẩn ('male'/'female'/'other') sang nhãn tiếng
+  /// Việt để đưa vào prompt cho AI.
+  String _genderLabel(dynamic gender) {
+    switch (gender) {
+      case 'male':
+        return 'Nam';
+      case 'female':
+        return 'Nữ';
+      case 'other':
+        return 'Khác';
+      default:
+        return 'chưa rõ';
+    }
   }
 
   String _summariseActivities(List<dynamic> activities) {
