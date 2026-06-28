@@ -39,6 +39,8 @@ export interface FoodRecognitionService {
 // =============================================================================
 
 // Model vision mac dinh. Ghi de bang secret: `supabase secrets set FOOD_RECOGNITION_MODEL=...`
+// qwen/qwen3.6-27b la model multimodal con song tren Groq (llama-4-scout shutdown 2026-07-17).
+// LUU Y: model nay khong ho tro response_format json_object on dinh -> phai prompt JSON + tu parse.
 const GROQ_DEFAULT_VISION_MODEL = 'qwen/qwen3.6-27b';
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
@@ -59,9 +61,32 @@ const SYSTEM_PROMPT =
   'CHỈ trả về JSON đúng schema, không thêm chữ nào khác.';
 
 const USER_PROMPT =
-  'Nhận diện món ăn trong ảnh và trả về JSON theo schema sau (số là số thực, không kèm đơn vị):\n' +
+  'Nhận diện món ăn trong ảnh và CHỈ trả về một đối tượng JSON hợp lệ theo schema sau ' +
+  '(số là số thực, không kèm đơn vị, không thêm chữ hay markdown nào ngoài JSON):\n' +
   '{"is_food": boolean, "food_name": string, "confidence": number (0..1), ' +
   '"nutrition": {"calories": number (kcal), "protein": number (g), "carbs": number (g), "fat": number (g)}}';
+
+// Trich JSON tu noi dung model tra ve, chiu duoc fence markdown (```json ... ```)
+// hoac chu thua quanh JSON. Tra ve null neu khong tim thay JSON hop le.
+function extractJsonObject(content: string): Record<string, unknown> | null {
+  // Bo khoi suy luan <think>...</think> neu model van tra ve dang raw.
+  const trimmed = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  // Uu tien thu parse truc tiep (truong hop model tra ve JSON thuan).
+  try {
+    return JSON.parse(trimmed) as Record<string, unknown>;
+  } catch {
+    // bo qua, thu trich tu trong chuoi
+  }
+  // Lay tu dau '{' den cuoi '}' de bo fence/chu thua.
+  const start = trimmed.indexOf('{');
+  const end = trimmed.lastIndexOf('}');
+  if (start === -1 || end === -1 || end <= start) return null;
+  try {
+    return JSON.parse(trimmed.slice(start, end + 1)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -110,9 +135,11 @@ export class GroqFoodRecognitionService implements FoodRecognitionService {
               ],
             },
           ],
-          response_format: { type: 'json_object' },
+          // Tat che do suy luan (thinking) cua qwen3.6: tranh dot het token vao reasoning
+          // khien `content` rong/cut -> JSON khong parse duoc.
+          reasoning_effort: 'none',
           temperature: 0.2,
-          max_tokens: 500,
+          max_tokens: 700,
         }),
       });
     } catch (e) {
@@ -137,18 +164,22 @@ export class GroqFoodRecognitionService implements FoodRecognitionService {
     }
 
     const payload = await res.json();
-    const content: unknown = payload?.choices?.[0]?.message?.content;
+    const choice = payload?.choices?.[0];
+    const content: unknown = choice?.message?.content;
     if (typeof content !== 'string' || content.trim().length === 0) {
+      console.error(
+        `Groq vision tra ve content rong. finish_reason=${choice?.finish_reason}`,
+      );
       throw new FoodRecognitionError(
         'food_not_recognized',
         'AI không nhận diện được món ăn trong ảnh. Vui lòng thử ảnh khác rõ hơn.',
       );
     }
 
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(content);
-    } catch {
+    const parsed = extractJsonObject(content);
+    if (!parsed) {
+      // Log mot doan ngan de chan doan khi model tra ve dinh dang la.
+      console.error(`Groq vision content khong parse duoc JSON: ${content.slice(0, 300)}`);
       throw new FoodRecognitionError(
         'food_not_recognized',
         'AI không nhận diện được món ăn trong ảnh. Vui lòng thử ảnh khác rõ hơn.',
