@@ -17,6 +17,10 @@ import '../services/nutrition_service.dart';
 import '../models/workout_models.dart';
 import '../services/weather_service.dart';
 import '../services/gemini_service.dart';
+import '../services/dashboard_layout.dart';
+import '../services/integration_service.dart';
+import '../services/strava_redirect.dart';
+import '../widgets/dashboard_settings_sheet.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
@@ -34,13 +38,19 @@ class _DashboardPageState extends State<DashboardPage> {
 
   late final List<Widget> _pages;
   late final List<HoverSync> _navSyncs;
+  // Bố cục tùy chỉnh của trang Tổng quan (ẩn/hiện + sắp xếp các mục). Mỗi màn
+  // hình tự quản cấu hình riêng; hiện chỉ dashboard có tùy chọn.
+  final DashboardLayout _dashboardLayout = DashboardLayout();
+  final IntegrationService _integrationService = IntegrationService();
 
   @override
   void initState() {
     super.initState();
     _navSyncs = List.generate(7, (_) => HoverSync());
+    _dashboardLayout.load();
     _pages = [
       OverviewContent(
+        layout: _dashboardLayout,
         onViewAllActivities: () => setState(() => _selectedIndex = 2),
       ),
       const NutritionPage(),
@@ -54,7 +64,33 @@ class _DashboardPageState extends State<DashboardPage> {
     // Request location on entry to ensure weather can be fetched.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _requestLocationOnEntry();
+      _handleStravaRedirect();
     });
+  }
+
+  /// Sau khi người dùng cấp quyền Strava, trình duyệt quay về app kèm ?code=...
+  /// -> đổi lấy token và nhập hoạt động, rồi dọn URL.
+  Future<void> _handleStravaRedirect() async {
+    final code = takePendingStravaCode();
+    if (code == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final errorText = context.translate('error');
+    messenger.showSnackBar(
+      SnackBar(content: Text(context.translate('strava_connecting'))),
+    );
+    try {
+      final imported = await _integrationService.exchangeStravaCode(code);
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(context.translate('strava_connected_imported', ['$imported'])),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('$errorText: $e')));
+    }
   }
 
   @override
@@ -62,7 +98,23 @@ class _DashboardPageState extends State<DashboardPage> {
     for (var sync in _navSyncs) {
       sync.dispose();
     }
+    _dashboardLayout.dispose();
     super.dispose();
+  }
+
+  /// Mở tùy chọn cấu hình cho màn hình đang hiển thị. Nút này độc lập theo từng
+  /// màn hình: hiện chỉ Tổng quan có tùy chọn, các màn khác báo "chưa có".
+  void _openScreenSettings() {
+    if (_selectedIndex == 0) {
+      DashboardSettingsSheet.show(context, _dashboardLayout);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.translate('no_screen_settings')),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   NavigationRailDestination _buildRailDestination({
@@ -180,6 +232,11 @@ class _DashboardPageState extends State<DashboardPage> {
         actions: [
           const LanguageSwitcher(),
           const ThemeToggle(),
+          IconButton(
+            icon: Icon(Icons.tune, color: colorScheme.onSurface),
+            tooltip: context.translate('screen_settings'),
+            onPressed: _openScreenSettings,
+          ),
           IconButton(
             icon: Icon(Icons.add_circle_outline, color: colorScheme.onSurface),
             tooltip: context.translate('import_activity'),
@@ -403,8 +460,13 @@ class _DashboardPageState extends State<DashboardPage> {
 
 class OverviewContent extends StatefulWidget {
   final VoidCallback? onViewAllActivities;
+  final DashboardLayout layout;
 
-  const OverviewContent({super.key, this.onViewAllActivities});
+  const OverviewContent({
+    super.key,
+    required this.layout,
+    this.onViewAllActivities,
+  });
 
   @override
   State<OverviewContent> createState() => _OverviewContentState();
@@ -716,6 +778,209 @@ class _OverviewContentState extends State<OverviewContent> {
     return streak;
   }
 
+  /// Dựng một mục cấu hình được theo key (trả null nếu key không xác định).
+  Widget? _buildSection(
+    String key,
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    int crossAxisCount,
+  ) {
+    switch (key) {
+      case DashboardLayout.nutrition:
+        return _buildNutritionSection(context, theme, colorScheme);
+      case DashboardLayout.performance:
+        return _buildPerformanceSection(
+          context,
+          theme,
+          colorScheme,
+          crossAxisCount,
+        );
+      case DashboardLayout.aiInsight:
+        return _buildAiInsightSection(context, theme, colorScheme);
+    }
+    return null;
+  }
+
+  Widget _buildNutritionSection(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            context.translate('nutrition_status'),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Consumer<NutritionService>(
+          builder: (context, nutrition, _) {
+            final summary = nutrition.getDailySummary(DateTime.now());
+            return NutritionOverviewCard(summary: summary);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPerformanceSection(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    int crossAxisCount,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            context.translate('performance_overview'),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        FutureBuilder<Map<String, dynamic>>(
+          future: _fetchStats(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final stats =
+                snapshot.data ??
+                {
+                  'totalDistance': 0.0,
+                  'totalSessions': 0,
+                  'avgPace': 0.0,
+                  'avgHr': 0,
+                };
+
+            String formattedPace = "-:--";
+            if (stats['avgPace'] > 0) {
+              int min = stats['avgPace'].floor();
+              int sec = ((stats['avgPace'] - min) * 60).round();
+              formattedPace = "$min:${sec.toString().padLeft(2, '0')}";
+            }
+
+            return GridView.count(
+              crossAxisCount: crossAxisCount,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 1.6,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              children: [
+                PerformanceStatCard(
+                  title: context.translate('distance'),
+                  value:
+                      '${(stats['totalDistance'] as double).toStringAsFixed(1)} km',
+                  icon: Icons.straighten,
+                  gradient: accentPulseGradient,
+                ),
+                PerformanceStatCard(
+                  title: context.translate('sessions'),
+                  value: '${stats['totalSessions']}',
+                  icon: Icons.directions_run,
+                  gradient: secondaryPulseGradient,
+                ),
+                PerformanceStatCard(
+                  title: context.translate('avg_hr'),
+                  value: stats['avgHr'] > 0 ? '${stats['avgHr']} bpm' : '--',
+                  icon: Icons.favorite,
+                  gradient: accentPulseGradient,
+                ),
+                PerformanceStatCard(
+                  title: context.translate('pace'),
+                  value: '$formattedPace /km',
+                  icon: Icons.speed,
+                  gradient: secondaryPulseGradient,
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAiInsightSection(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
+    return FutureBuilder<String?>(
+      future: _insightFor(Localizations.localeOf(context).languageCode),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return glassCard(
+            context: context,
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    context.translate('ai_insight_loading'),
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+        final insight = snapshot.data;
+        if (insight == null || insight.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return glassCard(
+          context: context,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.auto_awesome, color: colorScheme.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    context.translate('ai_insight_title'),
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                insight,
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -943,157 +1208,30 @@ class _OverviewContentState extends State<OverviewContent> {
             ),
           ),
           const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              context.translate('nutrition_status'),
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Consumer<NutritionService>(
-            builder: (context, nutrition, _) {
-              final summary = nutrition.getDailySummary(DateTime.now());
-              return NutritionOverviewCard(summary: summary);
-            },
-          ),
-          const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              context.translate('performance_overview'),
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          FutureBuilder<Map<String, dynamic>>(
-            future: _fetchStats(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final stats =
-                  snapshot.data ??
-                  {
-                    'totalDistance': 0.0,
-                    'totalSessions': 0,
-                    'avgPace': 0.0,
-                    'avgHr': 0,
-                  };
-
-              String formattedPace = "-:--";
-              if (stats['avgPace'] > 0) {
-                int min = stats['avgPace'].floor();
-                int sec = ((stats['avgPace'] - min) * 60).round();
-                formattedPace = "$min:${sec.toString().padLeft(2, '0')}";
-              }
-
-              return GridView.count(
-                crossAxisCount: crossAxisCount,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 1.6,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                children: [
-                  PerformanceStatCard(
-                    title: context.translate('distance'),
-                    value:
-                        '${(stats['totalDistance'] as double).toStringAsFixed(1)} km',
-                    icon: Icons.straighten,
-                    gradient: accentPulseGradient,
-                  ),
-                  PerformanceStatCard(
-                    title: context.translate('sessions'),
-                    value: '${stats['totalSessions']}',
-                    icon: Icons.directions_run,
-                    gradient: secondaryPulseGradient,
-                  ),
-                  PerformanceStatCard(
-                    title: context.translate('avg_hr'),
-                    value: stats['avgHr'] > 0 ? '${stats['avgHr']} bpm' : '--',
-                    icon: Icons.favorite,
-                    gradient: accentPulseGradient,
-                  ),
-
-                  PerformanceStatCard(
-                    title: context.translate('pace'),
-                    value: '$formattedPace /km',
-                    icon: Icons.speed,
-                    gradient: secondaryPulseGradient,
-                  ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          FutureBuilder<String?>(
-            future: _insightFor(Localizations.localeOf(context).languageCode),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return glassCard(
-                  context: context,
-                  child: Row(
-                    children: [
-                      const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          context.translate('ai_insight_loading'),
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
-                        ),
-                      ),
-                    ],
-                  ),
+          // Các mục tùy chỉnh được (ẩn/hiện + sắp xếp) theo cấu hình dashboard.
+          AnimatedBuilder(
+            animation: widget.layout,
+            builder: (context, _) {
+              final children = <Widget>[];
+              for (final key in widget.layout.order) {
+                if (!widget.layout.isVisible(key)) continue;
+                final section = _buildSection(
+                  key,
+                  context,
+                  theme,
+                  colorScheme,
+                  crossAxisCount,
                 );
+                if (section == null) continue;
+                children.add(section);
+                children.add(const SizedBox(height: 24));
               }
-              final insight = snapshot.data;
-              if (insight == null || insight.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              return glassCard(
-                context: context,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.auto_awesome, color: colorScheme.primary, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          context.translate('ai_insight_title'),
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      insight,
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
               );
             },
           ),
-          const SizedBox(height: 24),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
