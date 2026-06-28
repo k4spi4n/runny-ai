@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/training_service.dart';
 import '../services/gemini_service.dart';
 import '../services/chat_service.dart';
 import '../services/speech_service.dart';
+import '../services/nutrition_service.dart';
 import '../widgets/ui_components.dart';
 import '../models/workout_models.dart';
+import '../models/nutrition_models.dart';
 import '../l10n/app_localizations.dart';
+
+/// Các loại dữ liệu người dùng có thể đính kèm cho HLV AI phân tích kèm câu hỏi.
+enum _ChatAttachment { activities, metrics, plan, nutrition }
 
 class AICoachPage extends StatefulWidget {
   final Activity? initialActivity;
@@ -27,6 +35,8 @@ class _AICoachPageState extends State<AICoachPage> {
   bool _isRecording = false;
   String _baseText = '';
   Activity? _contextActivity;
+  // Dữ liệu người dùng chọn đính kèm vào câu hỏi để AI phân tích.
+  final Set<_ChatAttachment> _attachments = {};
 
   @override
   void initState() {
@@ -77,9 +87,17 @@ class _AICoachPageState extends State<AICoachPage> {
       return;
     }
 
+    // Chụp nhanh lựa chọn dữ liệu đính kèm trước khi reset UI (đọc Provider
+    // đồng bộ, không dùng context sau async gap).
+    final attachments = Set<_ChatAttachment>.from(_attachments);
+    final nutritionSummary = attachments.contains(_ChatAttachment.nutrition)
+        ? context.read<NutritionService>().getDailySummary(DateTime.now())
+        : null;
+
     setState(() {
       _messages.add({'role': 'user', 'content': text});
       _isLoading = true;
+      _attachments.clear();
     });
     _controller.clear();
 
@@ -100,6 +118,15 @@ class _AICoachPageState extends State<AICoachPage> {
         text,
       ]);
       setState(() => _contextActivity = null); // Reset context immediately (safe since it's synchronous)
+    }
+
+    // Đính kèm dữ liệu người dùng đã chọn (Hoạt động, Chỉ số, Kế hoạch, Dinh dưỡng).
+    final attachmentBlock = await _buildAttachmentContext(
+      attachments: attachments,
+      nutritionSummary: nutritionSummary,
+    );
+    if (attachmentBlock.isNotEmpty) {
+      prompt = '$attachmentBlock\n\n$prompt';
     }
 
     // Save user message
@@ -151,6 +178,137 @@ class _AICoachPageState extends State<AICoachPage> {
         });
       }
     }
+  }
+
+  /// Tổng hợp dữ liệu người dùng đã chọn thành một khối văn bản để gửi kèm câu
+  /// hỏi cho AI phân tích. Mỗi nguồn lỗi đều fail-soft (bỏ qua, không chặn chat).
+  Future<String> _buildAttachmentContext({
+    required Set<_ChatAttachment> attachments,
+    required DailyNutritionSummary? nutritionSummary,
+  }) async {
+    if (attachments.isEmpty) return '';
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    final buffer = StringBuffer();
+
+    // --- Hoạt động gần đây ---
+    if (attachments.contains(_ChatAttachment.activities)) {
+      try {
+        final rows = await supabase
+            .from('activities')
+            .select()
+            .order('started_at', ascending: false)
+            .limit(7);
+        final activities =
+            (rows as List).map((j) => Activity.fromJson(j)).toList();
+        if (activities.isNotEmpty) {
+          buffer.writeln('• Hoạt động gần đây:');
+          for (final a in activities) {
+            buffer.writeln('  - ${_fmtActivityLine(a)}');
+          }
+        }
+      } catch (e) {
+        debugPrint('Attach activities error: $e');
+      }
+    }
+
+    // --- Chỉ số tổng hợp ---
+    if (attachments.contains(_ChatAttachment.metrics)) {
+      try {
+        final rows = await supabase
+            .from('activities')
+            .select('distance_km, duration_min, avg_hr');
+        final list = rows as List;
+        double dist = 0, dur = 0;
+        int hrSum = 0, hrCount = 0;
+        for (final a in list) {
+          dist += (a['distance_km'] as num).toDouble();
+          dur += (a['duration_min'] as num).toDouble();
+          if (a['avg_hr'] != null) {
+            hrSum += (a['avg_hr'] as num).toInt();
+            hrCount++;
+          }
+        }
+        final pace = dist > 0 ? dur / dist : 0.0;
+        buffer.writeln(
+          '• Chỉ số tổng: ${list.length} buổi, ${dist.toStringAsFixed(1)} km, '
+          'pace TB ${_fmtPace(pace)}/km'
+          '${hrCount > 0 ? ', HR TB ${(hrSum / hrCount).round()} bpm' : ''}.',
+        );
+      } catch (e) {
+        debugPrint('Attach metrics error: $e');
+      }
+    }
+
+    // --- Kế hoạch tập đang hoạt động ---
+    if (attachments.contains(_ChatAttachment.plan) && user != null) {
+      try {
+        final schedule = await supabase
+            .from('training_schedules')
+            .select()
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .maybeSingle();
+        if (schedule != null) {
+          buffer.writeln('• Kế hoạch tập: "${schedule['title']}".');
+          final workouts = await supabase
+              .from('scheduled_workouts')
+              .select('title, date, target_distance_km, status')
+              .eq('schedule_id', schedule['id'])
+              .eq('status', 'planned')
+              .order('date', ascending: true)
+              .limit(5);
+          final ws = workouts as List;
+          if (ws.isNotEmpty) {
+            buffer.writeln('  Buổi sắp tới:');
+            for (final w in ws) {
+              final dist = w['target_distance_km'];
+              buffer.writeln(
+                '  - ${w['date']}: ${w['title']}'
+                '${dist != null ? ' ($dist km)' : ''}',
+              );
+            }
+          }
+        } else {
+          buffer.writeln('• Kế hoạch tập: chưa có lịch tập đang hoạt động.');
+        }
+      } catch (e) {
+        debugPrint('Attach plan error: $e');
+      }
+    }
+
+    // --- Dinh dưỡng hôm nay ---
+    if (attachments.contains(_ChatAttachment.nutrition) &&
+        nutritionSummary != null) {
+      final s = nutritionSummary;
+      buffer.writeln(
+        '• Dinh dưỡng hôm nay: nạp ${s.caloriesIn.toStringAsFixed(0)} kcal, '
+        'tiêu hao ${s.caloriesOut.toStringAsFixed(0)} kcal, '
+        'còn lại ${s.caloriesLeft.toStringAsFixed(0)} kcal '
+        '(mục tiêu ${s.goal.dailyCalories.toStringAsFixed(0)} kcal); '
+        'P ${s.protein.toStringAsFixed(0)}g / C ${s.carbs.toStringAsFixed(0)}g '
+        '/ F ${s.fat.toStringAsFixed(0)}g.',
+      );
+    }
+
+    final body = buffer.toString().trim();
+    if (body.isEmpty) return '';
+    return '[Dữ liệu người dùng đính kèm để phân tích]\n$body';
+  }
+
+  String _fmtPace(double pace) {
+    if (pace <= 0 || pace.isInfinite || pace.isNaN) return '--';
+    final m = pace.floor();
+    final s = ((pace - m) * 60).round();
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  String _fmtActivityLine(Activity a) {
+    final date = DateFormat('dd/MM').format(a.startedAt.toLocal());
+    final pace = a.distanceKm > 0 ? a.durationMin / a.distanceKm : 0.0;
+    return '$date: ${a.distanceKm.toStringAsFixed(1)} km, '
+        '${a.durationMin.toStringAsFixed(0)} phút, pace ${_fmtPace(pace)}/km'
+        '${a.avgHr != null ? ', HR ${a.avgHr} bpm' : ''}';
   }
 
   void _clearHistory() async {
@@ -372,6 +530,7 @@ class _AICoachPageState extends State<AICoachPage> {
                     ),
                   ),
                 if (_isRecording) _buildListeningIndicator(context),
+                _buildAttachmentBar(context),
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
@@ -430,6 +589,85 @@ class _AICoachPageState extends State<AICoachPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Hàng nút chọn dữ liệu đính kèm (cuộn ngang), hiển thị ngay trên ô nhập.
+  Widget _buildAttachmentBar(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final items = <(_ChatAttachment, IconData, String)>[
+      (
+        _ChatAttachment.activities,
+        Icons.directions_run,
+        context.translate('chat_ctx_activities'),
+      ),
+      (
+        _ChatAttachment.metrics,
+        Icons.insights,
+        context.translate('chat_ctx_metrics'),
+      ),
+      (
+        _ChatAttachment.plan,
+        Icons.calendar_month,
+        context.translate('chat_ctx_plan'),
+      ),
+      (
+        _ChatAttachment.nutrition,
+        Icons.restaurant,
+        context.translate('chat_ctx_nutrition'),
+      ),
+    ];
+
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: items.length + 1,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return Center(
+              child: Row(
+                children: [
+                  Icon(Icons.attach_file,
+                      size: 16, color: colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 4),
+                  Text(
+                    context.translate('chat_attach_label'),
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          final (key, icon, label) = items[index - 1];
+          final selected = _attachments.contains(key);
+          return Center(
+            child: FilterChip(
+              avatar: Icon(
+                icon,
+                size: 16,
+                color: selected ? colorScheme.onPrimary : colorScheme.primary,
+              ),
+              label: Text(label),
+              selected: selected,
+              showCheckmark: false,
+              onSelected: (value) => setState(() {
+                if (value) {
+                  _attachments.add(key);
+                } else {
+                  _attachments.remove(key);
+                }
+              }),
+            ),
+          );
+        },
       ),
     );
   }
