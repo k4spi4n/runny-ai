@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,6 +9,7 @@ import '../services/gemini_service.dart';
 import '../services/chat_service.dart';
 import '../services/speech_service.dart';
 import '../services/nutrition_service.dart';
+import '../services/weather_service.dart';
 import '../widgets/ui_components.dart';
 import '../models/workout_models.dart';
 import '../models/nutrition_models.dart';
@@ -30,6 +33,7 @@ class _AICoachPageState extends State<AICoachPage> {
   final GeminiService _geminiService = GeminiService();
   final ChatService _chatService = ChatService();
   final SpeechService _speech = SpeechService();
+  final WeatherService _weatherService = WeatherService();
   final List<Map<String, String>> _messages = [];
   bool _isLoading = false;
   bool _isRecording = false;
@@ -224,7 +228,7 @@ class _AICoachPageState extends State<AICoachPage> {
         try {
           final profile = await supabase
               .from('profiles')
-              .select('height_cm, weight_kg, max_hr')
+              .select('height_cm, weight_kg, max_hr, gender')
               .eq('id', user.id)
               .maybeSingle();
           if (profile != null) {
@@ -232,6 +236,8 @@ class _AICoachPageState extends State<AICoachPage> {
             final h = profile['height_cm'];
             final w = profile['weight_kg'];
             final mhr = profile['max_hr'];
+            final gender = _genderLabel(profile['gender']);
+            if (gender != null) parts.add(gender);
             if (h != null) parts.add('cao ${(h as num).toStringAsFixed(0)} cm');
             if (w != null) {
               parts.add('nặng ${(w as num).toStringAsFixed(0)} kg');
@@ -271,6 +277,11 @@ class _AICoachPageState extends State<AICoachPage> {
       } catch (e) {
         debugPrint('Attach metrics error: $e');
       }
+
+      // Thời tiết hiện tại tại vị trí người dùng (giúp AI tư vấn theo điều kiện
+      // chạy thực tế). Fail-soft: bỏ qua nếu không lấy được vị trí/thời tiết.
+      final weatherLine = await _fetchWeatherLine();
+      if (weatherLine != null) buffer.writeln(weatherLine);
     }
 
     // --- Kế hoạch tập đang hoạt động ---
@@ -327,6 +338,84 @@ class _AICoachPageState extends State<AICoachPage> {
     final body = buffer.toString().trim();
     if (body.isEmpty) return '';
     return '[Dữ liệu người dùng đính kèm để phân tích]\n$body';
+  }
+
+  /// Lấy thời tiết hiện tại tại vị trí người dùng và định dạng thành một dòng
+  /// để đính kèm cho AI. Trả về null nếu không có vị trí hoặc lỗi (fail-soft).
+  Future<String?> _fetchWeatherLine() async {
+    try {
+      final position = await _getCurrentPosition();
+      if (position == null) return null;
+      final w = await _weatherService.fetchWeatherSnapshot(
+        lat: position.latitude,
+        lon: position.longitude,
+      );
+      final parts = <String>[];
+      if (w.temperatureC != null) {
+        parts.add('${w.temperatureC!.toStringAsFixed(1)}°C');
+      }
+      if (w.summary != null) parts.add(w.summary!.toLowerCase());
+      if (w.humidity != null) parts.add('độ ẩm ${w.humidity}%');
+      if (w.windKph != null) parts.add('gió ${w.windKph!.toStringAsFixed(0)} km/h');
+      if (w.aqi != null) parts.add('AQI ${w.aqi} (${w.aqiLabel})');
+      if (parts.isEmpty) return null;
+      final place = w.locationName != null ? ' tại ${w.locationName}' : '';
+      return '• Thời tiết hiện tại$place: ${parts.join(', ')}.';
+    } catch (e) {
+      debugPrint('Attach weather error: $e');
+      return null;
+    }
+  }
+
+  /// Lấy vị trí hiện tại (độ chính xác thấp, đủ cho thời tiết). Web/Debug dùng
+  /// vị trí mặc định (Hà Nội) nếu định vị thất bại.
+  Future<Position?> _getCurrentPosition() async {
+    if (!await Geolocator.isLocationServiceEnabled()) return null;
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return null;
+    }
+    try {
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low,
+        timeLimit: const Duration(seconds: 15),
+      );
+    } catch (e) {
+      debugPrint('AI coach position error: $e');
+      if (kIsWeb || kDebugMode) {
+        return Position(
+          latitude: 21.0285,
+          longitude: 105.8342,
+          timestamp: DateTime.now(),
+          accuracy: 0,
+          altitude: 0,
+          altitudeAccuracy: 0,
+          heading: 0,
+          headingAccuracy: 0,
+          speed: 0,
+          speedAccuracy: 0,
+        );
+      }
+      return Geolocator.getLastKnownPosition();
+    }
+  }
+
+  /// Nhãn tiếng Việt cho giới tính (null nếu chưa đặt) để ghép vào dòng thể trạng.
+  String? _genderLabel(dynamic gender) {
+    switch (gender) {
+      case 'male':
+        return 'giới tính nam';
+      case 'female':
+        return 'giới tính nữ';
+      case 'other':
+        return 'giới tính khác';
+      default:
+        return null;
+    }
   }
 
   String _fmtPace(double pace) {

@@ -51,12 +51,12 @@ class _DashboardPageState extends State<DashboardPage> {
     _pages = [
       OverviewContent(
         layout: _dashboardLayout,
-        onViewAllActivities: () => setState(() => _selectedIndex = 2),
+        onViewAllActivities: () => setState(() => _selectedIndex = 4),
       ),
-      const NutritionPage(),
-      const ActivityHistoryPage(),
       const TrainingPlanPage(),
       const AICoachPage(),
+      const NutritionPage(),
+      const ActivityHistoryPage(),
       const CommunityPage(),
       const ProfilePage(),
     ];
@@ -192,16 +192,6 @@ class _DashboardPageState extends State<DashboardPage> {
         label: context.translate('dashboard'),
       ),
       (
-        icon: Icons.restaurant_outlined,
-        selectedIcon: Icons.restaurant,
-        label: context.translate('nutrition'),
-      ),
-      (
-        icon: Icons.history_outlined,
-        selectedIcon: Icons.history,
-        label: context.translate('history'),
-      ),
-      (
         icon: Icons.calendar_month_outlined,
         selectedIcon: Icons.calendar_month,
         label: context.translate('training_plan'),
@@ -210,6 +200,16 @@ class _DashboardPageState extends State<DashboardPage> {
         icon: Icons.psychology_outlined,
         selectedIcon: Icons.psychology,
         label: context.translate('ai_coach'),
+      ),
+      (
+        icon: Icons.restaurant_outlined,
+        selectedIcon: Icons.restaurant,
+        label: context.translate('nutrition'),
+      ),
+      (
+        icon: Icons.history_outlined,
+        selectedIcon: Icons.history,
+        label: context.translate('history'),
       ),
       (
         icon: Icons.groups_outlined,
