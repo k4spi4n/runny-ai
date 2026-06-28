@@ -260,12 +260,32 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
             const SizedBox(height: 24),
             if (_mode == _AddFoodMode.manual)
               _buildManualEntry(context)
-            else
+            else ...[
+              Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      l10n.translate('ai_photo_hint'),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               FoodRecognitionPanel(
                 mealType: widget.mealType,
                 consumedAt: _consumedAtForSelectedDate(),
                 onSave: _saveRecognizedMeal,
               ),
+            ],
           ],
         ),
       ),
