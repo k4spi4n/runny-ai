@@ -10,6 +10,8 @@ import '../models/shoe_models.dart';
 
 enum _ImportOutcome { imported, duplicate, failed }
 
+enum _InputMode { file, manual }
+
 class ImportActivityPage extends StatefulWidget {
   final String? scheduledWorkoutId;
   const ImportActivityPage({super.key, this.scheduledWorkoutId});
@@ -25,10 +27,31 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   List<Shoe> _activeShoes = [];
   String? _selectedShoeId;
 
+  _InputMode _mode = _InputMode.file;
+
+  // Form nhập thủ công.
+  final _manualFormKey = GlobalKey<FormState>();
+  final _distanceController = TextEditingController();
+  final _durationController = TextEditingController();
+  final _avgHrController = TextEditingController();
+  final _elevationController = TextEditingController();
+  final _notesController = TextEditingController();
+  DateTime _startedAt = DateTime.now();
+
   @override
   void initState() {
     super.initState();
     _fetchActiveShoes();
+  }
+
+  @override
+  void dispose() {
+    _distanceController.dispose();
+    _durationController.dispose();
+    _avgHrController.dispose();
+    _elevationController.dispose();
+    _notesController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchActiveShoes() async {
@@ -207,6 +230,115 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     return (_ImportOutcome.imported, res['id'] as String);
   }
 
+  /// Lưu một hoạt động nhập thủ công (không có file/GPS, nên bỏ qua thời tiết).
+  Future<void> _saveManual() async {
+    final l = AppLocalizations.of(context);
+    if (!(_manualFormKey.currentState?.validate() ?? false)) return;
+
+    final distance = double.tryParse(_distanceController.text.replaceAll(',', '.'));
+    final duration = double.tryParse(_durationController.text.replaceAll(',', '.'));
+    if (distance == null || distance <= 0 || duration == null || duration <= 0) {
+      setState(() {
+        _statusMessage =
+            l?.translate('manual_validation_error') ?? 'manual_validation_error';
+      });
+      return;
+    }
+
+    final avgHr = int.tryParse(_avgHrController.text.trim());
+    final elevation =
+        double.tryParse(_elevationController.text.trim().replaceAll(',', '.'));
+    final notes = _notesController.text.trim();
+
+    try {
+      setState(() => _isLoading = true);
+
+      final uid = Supabase.instance.client.auth.currentUser!.id;
+      final startedIso = _startedAt.toIso8601String();
+
+      // Chống trùng: đã có hoạt động cùng thời điểm bắt đầu cho user này.
+      final existing = await Supabase.instance.client
+          .from('activities')
+          .select('id')
+          .eq('user_id', uid)
+          .eq('started_at', startedIso)
+          .maybeSingle();
+      if (existing != null) {
+        setState(() {
+          _statusMessage = l?.translate('duplicate_activity_error') ??
+              'duplicate_activity_error';
+        });
+        return;
+      }
+
+      final res = await Supabase.instance.client
+          .from('activities')
+          .insert({
+            'user_id': uid,
+            'started_at': startedIso,
+            'distance_km': distance,
+            'duration_min': duration,
+            if (avgHr != null && avgHr > 0) 'avg_hr': avgHr,
+            'elevation_gain_m': ?elevation,
+            'notes': notes.isNotEmpty
+                ? notes
+                : (l?.translate('manual_logged_note') ?? 'manual_logged_note'),
+            if (_selectedShoeId != null) 'shoe_id': _selectedShoeId,
+          })
+          .select('id')
+          .single();
+
+      // Mở từ một buổi tập -> gắn hoạt động vừa lưu vào buổi tập đó.
+      if (widget.scheduledWorkoutId != null) {
+        await Supabase.instance.client
+            .from('scheduled_workouts')
+            .update({'activity_id': res['id'], 'status': 'completed'})
+            .eq('id', widget.scheduledWorkoutId!);
+      }
+
+      setState(() {
+        _statusMessage = l?.translate('activity_saved') ?? 'activity_saved';
+      });
+
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) Navigator.pop(context, true);
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _statusMessage =
+            '${l?.translate('import_error') ?? 'import_error'}: $e';
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _pickStartedAt() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _startedAt,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_startedAt),
+    );
+    if (!mounted) return;
+    setState(() {
+      _startedAt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time?.hour ?? _startedAt.hour,
+        time?.minute ?? _startedAt.minute,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -235,79 +367,53 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                             gradient: secondaryPulseGradient,
                             borderRadius: BorderRadius.circular(24),
                           ),
-                          child: const Icon(
-                            Icons.cloud_upload_outlined,
+                          child: Icon(
+                            _mode == _InputMode.file
+                                ? Icons.cloud_upload_outlined
+                                : Icons.edit_outlined,
                             size: 44,
                             color: Colors.white,
                           ),
                         ),
                         const SizedBox(height: 24),
-                        Text(
-                          context.translate('upload_raw_activity'),
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: colorScheme.onSurface,
-                          ),
-                          textAlign: TextAlign.center,
+                        SegmentedButton<_InputMode>(
+                          segments: [
+                            ButtonSegment(
+                              value: _InputMode.file,
+                              icon: const Icon(Icons.file_upload, size: 18),
+                              label:
+                                  Text(context.translate('upload_file_tab')),
+                            ),
+                            ButtonSegment(
+                              value: _InputMode.manual,
+                              icon: const Icon(Icons.edit, size: 18),
+                              label:
+                                  Text(context.translate('manual_entry_tab')),
+                            ),
+                          ],
+                          selected: {_mode},
+                          onSelectionChanged: _isLoading
+                              ? null
+                              : (selected) {
+                                  setState(() {
+                                    _mode = selected.first;
+                                    _statusMessage = null;
+                                  });
+                                },
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          context.translate('supported_formats'),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          context.translate('multi_file_hint'),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
+                        const SizedBox(height: 24),
+                        if (_mode == _InputMode.file)
+                          _buildFileBody(context)
+                        else
+                          _buildManualBody(context),
                         if (_activeShoes.isNotEmpty) ...[
                           const SizedBox(height: 24),
-                          DropdownButtonFormField<String>(
-                            initialValue: _selectedShoeId,
-                            decoration: themedInputDecoration(
-                              context,
-                              context.translate('select_shoe'),
-                              prefixIcon: FaIcon(
-                                FontAwesomeIcons.shoePrints,
-                                size: 18,
-                                color: colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.7),
-                              ),
-                            ),
-                            dropdownColor: colorScheme.surface,
-                            isExpanded: true,
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                _selectedShoeId = newValue;
-                              });
-                            },
-                            items: _activeShoes.map<DropdownMenuItem<String>>((
-                              Shoe shoe,
-                            ) {
-                              final brand = shoe.brand?.trim();
-                              return DropdownMenuItem<String>(
-                                value: shoe.id,
-                                child: Text(
-                                  brand == null || brand.isEmpty
-                                      ? shoe.name
-                                      : '${shoe.name} ($brand)',
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                          ),
+                          _buildShoeDropdown(context),
                         ],
                         const SizedBox(height: 24),
                         if (_isLoading)
                           const Center(child: CircularProgressIndicator())
-                        else
+                        else if (_mode == _InputMode.file)
                           GradientButton.icon(
                             onPressed: _pickAndImportFiles,
                             icon: const Icon(
@@ -315,6 +421,12 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                               color: Colors.white,
                             ),
                             label: Text(context.translate('select_file')),
+                          )
+                        else
+                          GradientButton.icon(
+                            onPressed: _saveManual,
+                            icon: const Icon(Icons.check, color: Colors.white),
+                            label: Text(context.translate('save_activity')),
                           ),
                         if (_statusMessage != null) ...[
                           const SizedBox(height: 24),
@@ -326,8 +438,10 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                             textAlign: TextAlign.center,
                           ),
                         ],
-                        const SizedBox(height: 16),
-                        _buildExportHelp(context),
+                        if (_mode == _InputMode.file) ...[
+                          const SizedBox(height: 16),
+                          _buildExportHelp(context),
+                        ],
                       ],
                     ),
                   ),
@@ -335,6 +449,200 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               ),
             ),
           ),
+    );
+  }
+
+  /// Phần mô tả cho chế độ tải file.
+  Widget _buildFileBody(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.translate('upload_raw_activity'),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            color: colorScheme.onSurface,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          context.translate('supported_formats'),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          context.translate('multi_file_hint'),
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colorScheme.primary,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  /// Form nhập thủ công: ngày giờ, quãng đường, thời lượng + tùy chọn.
+  Widget _buildManualBody(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    String two(int n) => n.toString().padLeft(2, '0');
+    final dt = _startedAt;
+    final dateLabel =
+        '${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}';
+
+    return Form(
+      key: _manualFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            context.translate('log_run_manually'),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: colorScheme.onSurface,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            context.translate('manual_entry_hint'),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          InkWell(
+            onTap: _isLoading ? null : _pickStartedAt,
+            borderRadius: BorderRadius.circular(12),
+            child: InputDecorator(
+              decoration: themedInputDecoration(
+                context,
+                context.translate('activity_date_time'),
+                icon: Icons.calendar_today,
+              ),
+              child: Text(
+                dateLabel,
+                style: theme.textTheme.bodyLarge,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _distanceController,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('distance_label'),
+              icon: Icons.straighten,
+              suffixText: context.translate('km'),
+            ),
+            validator: (v) {
+              final d = double.tryParse((v ?? '').replaceAll(',', '.'));
+              if (d == null || d <= 0) {
+                return context.translate('manual_validation_error');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _durationController,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('duration_label'),
+              icon: Icons.timer_outlined,
+              suffixText: context.translate('min'),
+            ),
+            validator: (v) {
+              final d = double.tryParse((v ?? '').replaceAll(',', '.'));
+              if (d == null || d <= 0) {
+                return context.translate('manual_validation_error');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _avgHrController,
+            keyboardType: TextInputType.number,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('avg_hr_optional'),
+              icon: Icons.favorite_outline,
+              suffixText: context.translate('bpm'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _elevationController,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('elevation_gain_optional'),
+              icon: Icons.terrain_outlined,
+              suffixText: context.translate('m'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _notesController,
+            maxLines: 2,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('notes_optional'),
+              icon: Icons.notes,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Dropdown chọn giày, dùng chung cho cả hai chế độ.
+  Widget _buildShoeDropdown(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DropdownButtonFormField<String>(
+      initialValue: _selectedShoeId,
+      decoration: themedInputDecoration(
+        context,
+        context.translate('select_shoe'),
+        prefixIcon: FaIcon(
+          FontAwesomeIcons.shoePrints,
+          size: 18,
+          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+        ),
+      ),
+      dropdownColor: colorScheme.surface,
+      isExpanded: true,
+      onChanged: (String? newValue) {
+        setState(() {
+          _selectedShoeId = newValue;
+        });
+      },
+      items: _activeShoes.map<DropdownMenuItem<String>>((Shoe shoe) {
+        final brand = shoe.brand?.trim();
+        return DropdownMenuItem<String>(
+          value: shoe.id,
+          child: Text(
+            brand == null || brand.isEmpty
+                ? shoe.name
+                : '${shoe.name} ($brand)',
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }).toList(),
     );
   }
 
