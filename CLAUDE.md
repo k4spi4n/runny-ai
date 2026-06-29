@@ -39,7 +39,7 @@ Deploy to Render (static web): `bash render-build.sh` (installs Flutter SDK, wri
 ## Configuration
 
 - **Client** `.env` (in `apps/runny_app/`, gitignored; template `.env.example`): only `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and non-secret model hints (`OPENROUTER_MODEL`, `OPENROUTER_MODELS`). **Never put provider API keys here** — the web build bundles `.env` into the client.
-- **Server** secrets: set via `supabase secrets set ...` for cloud, or `supabase/functions/.env` (gitignored) for local. Keys: `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `WAQI_API_KEY`, `OPENWEATHER_API_KEY`, plus Strava vars.
+- **Server** secrets: set via `supabase secrets set ...` for cloud, or `supabase/functions/.env` (gitignored) for local. Keys: `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `WAQI_API_KEY` (optional — weather AQI/location fallback; Open-Meteo is the keyless primary), plus Strava vars.
 
 ## Architecture
 
@@ -58,7 +58,7 @@ The Edge Function enforces server-side **guardrails** in order: (1) require an a
 
 ### Backend (`supabase/`)
 - `migrations/` — timestamped SQL, applied in order. New tables follow a consistent pattern: `user_id uuid references auth.users(id) on delete cascade` + Row Level Security policies scoping rows to the owner. Add a new migration file rather than editing existing ones.
-- `functions/` — Deno/TypeScript Edge Functions: `openrouter` (AI proxy), `weather` (OpenWeather/WAQI proxy), `strava_webhook` (Strava OAuth/webhook ingest), `food-recognition` (currently a mock provider).
+- `functions/` — Deno/TypeScript Edge Functions: `openrouter` (AI proxy), `weather` (Open-Meteo primary for weather + AQI, WAQI fallback; normalizes server-side), `strava_webhook` (Strava OAuth/webhook ingest), `food-recognition` (currently a mock provider).
 
 ### Localization
 Custom JSON-based l10n (not ARB/gen_l10n). Strings live in `lib/l10n/locales/{en,vi}.json`; access via `context.translate('key')` (extension in `lib/l10n/app_localizations.dart`), with `%s` positional args. Add new user-facing strings to **both** locale files.

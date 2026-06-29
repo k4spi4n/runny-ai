@@ -104,6 +104,7 @@ class WeatherService {
     }
   }
 
+  // Proxy `weather` (Open-Meteo chính, WAQI dự phòng) trả về dữ liệu đã chuẩn hoá.
   WeatherSnapshot _parseProxyResponse(dynamic data) {
     final Map<String, dynamic> body;
     try {
@@ -119,63 +120,7 @@ class WeatherService {
       throw Exception('Failed to parse weather data');
     }
 
-    final weatherBody = body['weather'] as Map<String, dynamic>?;
-    final waqiBody = body['waqi'] as Map<String, dynamic>?;
-    final owmAirBody = body['owm_aqi'] as Map<String, dynamic>?;
-
-    final weatherList = (weatherBody?['weather'] as List?) ?? [];
-    final weatherMain = weatherBody?['main'] as Map<String, dynamic>?;
-    final wind = weatherBody?['wind'] as Map<String, dynamic>?;
-
-    int? aqi;
-    double? temp = (weatherMain?['temp'] as num?)?.toDouble();
-    int? humidity = weatherMain?['humidity'] as int?;
-    double? windKph = (wind?['speed'] as num?)?.toDouble() != null
-        ? ((wind?['speed'] as num).toDouble() * 3.6)
-        : null;
-    String? locationName = weatherBody?['name'] as String?;
-
-    final weatherEntry = weatherList.isNotEmpty
-        ? weatherList.first as Map<String, dynamic>
-        : null;
-    String? description = weatherEntry?['description'] as String?;
-    String? icon = weatherEntry?['icon'] as String?;
-
-    // Parse WAQI
-    if (waqiBody != null && waqiBody['status'] == 'ok') {
-      final data = waqiBody['data'] as Map<String, dynamic>;
-      aqi = data['aqi'] as int?;
-
-      if (temp == null ||
-          humidity == null ||
-          windKph == null ||
-          locationName == null) {
-        final iaqi = data['iaqi'] as Map<String, dynamic>?;
-        temp ??= (iaqi?['t']?['v'] as num?)?.toDouble();
-        humidity ??= (iaqi?['h']?['v'] as num?)?.toInt();
-        final wValue = (iaqi?['w']?['v'] as num?)?.toDouble();
-        if (wValue != null && windKph == null) {
-          windKph = wValue * 3.6;
-        }
-        locationName ??= data['city']?['name'] as String?;
-        description ??= 'Dữ liệu từ WAQI';
-      }
-    }
-
-    // Fallback to OWM AQI
-    if (aqi == null && owmAirBody != null) {
-      final list = (owmAirBody['list'] as List?) ?? [];
-      if (list.isNotEmpty) {
-        final main =
-            (list.first as Map<String, dynamic>)['main']
-                as Map<String, dynamic>?;
-        final owmAqi = main?['aqi'] as int?;
-        if (owmAqi != null) {
-          aqi = owmAqi * 40;
-        }
-      }
-    }
-
+    final temp = (body['temperature_c'] as num?)?.toDouble();
     if (temp == null) {
       throw Exception('No temperature data available from Proxy');
     }
@@ -183,13 +128,13 @@ class WeatherService {
     return WeatherSnapshot(
       fetchedAt: DateTime.now(),
       temperatureC: temp,
-      feelsLikeC: temp,
-      humidity: humidity,
-      windKph: windKph,
-      description: description ?? 'Không có thông tin thời tiết',
-      icon: icon,
-      aqi: aqi,
-      locationName: locationName ?? 'Vị trí không xác định',
+      feelsLikeC: (body['feels_like_c'] as num?)?.toDouble() ?? temp,
+      humidity: (body['humidity'] as num?)?.toInt(),
+      windKph: (body['wind_kph'] as num?)?.toDouble(),
+      description: body['description'] as String? ?? 'Không có thông tin thời tiết',
+      icon: body['icon'] as String?,
+      aqi: (body['aqi'] as num?)?.toInt(),
+      locationName: body['location_name'] as String? ?? 'Vị trí không xác định',
     );
   }
 }

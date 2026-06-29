@@ -55,7 +55,8 @@ Phân tích ảnh món ăn và trả về tên món dự đoán cùng ước lư
 Cung cấp thông tin thời tiết và chất lượng không khí dựa trên vị trí địa lý.
 
 - **Đường dẫn**: `POST /functions/v1/weather`
-- **Secrets yêu cầu (phía server)**: cần ít nhất **một trong hai** `WAQI_API_KEY` hoặc `OPENWEATHER_API_KEY`; thiếu cả hai sẽ trả lỗi `500`. `WAQI_API_KEY` cung cấp AQI (và nhiệt độ/độ ẩm/gió nếu trạm đo gần đó có dữ liệu); `OPENWEATHER_API_KEY` cung cấp thời tiết đầy đủ kèm AQI dự phòng.
+- **Nguồn dữ liệu**: **Open-Meteo là nguồn chính** cho cả thời tiết và AQI (`us_aqi`) — không cần API key và phủ sóng theo lưới toàn cầu nên không phụ thuộc vào trạm quan trắc cụ thể. **WAQI là nguồn dự phòng**: dùng cho AQI khi Open-Meteo thiếu dữ liệu và cung cấp tên địa điểm (Open-Meteo không trả về tên thành phố/trạm).
+- **Secrets (phía server)**: `WAQI_API_KEY` là **tuỳ chọn** (chỉ dùng cho dự phòng AQI + tên địa điểm). Open-Meteo không cần key.
 - **Dữ liệu đầu vào**:
   ```json
   {
@@ -63,14 +64,21 @@ Cung cấp thông tin thời tiết và chất lượng không khí dựa trên 
     "lon": 106.660172
   }
   ```
-- **Response**: gộp dữ liệu thô từ các nguồn để client tự parse:
+- **Response**: dữ liệu đã chuẩn hoá phía server (client không cần biết nguồn):
   ```json
   {
-    "weather": { "...": "OpenWeatherMap current weather, null nếu không có key" },
-    "waqi": { "...": "WAQI feed, null nếu không có key/không có trạm" },
-    "owm_aqi": { "...": "OpenWeatherMap air pollution, dùng làm AQI dự phòng" }
+    "source": "open-meteo | waqi | null",
+    "temperature_c": 30.2,
+    "feels_like_c": 34.1,
+    "humidity": 70,
+    "wind_kph": 12.5,
+    "description": "Trời nhiều mây",
+    "icon": "04d",
+    "aqi": 62,
+    "location_name": "Ho Chi Minh City"
   }
   ```
+  Trong đó `icon` theo định dạng mã icon của OpenWeather để client render qua `https://openweathermap.org/img/wn/{icon}@2x.png`.
 
 ### 4. Tiếp nhận Dữ liệu Strava (Webhook)
 Lắng nghe và xử lý thông báo hoạt động từ Strava.
