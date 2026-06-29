@@ -11,12 +11,24 @@ class DashboardLayout extends ChangeNotifier {
   static const String nutrition = 'nutrition';
   static const String performance = 'performance';
   static const String aiInsight = 'ai_insight';
+  static const String todaySchedule = 'today_schedule';
 
   /// Tất cả mục có thể cấu hình (dùng để lọc dữ liệu cũ/không hợp lệ).
-  static const List<String> allKeys = [nutrition, performance, aiInsight];
+  static const List<String> allKeys = [
+    nutrition,
+    performance,
+    aiInsight,
+    todaySchedule,
+  ];
 
-  // Mặc định: nhận xét AI lên đầu (mục được tập trung), hai mục còn lại bị ẩn.
-  static const List<String> _defaultOrder = [aiInsight, nutrition, performance];
+  // Mặc định: nhận xét AI lên đầu, kế đến là lịch tập hôm nay; dinh dưỡng và
+  // tổng quan hiệu suất bị ẩn cho gọn với người dùng mới.
+  static const List<String> _defaultOrder = [
+    aiInsight,
+    todaySchedule,
+    nutrition,
+    performance,
+  ];
   static const List<String> _defaultHidden = [nutrition, performance];
 
   static const String _orderKey = 'dash_section_order';

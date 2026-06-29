@@ -52,6 +52,7 @@ class _DashboardPageState extends State<DashboardPage> {
       OverviewContent(
         layout: _dashboardLayout,
         onViewAllActivities: () => setState(() => _selectedIndex = 4),
+        onViewTrainingPlan: () => setState(() => _selectedIndex = 1),
       ),
       const TrainingPlanPage(),
       const AICoachPage(),
@@ -460,12 +461,14 @@ class _DashboardPageState extends State<DashboardPage> {
 
 class OverviewContent extends StatefulWidget {
   final VoidCallback? onViewAllActivities;
+  final VoidCallback? onViewTrainingPlan;
   final DashboardLayout layout;
 
   const OverviewContent({
     super.key,
     required this.layout,
     this.onViewAllActivities,
+    this.onViewTrainingPlan,
   });
 
   @override
@@ -714,6 +717,27 @@ class _OverviewContentState extends State<OverviewContent> {
     return (response as List).map((json) => Activity.fromJson(json)).toList();
   }
 
+  /// Lấy các buổi tập theo lịch của hôm nay (lịch tập đang hoạt động).
+  Future<List<ScheduledWorkout>> _fetchTodayWorkouts() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return [];
+
+    final now = DateTime.now();
+    final today =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+    final response = await Supabase.instance.client
+        .from('scheduled_workouts')
+        .select()
+        .eq('user_id', user.id)
+        .eq('date', today)
+        .order('date', ascending: true);
+
+    return (response as List)
+        .map((json) => ScheduledWorkout.fromJson(json))
+        .toList();
+  }
+
   Future<Map<String, dynamic>> _fetchStats() async {
     final response = await Supabase.instance.client
         .from('activities')
@@ -798,8 +822,159 @@ class _OverviewContentState extends State<OverviewContent> {
         );
       case DashboardLayout.aiInsight:
         return _buildAiInsightSection(context, theme, colorScheme);
+      case DashboardLayout.todaySchedule:
+        return _buildTodaySchedule(context, theme, colorScheme);
     }
     return null;
+  }
+
+  /// Mục "Lịch tập hôm nay": hiển thị các buổi tập theo lịch của ngày hôm nay.
+  /// Tự ẩn khi đang tải hoặc khi người dùng chưa có lịch tập nào.
+  Widget _buildTodaySchedule(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
+    return FutureBuilder<List<ScheduledWorkout>>(
+      future: _fetchTodayWorkouts(),
+      builder: (context, snapshot) {
+        // Chưa có dữ liệu (đang tải / lỗi) -> không chiếm chỗ trên dashboard.
+        if (snapshot.connectionState == ConnectionState.waiting ||
+            !snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+
+        final workouts = snapshot.data!;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.event_available,
+                    color: colorScheme.primary,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    context.translate('today_schedule'),
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (workouts.isEmpty)
+              glassCard(
+                context: context,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.self_improvement,
+                      color: colorScheme.onSurfaceVariant,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        context.translate('today_no_workout'),
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              ...workouts.map(
+                (w) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  child: glassCard(
+                    context: context,
+                    padding: EdgeInsets.zero,
+                    child: ListTile(
+                      onTap: widget.onViewTrainingPlan,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 10,
+                      ),
+                      leading: Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          gradient: w.status == 'completed'
+                              ? secondaryPulseGradient
+                              : accentPulseGradient,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          w.status == 'completed'
+                              ? Icons.check_circle
+                              : Icons.directions_run,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      title: Text(
+                        w.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      subtitle: Text(
+                        _scheduledWorkoutSubtitle(context, w),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Tóm tắt mục tiêu của buổi tập theo lịch (quãng đường • thời gian • nhịp độ),
+  /// hoặc mô tả/đã hoàn thành nếu không có chỉ số mục tiêu.
+  String _scheduledWorkoutSubtitle(BuildContext context, ScheduledWorkout w) {
+    final parts = <String>[];
+    if (w.targetDistanceKm != null) {
+      parts.add('${w.targetDistanceKm!.toStringAsFixed(1)} km');
+    }
+    if (w.targetDurationMin != null) {
+      parts.add(_formatDuration(w.targetDurationMin!));
+    }
+    if (w.targetPaceMinPerKm != null) {
+      parts.add(
+        '${context.translate('pace')} ${_formatPace(w.targetPaceMinPerKm!)}',
+      );
+    }
+    if (parts.isNotEmpty) {
+      final base = parts.join(' • ');
+      return w.status == 'completed'
+          ? '$base • ${context.translate('today_workout_done')}'
+          : base;
+    }
+    if (w.status == 'completed') return context.translate('today_workout_done');
+    return w.description ?? '';
   }
 
   Widget _buildNutritionSection(
@@ -1099,36 +1274,43 @@ class _OverviewContentState extends State<OverviewContent> {
                                   : '--';
 
                               // Chi hien nhiet do + AQI, bo cac thong tin phu
-                              // (tom tat thoi tiet, dia diem).
-                              return Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
+                              // (tom tat thoi tiet, dia diem). Badge AQI xuong
+                              // dong rieng de khong bi tran/cat tren mobile.
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (weather.icon != null) ...[
-                                    Image.network(
-                                      'https://openweathermap.org/img/wn/${weather.icon}@2x.png',
-                                      width: 56,
-                                      height: 56,
-                                      errorBuilder:
-                                          (context, error, stackTrace) =>
-                                              const Icon(
-                                                Icons.cloud_queue,
-                                                size: 32,
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      if (weather.icon != null) ...[
+                                        Image.network(
+                                          'https://openweathermap.org/img/wn/${weather.icon}@2x.png',
+                                          width: 56,
+                                          height: 56,
+                                          errorBuilder:
+                                              (context, error, stackTrace) =>
+                                                  const Icon(
+                                                    Icons.cloud_queue,
+                                                    size: 32,
+                                                  ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                      ],
+                                      Flexible(
+                                        child: Text(
+                                          tempText,
+                                          style: theme.textTheme.titleLarge
+                                              ?.copyWith(
+                                                color: colorScheme.onSurface,
+                                                fontWeight: FontWeight.bold,
                                               ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                  ],
-                                  Flexible(
-                                    child: Text(
-                                      tempText,
-                                      style: theme.textTheme.titleLarge
-                                          ?.copyWith(
-                                            color: colorScheme.onSurface,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 10),
+                                  const SizedBox(height: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 6,
@@ -1245,7 +1427,10 @@ class _OverviewContentState extends State<OverviewContent> {
                     ),
                   ),
                 ),
-                TextButton(onPressed: () {}, child: Text(context.translate('view_all'))),
+                TextButton(
+                  onPressed: widget.onViewAllActivities,
+                  child: Text(context.translate('view_all')),
+                ),
               ],
             ),
           ),
@@ -1328,9 +1513,24 @@ class _OverviewContentState extends State<OverviewContent> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: colorScheme.onSurfaceVariant),
                         ),
-                        trailing: Icon(
-                          Icons.chevron_right,
-                          color: colorScheme.onSurfaceVariant,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              DateFormat(
+                                'dd/MM/yyyy',
+                              ).format(activity.startedAt.toLocal()),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.chevron_right,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ],
                         ),
                       ),
                     ),

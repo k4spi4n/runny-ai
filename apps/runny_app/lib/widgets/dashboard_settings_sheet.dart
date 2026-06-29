@@ -30,6 +30,8 @@ class DashboardSettingsSheet extends StatelessWidget {
         return context.translate('performance_overview');
       case DashboardLayout.aiInsight:
         return context.translate('ai_insight_title');
+      case DashboardLayout.todaySchedule:
+        return context.translate('today_schedule');
       default:
         return key;
     }
@@ -43,6 +45,8 @@ class DashboardSettingsSheet extends StatelessWidget {
         return Icons.insights;
       case DashboardLayout.aiInsight:
         return Icons.auto_awesome;
+      case DashboardLayout.todaySchedule:
+        return Icons.event_available;
       default:
         return Icons.dashboard_customize;
     }
