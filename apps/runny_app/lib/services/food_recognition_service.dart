@@ -7,6 +7,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/food_recognition_models.dart';
+import 'paywall_exception.dart';
 
 class FoodRecognitionException implements Exception {
   final String message;
@@ -85,6 +86,15 @@ class FoodRecognitionService {
     }
 
     if (response.statusCode != 200) {
+      // Tín hiệu nâng cấp (free tier bị khóa nhận diện món ăn): luôn hiển thị
+      // paywall, không thay bằng mock kể cả khi dev bật mock.
+      if (PaywallException.isUpgradeSignal(response.statusCode, decodedBody)) {
+        final msg = decodedBody is Map && decodedBody['error'] is String
+            ? decodedBody['error'] as String
+            : 'Nhận diện món ăn dành cho gói trả phí. Vui lòng nâng cấp để tiếp tục.';
+        throw PaywallException(msg);
+      }
+
       if (_shouldUseMockFallback) {
         return _mockAnalyze(filename);
       }

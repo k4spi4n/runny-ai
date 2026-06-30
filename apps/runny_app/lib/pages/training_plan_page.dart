@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/training_service.dart';
+import '../services/paywall_exception.dart';
 import '../widgets/ui_components.dart';
+import '../widgets/paywall.dart';
 import 'create_training_plan_page.dart';
 import 'ai_coach_page.dart';
 import 'training_history_page.dart';
@@ -83,6 +85,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   }
 
   Future<void> _adjustPlan() async {
+    // Điều chỉnh kế hoạch bằng AI là tính năng cao cấp: chặn tier free trước.
+    if (!await ensurePaywall(context, 'plan')) return;
+    if (!mounted) return;
+
     setState(() => _isLoading = true);
     try {
       await _trainingService.adjustPlanDynamically();
@@ -92,6 +98,8 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           SnackBar(content: Text(context.translate('plan_adjusted'))),
         );
       }
+    } on PaywallException catch (e) {
+      if (mounted) await showUpgradeSheet(context, message: e.message);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));

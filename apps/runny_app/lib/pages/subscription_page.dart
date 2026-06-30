@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/subscription_models.dart';
 import '../services/subscription_service.dart';
 import '../widgets/ui_components.dart';
@@ -50,17 +51,18 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   Future<void> _handleSubscribe(SubscriptionPlan plan) async {
     setState(() => _isProcessing = true);
     try {
-      await _subscriptionService.subscribe(plan);
-      await _loadData();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Đăng ký gói thành công!')),
-        );
-      }
+      final checkoutUrl = await _subscriptionService.createPaymentLink(plan);
+      // Web: chuyển hướng cùng tab (_self) để PayOS đưa người dùng quay lại app
+      // qua returnUrl. Mobile/desktop: mở trình duyệt ngoài.
+      await launchUrl(
+        Uri.parse(checkoutUrl),
+        webOnlyWindowName: '_self',
+        mode: LaunchMode.externalApplication,
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đăng ký gói thất bại: $e')),
+          SnackBar(content: Text('Không mở được trang thanh toán: $e')),
         );
       }
     } finally {
@@ -234,7 +236,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (isRecommended)
+                        if (isRecommended || plan.durationType == SubscriptionDuration.yearly)
                           Container(
                             margin: const EdgeInsets.only(bottom: 8),
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -242,9 +244,9 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
                               color: planColor,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Text(
-                              'PHỔ BIẾN NHẤT',
-                              style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                            child: Text(
+                              isRecommended ? 'PHỔ BIẾN NHẤT' : 'TIẾT KIỆM ~63%',
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
                             ),
                           ),
                         Text(

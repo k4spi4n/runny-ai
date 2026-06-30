@@ -9,8 +9,8 @@ import {
 // chong lam dung & spam giong function `openrouter`:
 //   1. Yeu cau user da dang nhap (JWT role == authenticated).
 //   2. Kiem tra dinh dang/kich thuoc anh (multipart, magic-byte, min/max size).
-//   3. Rate-limit theo user qua RPC check_ai_rate_limit (han muc rieng, chat hon
-//      chat vi goi vision nang hon). Fail-open neu ha tang chua cau hinh.
+//   3. Entitlement + quota theo tier qua RPC check_ai_access (feature 'food'):
+//      free tier bi khoa, trial|paid co han muc rieng. Fail-open neu chua cau hinh.
 //   4. Loc noi dung: model tu choi anh khong phai mon an (xu ly trong service).
 // =============================================================================
 
@@ -39,8 +39,9 @@ function envInt(name: string, fallback: number): number {
 
 // Han muc rieng cho nhan dien anh: chat hon chat van ban vi goi vision ton kem hon.
 // Dung chung bo dem voi function openrouter (cung bang ai_rate_limit theo user).
+// Free tier khong duoc dung tinh nang nay (gate o RPC check_ai_access, feature 'food').
 const FOOD_MAX_PER_MIN = () => envInt('FOOD_AI_MAX_PER_MIN', 6);
-const FOOD_MAX_PER_DAY = () => envInt('FOOD_AI_MAX_PER_DAY', 50);
+const FOOD_MAX_PER_DAY = () => envInt('FOOD_AI_MAX_PER_DAY', 30);
 
 // --- Guardrail 1: lay user id tu JWT. Tra null neu khong phai user da dang nhap. ---
 function getUserId(req: Request): string | null {
@@ -60,16 +61,20 @@ function getUserId(req: Request): string | null {
   }
 }
 
-// --- Guardrail 3: rate-limit theo user (chong spam). Fail-open neu chua cau hinh. ---
-async function checkRateLimit(userId: string): Promise<{ allowed: boolean; reason?: string }> {
+// --- Guardrail 3: entitlement + quota theo tier (chong spam + gate paywall). ---
+// Feature 'food': free tier bi khoa (RPC tra upgrade_required). Fail-open neu
+// ha tang chua cau hinh.
+async function checkAiAccess(
+  userId: string,
+): Promise<{ allowed: boolean; reason?: string; tier?: string }> {
   const url = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !serviceKey) {
-    console.warn('Rate limit skipped: SUPABASE_URL/SERVICE_ROLE_KEY not set.');
+    console.warn('AI access check skipped: SUPABASE_URL/SERVICE_ROLE_KEY not set.');
     return { allowed: true };
   }
   try {
-    const res = await fetch(`${url}/rest/v1/rpc/check_ai_rate_limit`, {
+    const res = await fetch(`${url}/rest/v1/rpc/check_ai_access`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -78,18 +83,22 @@ async function checkRateLimit(userId: string): Promise<{ allowed: boolean; reaso
       },
       body: JSON.stringify({
         p_user_id: userId,
+        p_feature: 'food',
         p_max_per_min: FOOD_MAX_PER_MIN(),
         p_max_per_day: FOOD_MAX_PER_DAY(),
+        // Free tier khong dung duoc 'food' nen 2 cap free khong anh huong; truyen 0.
+        p_free_max_per_min: 0,
+        p_free_max_per_day: 0,
       }),
     });
     if (!res.ok) {
-      console.warn(`check_ai_rate_limit RPC returned ${res.status}`);
+      console.warn(`check_ai_access RPC returned ${res.status}`);
       return { allowed: true }; // fail-open
     }
     const data = await res.json();
-    return { allowed: data?.allowed !== false, reason: data?.reason };
+    return { allowed: data?.allowed !== false, reason: data?.reason, tier: data?.tier };
   } catch (e) {
-    console.warn(`check_ai_rate_limit RPC failed: ${e}`);
+    console.warn(`check_ai_access RPC failed: ${e}`);
     return { allowed: true }; // fail-open
   }
 }
@@ -169,10 +178,16 @@ serve(async (req) => {
       return jsonResponse({ error: 'Tệp tải lên không phải ảnh hợp lệ.' }, 415);
     }
 
-    // --- Guardrail 3: rate-limit theo user (chong spam). ---
-    const rate = await checkRateLimit(userId);
-    if (!rate.allowed) {
-      const msg = rate.reason === 'day'
+    // --- Guardrail 3: entitlement + quota theo tier (chong spam + gate paywall). ---
+    const access = await checkAiAccess(userId);
+    if (!access.allowed) {
+      if (access.reason === 'upgrade_required') {
+        return jsonResponse({
+          error: 'Nhận diện món ăn dành cho gói trả phí. Vui lòng nâng cấp để tiếp tục.',
+          code: 'upgrade_required',
+        }, 402);
+      }
+      const msg = access.reason === 'day'
         ? 'Bạn đã đạt giới hạn nhận diện món ăn trong ngày. Vui lòng thử lại vào ngày mai.'
         : 'Bạn đang gửi yêu cầu quá nhanh. Vui lòng chờ một lát rồi thử lại.';
       return jsonResponse({ error: msg }, 429);

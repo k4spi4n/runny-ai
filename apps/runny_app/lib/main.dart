@@ -9,6 +9,7 @@ import 'theme/theme_provider.dart';
 import 'l10n/language_provider.dart';
 import 'services/nutrition_service.dart';
 import 'services/strava_redirect.dart';
+import 'services/entitlement_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +36,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider(prefs)),
         ChangeNotifierProvider(create: (_) => LanguageProvider(prefs)),
         ChangeNotifierProvider(create: (_) => NutritionService()),
+        ChangeNotifierProvider(create: (_) => EntitlementProvider()),
       ],
       child: const RunnyApp(),
     ),

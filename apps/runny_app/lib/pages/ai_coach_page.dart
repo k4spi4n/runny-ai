@@ -11,6 +11,8 @@ import '../services/speech_service.dart';
 import '../services/nutrition_service.dart';
 import '../services/weather_service.dart';
 import '../widgets/ui_components.dart';
+import '../widgets/paywall.dart';
+import '../services/paywall_exception.dart';
 import '../models/workout_models.dart';
 import '../models/nutrition_models.dart';
 import '../l10n/app_localizations.dart';
@@ -150,6 +152,11 @@ class _AICoachPageState extends State<AICoachPage> {
           lowercaseText.contains('schedule');
 
       if (isRequestingPlan) {
+        // Tạo kế hoạch là tính năng cao cấp: chặn sớm với tier free (UX).
+        if (!mounted) return;
+        if (!await ensurePaywall(context, 'plan')) {
+          return; // sheet nâng cấp đã hiện; finally sẽ tắt loading
+        }
         await _trainingService.createGoalBasedPlan(text);
         if (!mounted) return;
         setState(() {
@@ -170,6 +177,10 @@ class _AICoachPageState extends State<AICoachPage> {
         });
         await _chatService.saveMessage('assistant', response);
       }
+    } on PaywallException catch (e) {
+      // Hết quyền (vd hết trial) ngay khi gọi: mở luồng nâng cấp thay vì báo lỗi.
+      if (!mounted) return;
+      await showUpgradeSheet(context, message: e.message);
     } catch (e) {
       if (!mounted) return;
       final errorMsg = '$errorOccurredTranslation: $e';

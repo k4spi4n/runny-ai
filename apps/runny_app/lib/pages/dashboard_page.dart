@@ -20,6 +20,8 @@ import '../services/gemini_service.dart';
 import '../services/dashboard_layout.dart';
 import '../services/integration_service.dart';
 import '../services/strava_redirect.dart';
+import '../services/entitlement_service.dart';
+import '../services/payment_redirect.dart';
 import '../widgets/dashboard_settings_sheet.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
@@ -66,7 +68,21 @@ class _DashboardPageState extends State<DashboardPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _requestLocationOnEntry();
       _handleStravaRedirect();
+      _handlePaymentRedirectAndEntitlement();
     });
+  }
+
+  /// Làm mới entitlement khi vào Dashboard; nếu vừa quay lại từ PayOS thì hiện
+  /// thông báo kết quả thanh toán (webhook đã kích hoạt subscription ở server).
+  Future<void> _handlePaymentRedirectAndEntitlement() async {
+    final payment = consumePaymentRedirect();
+    if (!mounted) return;
+    await context.read<EntitlementProvider>().refresh();
+    if (!mounted || payment == null) return;
+    final msg = payment == 'success'
+        ? context.translate('payment_success')
+        : context.translate('payment_cancelled');
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   /// Sau khi người dùng cấp quyền Strava, trình duyệt quay về app kèm ?code=...

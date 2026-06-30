@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'paywall_exception.dart';
+
 class GeminiService {
   final String _modelName;
   final List<String> _modelList;
@@ -90,6 +92,9 @@ class GeminiService {
       );
 
       if (response.status != 200) {
+        if (PaywallException.isUpgradeSignal(response.status, response.data)) {
+          throw PaywallException(_errorFromData(response.data));
+        }
         throw Exception(_errorFromData(response.data));
       }
 
@@ -111,6 +116,9 @@ class GeminiService {
     } catch (e) {
       debugPrint('OpenRouter proxy call failed: $e');
       if (e is FunctionException) {
+        if (PaywallException.isUpgradeSignal(e.status, e.details)) {
+          throw PaywallException(_extractError(e));
+        }
         throw Exception(_extractError(e));
       }
       rethrow;
@@ -137,6 +145,9 @@ class GeminiService {
       );
 
       if (response.status != 200) {
+        if (PaywallException.isUpgradeSignal(response.status, response.data)) {
+          throw PaywallException(_errorFromData(response.data));
+        }
         throw Exception(_errorFromData(response.data));
       }
 
@@ -168,6 +179,9 @@ class GeminiService {
     } catch (e) {
       debugPrint('OpenRouter proxy structured call failed: $e');
       if (e is FunctionException) {
+        if (PaywallException.isUpgradeSignal(e.status, e.details)) {
+          throw PaywallException(_extractError(e));
+        }
         throw Exception(_extractError(e));
       }
       rethrow;

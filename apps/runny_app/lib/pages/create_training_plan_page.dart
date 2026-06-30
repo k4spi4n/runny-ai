@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/training_service.dart';
 import '../widgets/ui_components.dart';
+import '../widgets/paywall.dart';
 import '../l10n/app_localizations.dart';
 
 /// Màn hình tạo lịch tập: người dùng nhập ngày bắt đầu (mặc định hôm nay),
@@ -69,6 +70,10 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
       );
       return;
     }
+
+    // Tạo kế hoạch là tính năng cao cấp: chặn tier free trước khi chạy nền.
+    if (!await ensurePaywall(context, 'plan')) return;
+    if (!mounted) return;
 
     setState(() => _isSubmitting = true);
     final startedMsg = context.translate('plan_generation_started');
