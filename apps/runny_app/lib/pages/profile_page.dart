@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/ui_components.dart';
 import '../services/integration_service.dart';
 import '../services/social_service.dart';
 import '../services/subscription_service.dart';
+import '../services/entitlement_service.dart';
 import '../models/subscription_models.dart';
 import '../l10n/app_localizations.dart';
 import 'weight_tracking_page.dart';
@@ -402,6 +404,9 @@ class _ProfilePageState extends State<ProfilePage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isPremium = _activeSubscription != null;
+    final ent = context.watch<EntitlementProvider>();
+    final isTrial = !isPremium && ent.isTrial;
+    final highlight = isPremium || isTrial;
 
     return glassCard(
       context: context,
@@ -419,7 +424,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   color: colorScheme.onSurface,
                 ),
               ),
-              if (isPremium)
+              if (highlight)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -430,7 +435,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    'PREMIUM',
+                    isPremium ? 'PREMIUM' : 'TRIAL',
                     style: TextStyle(
                       color: theme.primaryColor,
                       fontSize: 10,
@@ -446,13 +451,13 @@ class _ProfilePageState extends State<ProfilePage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: (isPremium ? theme.primaryColor : Colors.grey)
+                  color: (highlight ? theme.primaryColor : Colors.grey)
                       .withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  isPremium ? Icons.star : Icons.star_outline,
-                  color: isPremium ? theme.primaryColor : Colors.grey,
+                  highlight ? Icons.star : Icons.star_outline,
+                  color: highlight ? theme.primaryColor : Colors.grey,
                 ),
               ),
               const SizedBox(width: 16),
@@ -463,7 +468,9 @@ class _ProfilePageState extends State<ProfilePage> {
                     Text(
                       isPremium
                           ? _activeSubscription!.plan!.name
-                          : context.translate('subscription_free'),
+                          : isTrial
+                              ? context.translate('trial_active')
+                              : context.translate('subscription_free'),
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     Text(
@@ -471,7 +478,9 @@ class _ProfilePageState extends State<ProfilePage> {
                           ? context.translate('subscription_expires', [
                               '${_activeSubscription!.endDate.day}/${_activeSubscription!.endDate.month}/${_activeSubscription!.endDate.year}',
                             ])
-                          : context.translate('subscription_upgrade_hint'),
+                          : isTrial
+                              ? context.translate('trial_days_left', ['${ent.trialDaysLeft}'])
+                              : context.translate('subscription_upgrade_hint'),
                       style: TextStyle(
                         fontSize: 12,
                         color: colorScheme.onSurfaceVariant,

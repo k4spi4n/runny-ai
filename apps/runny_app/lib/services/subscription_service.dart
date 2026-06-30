@@ -1,4 +1,5 @@
 
+import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/subscription_models.dart';
 
@@ -30,40 +31,33 @@ class SubscriptionService {
     return UserSubscription.fromJson(response);
   }
 
-  Future<void> subscribe(SubscriptionPlan plan) async {
+  /// Tạo liên kết thanh toán PayOS cho [plan] qua Edge Function
+  /// `payos-create-payment` và trả về `checkoutUrl` để client mở.
+  /// Việc kích hoạt/gia hạn subscription do webhook `payos-webhook` thực hiện
+  /// sau khi thanh toán thành công (không tin client tự ghi subscription).
+  Future<String> createPaymentLink(SubscriptionPlan plan) async {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('User not logged in');
 
-    // In a real app, you would integrate with a payment gateway here (Stripe, Apple Pay, etc.)
-    // For this demo, we'll just create the subscription directly.
-    
-    DateTime endDate;
-    switch (plan.durationType) {
-      case SubscriptionDuration.weekly:
-        endDate = DateTime.now().add(const Duration(days: 7));
-        break;
-      case SubscriptionDuration.monthly:
-        endDate = DateTime.now().add(const Duration(days: 30));
-        break;
-      case SubscriptionDuration.yearly:
-        endDate = DateTime.now().add(const Duration(days: 365));
-        break;
+    final res = await _supabase.functions.invoke(
+      'payos-create-payment',
+      body: {'plan_id': plan.id},
+    );
+
+    if (res.status != 200) {
+      final data = res.data;
+      final msg = data is Map && data['error'] is String
+          ? data['error'] as String
+          : 'Không tạo được liên kết thanh toán. Vui lòng thử lại.';
+      throw Exception(msg);
     }
 
-    // Deactivate previous active subscriptions if any
-    await _supabase
-        .from('user_subscriptions')
-        .update({'status': 'cancelled'})
-        .eq('user_id', user.id)
-        .eq('status', 'active');
-
-    await _supabase.from('user_subscriptions').insert({
-      'user_id': user.id,
-      'plan_id': plan.id,
-      'status': 'active',
-      'start_date': DateTime.now().toIso8601String(),
-      'end_date': endDate.toIso8601String(),
-    });
+    final data = res.data is String ? jsonDecode(res.data as String) : res.data;
+    final url = data is Map ? data['checkoutUrl'] : null;
+    if (url is! String || url.isEmpty) {
+      throw Exception('Không tạo được liên kết thanh toán. Vui lòng thử lại.');
+    }
+    return url;
   }
 
   Future<void> cancelSubscription(String subscriptionId) async {

@@ -36,6 +36,11 @@ enable_confirmations = false
 [functions.strava_webhook]
 verify_jwt = false
 
+# PayOS goi webhook khong kem JWT cua Supabase -> tat xac thuc JWT; tu xac thuc
+# bang chu ky checksum trong code (tren cloud: tat "Verify JWT" trong Dashboard).
+[functions.payos-webhook]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 44327

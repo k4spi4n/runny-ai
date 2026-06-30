@@ -31,8 +31,10 @@ function envInt(name: string, fallback: number): number {
 const MAX_MESSAGES = () => envInt('AI_MAX_MESSAGES', 40);          // so luong message toi da
 const MAX_MESSAGE_CHARS = () => envInt('AI_MAX_MESSAGE_CHARS', 4000); // do dai 1 message
 const MAX_TOTAL_CHARS = () => envInt('AI_MAX_TOTAL_CHARS', 16000);    // tong do dai noi dung
-const MAX_PER_MIN = () => envInt('AI_MAX_PER_MIN', 12);              // so request/phut/user
-const MAX_PER_DAY = () => envInt('AI_MAX_PER_DAY', 200);             // so request/ngay/user
+const MAX_PER_MIN = () => envInt('AI_MAX_PER_MIN', 8);               // so request/phut/user (trial|paid)
+const MAX_PER_DAY = () => envInt('AI_MAX_PER_DAY', 30);              // so request/ngay/user (trial|paid)
+const FREE_MAX_PER_MIN = () => envInt('AI_FREE_MAX_PER_MIN', 3);     // so request/phut/user (free tier)
+const FREE_MAX_PER_DAY = () => envInt('AI_FREE_MAX_PER_DAY', 5);     // so request/ngay/user (free tier)
 
 // He thong prompt gioi han chu de: chi tra loi ve chay bo & the chat lien quan.
 const TOPIC_GUARDRAIL = `Bạn là "Runny AI" — huấn luyện viên ảo CHỈ chuyên về chạy bộ và thể chất liên quan.
@@ -94,16 +96,21 @@ function injectGuardrail(rawBody: Record<string, unknown>): Record<string, unkno
   return { ...rawBody, messages: [guardrail, ...messages] };
 }
 
-// Goi RPC kiem tra rate-limit bang service role. Fail-open neu ha tang loi/chua cau hinh.
-async function checkRateLimit(userId: string): Promise<{ allowed: boolean; reason?: string }> {
+// Goi RPC check_ai_access bang service role: xac dinh tier (trial|paid|free), ap
+// quota theo tier va khoa tinh nang cao cap voi free tier. Fail-open neu ha tang
+// loi/chua cau hinh. `feature`: 'chat' (chat tu do) | 'plan' (tao/dieu chinh ke hoach).
+async function checkAiAccess(
+  userId: string,
+  feature: string,
+): Promise<{ allowed: boolean; reason?: string; tier?: string }> {
   const url = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !serviceKey) {
-    console.warn('Rate limit skipped: SUPABASE_URL/SERVICE_ROLE_KEY not set.');
+    console.warn('AI access check skipped: SUPABASE_URL/SERVICE_ROLE_KEY not set.');
     return { allowed: true };
   }
   try {
-    const res = await fetch(`${url}/rest/v1/rpc/check_ai_rate_limit`, {
+    const res = await fetch(`${url}/rest/v1/rpc/check_ai_access`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -112,18 +119,21 @@ async function checkRateLimit(userId: string): Promise<{ allowed: boolean; reaso
       },
       body: JSON.stringify({
         p_user_id: userId,
+        p_feature: feature,
         p_max_per_min: MAX_PER_MIN(),
         p_max_per_day: MAX_PER_DAY(),
+        p_free_max_per_min: FREE_MAX_PER_MIN(),
+        p_free_max_per_day: FREE_MAX_PER_DAY(),
       }),
     });
     if (!res.ok) {
-      console.warn(`check_ai_rate_limit RPC returned ${res.status}`);
+      console.warn(`check_ai_access RPC returned ${res.status}`);
       return { allowed: true }; // fail-open
     }
     const data = await res.json();
-    return { allowed: data?.allowed !== false, reason: data?.reason };
+    return { allowed: data?.allowed !== false, reason: data?.reason, tier: data?.tier };
   } catch (e) {
-    console.warn(`check_ai_rate_limit RPC failed: ${e}`);
+    console.warn(`check_ai_access RPC failed: ${e}`);
     return { allowed: true }; // fail-open
   }
 }
@@ -286,11 +296,23 @@ serve(async (req) => {
       );
     }
 
-    // --- Guardrail 3: rate-limit theo user (chong spam API). ---
-    const rate = await checkRateLimit(userId);
-    if (!rate.allowed) {
-      const msg = rate.reason === 'day'
-        ? 'Bạn đã đạt giới hạn yêu cầu AI trong ngày. Vui lòng thử lại vào ngày mai.'
+    // --- Guardrail 3: entitlement + quota theo tier (chong spam API & gate paywall). ---
+    // Suy ra tinh nang tu payload: co response_format -> yeu cau JSON (tao/dieu chinh
+    // ke hoach) = 'plan'; nguoc lai la chat tu do = 'chat'. Free tier bi khoa 'plan'.
+    const feature = rawBody.response_format ? 'plan' : 'chat';
+    const access = await checkAiAccess(userId, feature);
+    if (!access.allowed) {
+      if (access.reason === 'upgrade_required') {
+        return new Response(
+          JSON.stringify({
+            error: 'Tính năng này dành cho gói trả phí. Vui lòng nâng cấp để tiếp tục.',
+            code: 'upgrade_required',
+          }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      const msg = access.reason === 'day'
+        ? 'Bạn đã đạt giới hạn yêu cầu AI trong ngày. Nâng cấp gói để dùng nhiều hơn, hoặc thử lại vào ngày mai.'
         : 'Bạn đang gửi yêu cầu quá nhanh. Vui lòng chờ một lát rồi thử lại.';
       return new Response(
         JSON.stringify({ error: msg }),

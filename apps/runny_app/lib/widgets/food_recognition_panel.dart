@@ -7,8 +7,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/food_recognition_models.dart';
 import '../models/nutrition_models.dart';
 import '../services/food_recognition_service.dart';
+import '../services/paywall_exception.dart';
 import '../theme/app_theme.dart';
 import '../l10n/app_localizations.dart';
+import 'paywall.dart';
 import 'ui_components.dart';
 
 class FoodRecognitionPanel extends StatefulWidget {
@@ -131,6 +133,10 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
       return;
     }
 
+    // Nhận diện món ăn là tính năng cao cấp: chặn tier free trước khi gọi server.
+    if (!await ensurePaywall(context, 'food')) return;
+    if (!mounted) return;
+
     setState(() {
       _isAnalyzing = true;
       _errorMessage = null;
@@ -151,6 +157,10 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
         _fatController.text = result.nutrition.fat.toStringAsFixed(0);
         _isAnalyzing = false;
       });
+    } on PaywallException catch (e) {
+      if (!mounted) return;
+      setState(() => _isAnalyzing = false);
+      await showUpgradeSheet(context, message: e.message);
     } catch (e) {
       if (!mounted) return;
       setState(() {
