@@ -1172,28 +1172,29 @@ class _OverviewContentState extends State<OverviewContent> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Dòng chào mừng chiếm trọn 1 hàng đầy đủ chiều rộng.
+                FutureBuilder<String?>(
+                  future: _displayNameFuture,
+                  builder: (context, snapshot) => MarqueeText(
+                    _greeting(context, snapshot.data),
+                    style:
+                        (width < 560
+                                ? theme.textTheme.headlineMedium
+                                : theme.textTheme.displaySmall)
+                            ?.copyWith(
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w900,
+                            ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Cụm thời tiết/không khí bên trái, 2 badge ngày & chuỗi
+                // được đẩy xuống ngang hàng bên phải.
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          FutureBuilder<String?>(
-                            future: _displayNameFuture,
-                            builder: (context, snapshot) => MarqueeText(
-                              _greeting(context, snapshot.data),
-                              style:
-                                  (width < 560
-                                          ? theme.textTheme.headlineMedium
-                                          : theme.textTheme.displaySmall)
-                                      ?.copyWith(
-                                        color: colorScheme.onSurface,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          FutureBuilder<WeatherSnapshot?>(
+                      child: FutureBuilder<WeatherSnapshot?>(
                             future: _weatherFuture,
                             builder: (context, snapshot) {
                               if (snapshot.connectionState ==
@@ -1335,41 +1336,39 @@ class _OverviewContentState extends State<OverviewContent> {
                               );
                             },
                           ),
-                        ],
-                      ),
                     ),
                     const SizedBox(width: 16),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         badgeLabel(context, DateFormat('dd/MM/yyyy').format(DateTime.now())),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 14,
+                            horizontal: 12,
+                            vertical: 8,
                           ),
                           decoration: BoxDecoration(
                             gradient: accentPulseGradient,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
                                 context.translate('streak'),
-                                style: theme.textTheme.bodySmall?.copyWith(
+                                style: theme.textTheme.labelSmall?.copyWith(
                                   color: Colors.white70,
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 2),
                               FutureBuilder<int>(
                                 future: _fetchStreak(),
                                 builder: (context, snapshot) {
                                   final n = snapshot.data ?? 0;
                                   return Text(
                                     context.translate('streak_days', ['$n']),
-                                    style: theme.textTheme.headlineSmall?.copyWith(
+                                    style: theme.textTheme.titleMedium?.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w900,
                                     ),
