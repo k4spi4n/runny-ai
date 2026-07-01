@@ -22,6 +22,7 @@ import '../services/integration_service.dart';
 import '../services/strava_redirect.dart';
 import '../services/entitlement_service.dart';
 import '../services/payment_redirect.dart';
+import '../widgets/paywall.dart';
 import '../widgets/dashboard_settings_sheet.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
@@ -78,11 +79,44 @@ class _DashboardPageState extends State<DashboardPage> {
     final payment = consumePaymentRedirect();
     if (!mounted) return;
     await context.read<EntitlementProvider>().refresh();
-    if (!mounted || payment == null) return;
-    final msg = payment == 'success'
-        ? context.translate('payment_success')
-        : context.translate('payment_cancelled');
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    if (!mounted) return;
+    if (payment != null) {
+      final msg = payment == 'success'
+          ? context.translate('payment_success')
+          : context.translate('payment_cancelled');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    }
+    await _maybeShowTrialReminder();
+  }
+
+  /// Nhắc nâng cấp mỗi 4 ngày kể từ ngày tạo tài khoản trong lúc còn trial
+  /// (mốc ngày 4/8/12). Lưu mốc đã nhắc vào shared_preferences theo user để
+  /// không lặp lại mỗi lần vào Dashboard.
+  Future<void> _maybeShowTrialReminder() async {
+    if (!mounted) return;
+    final ent = context.read<EntitlementProvider>();
+    if (!ent.isTrial) return;
+
+    final createdAt = ent.accountCreatedAt;
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (createdAt == null || userId == null) return;
+
+    // Mốc nhắc = số ngày kể từ tạo tài khoản chia 4 (ngày 0-3 chưa nhắc).
+    final daysSince = DateTime.now().difference(createdAt).inDays;
+    final period = daysSince ~/ 4;
+    if (period < 1) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final key = 'trial_reminder_period_$userId';
+    final lastShown = prefs.getInt(key) ?? 0;
+    if (period <= lastShown) return;
+
+    await prefs.setInt(key, period);
+    if (!mounted) return;
+    await showUpgradeSheet(
+      context,
+      message: context.translate('trial_reminder_message', ['${ent.trialDaysLeft}']),
+    );
   }
 
   /// Sau khi người dùng cấp quyền Strava, trình duyệt quay về app kèm ?code=...

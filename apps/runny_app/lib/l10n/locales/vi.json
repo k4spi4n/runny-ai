@@ -431,6 +431,7 @@
   "subscription_upgrade_hint": "Nâng cấp để nhận thêm quyền lợi",
   "trial_active": "Đang dùng thử",
   "trial_days_left": "Còn %s ngày dùng thử",
+  "trial_reminder_message": "Bạn còn %s ngày dùng thử miễn phí. Nâng cấp ngay để giữ trọn quyền dùng trợ lý AI, tạo kế hoạch tập và nhận diện món ăn khi hết hạn.",
   "paywall_title": "Nâng cấp để mở khóa AI",
   "paywall_message": "Tính năng này dành cho gói trả phí. Nâng cấp để mở khóa toàn bộ trợ lý AI, tạo kế hoạch tập và nhận diện món ăn.",
   "paywall_view_plans": "Xem các gói",

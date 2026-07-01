@@ -431,6 +431,7 @@
   "subscription_upgrade_hint": "Upgrade to unlock more benefits",
   "trial_active": "Free trial",
   "trial_days_left": "%s days left in trial",
+  "trial_reminder_message": "You have %s days left in your free trial. Upgrade now to keep full access to the AI assistant, training plans and food recognition when it ends.",
   "paywall_title": "Upgrade to unlock AI",
   "paywall_message": "This feature is for paid plans. Upgrade to unlock the full AI assistant, training plan generation and food recognition.",
   "paywall_view_plans": "View plans",

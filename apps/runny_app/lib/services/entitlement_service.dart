@@ -12,6 +12,10 @@ enum AccessTier { unknown, trial, paid, free }
 /// đang hoạt động. Provider này CHỈ phục vụ UX — gate chi phí thật nằm ở Edge
 /// Function. Đừng coi nó là rào chắn an ninh.
 class EntitlementProvider extends ChangeNotifier {
+  /// Độ dài trial (ngày) — phải khớp với `interval '14 days'` ở migration
+  /// paywall (handle_new_user + backfill trial_ends_at).
+  static const int trialLengthDays = 14;
+
   final SubscriptionService _subscriptionService;
   final SupabaseClient _supabase;
 
@@ -33,6 +37,11 @@ class EntitlementProvider extends ChangeNotifier {
   bool get loading => _loading;
   DateTime? get trialEndsAt => _trialEndsAt;
   UserSubscription? get subscription => _subscription;
+
+  /// Ngày tạo tài khoản, suy từ mốc hết trial (trial_ends_at = created_at + 14d).
+  /// Dùng để lập lịch nhắc nâng cấp theo tuổi tài khoản.
+  DateTime? get accountCreatedAt =>
+      _trialEndsAt?.subtract(const Duration(days: trialLengthDays));
 
   /// Số ngày còn lại của trial (làm tròn lên), 0 nếu đã hết / không áp dụng.
   int get trialDaysLeft {
