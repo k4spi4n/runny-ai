@@ -109,6 +109,8 @@
   "ai_prompt_context": "I'm asking about my workout: %s km, %s mins, avg HR %s bpm, elevation %s m, notes: %s. Question: %s",
   "already_have_account": "Already have an account? Log In",
   "email_already_registered": "This email is already registered. Please log in instead.",
+  "disposable_email_not_allowed": "Disposable / temporary emails are not supported. Please use a real email.",
+  "invalid_email": "Invalid email. Please check and try again.",
   "analyzing_file": "Analyzing %s...",
   "athlete_metrics": "Athlete Metrics",
   "avg_hr": "Avg HR",

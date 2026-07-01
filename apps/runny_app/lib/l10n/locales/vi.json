@@ -109,6 +109,8 @@
   "ai_prompt_context": "Tôi muốn hỏi về buổi tập: %s km, %s phút, nhịp tim TB %s bpm, độ cao %s m, ghi chú: %s. Câu hỏi: %s",
   "already_have_account": "Đã có tài khoản? Đăng nhập",
   "email_already_registered": "Email này đã được đăng ký. Vui lòng đăng nhập.",
+  "disposable_email_not_allowed": "Không hỗ trợ email dùng-một-lần / tạm thời. Vui lòng dùng email thật.",
+  "invalid_email": "Email không hợp lệ. Vui lòng kiểm tra lại.",
   "analyzing_file": "Đang phân tích %s...",
   "athlete_metrics": "Chỉ số cá nhân",
   "avg_hr": "Nhịp tim TB",

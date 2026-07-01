@@ -45,6 +45,8 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _garminId;
   bool _lookingForPartner = false;
   bool _isSavingMatching = false;
+  bool _isEditingName = false;
+  bool _isSavingName = false;
   UserSubscription? _activeSubscription;
 
   @override
@@ -178,6 +180,36 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// Lưu riêng tên hiển thị (không đụng tới phần thể trạng) khi người dùng
+  /// bấm nút xác nhận cạnh ô tên.
+  Future<void> _saveDisplayName() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+
+    setState(() => _isSavingName = true);
+    try {
+      await _supabase
+          .from('profiles')
+          .update({'display_name': _displayNameController.text.trim()})
+          .eq('id', user.id);
+
+      if (mounted) {
+        setState(() => _isEditingName = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.translate('profile_updated'))),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingName = false);
     }
   }
 
@@ -557,22 +589,7 @@ class _ProfilePageState extends State<ProfilePage> {
             child: const Icon(Icons.person, size: 60, color: Colors.white),
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: _displayNameController,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
-            ),
-            decoration: InputDecoration(
-              hintText: context.translate('display_name'),
-              hintStyle: TextStyle(
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-              ),
-              border: InputBorder.none,
-            ),
-          ),
+          _buildDisplayNameRow(context),
           const SizedBox(height: 8),
           Text(
             _supabase.auth.currentUser?.email ?? '',
@@ -580,6 +597,81 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Tên hiển thị: mặc định là văn bản kèm icon bút chì để chỉnh sửa; khi bấm
+  /// vào icon mới chuyển sang ô nhập và hiện icon xác nhận để lưu.
+  Widget _buildDisplayNameRow(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final nameStyle = TextStyle(
+      fontSize: 24,
+      fontWeight: FontWeight.bold,
+      color: colorScheme.onSurface,
+    );
+
+    if (!_isEditingName) {
+      final name = _displayNameController.text.trim();
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Flexible(
+            child: Text(
+              name.isNotEmpty ? name : context.translate('display_name'),
+              textAlign: TextAlign.center,
+              style: name.isNotEmpty
+                  ? nameStyle
+                  : nameStyle.copyWith(
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: Icon(Icons.edit, size: 20, color: colorScheme.onSurfaceVariant),
+            tooltip: context.translate('display_name'),
+            onPressed: () => setState(() => _isEditingName = true),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Flexible(
+          child: TextField(
+            controller: _displayNameController,
+            textAlign: TextAlign.center,
+            autofocus: true,
+            style: nameStyle,
+            decoration: InputDecoration(
+              hintText: context.translate('display_name'),
+              hintStyle: TextStyle(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              ),
+              border: InputBorder.none,
+            ),
+            onSubmitted: (_) => _saveDisplayName(),
+          ),
+        ),
+        const SizedBox(width: 4),
+        _isSavingName
+            ? const Padding(
+                padding: EdgeInsets.all(8),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            : IconButton(
+                icon: Icon(Icons.check, size: 22, color: theme.primaryColor),
+                tooltip: context.translate('save'),
+                onPressed: _saveDisplayName,
+              ),
+      ],
     );
   }
 

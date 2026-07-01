@@ -22,8 +22,30 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
     try {
       if (_isSignUp) {
+        final email = _emailController.text.trim();
+
+        // Pre-check phía server: chặn email sai định dạng / dùng-một-lần trước khi
+        // gọi signUp (chốt chặn thật vẫn là trigger trg_guard_auth_signup ở DB).
+        final check = await Supabase.instance.client
+            .rpc('check_signup_email', params: {'p_email': email}) as Map;
+        if (check['allowed'] != true) {
+          if (mounted) {
+            final reason = check['reason'];
+            final msgKey = reason == 'disposable'
+                ? 'disposable_email_not_allowed'
+                : 'invalid_email';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(context.translate(msgKey)),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+          return;
+        }
+
         final res = await Supabase.instance.client.auth.signUp(
-          email: _emailController.text.trim(),
+          email: email,
           password: _passwordController.text.trim(),
         );
 
