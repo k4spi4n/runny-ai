@@ -1180,7 +1180,7 @@ class _OverviewContentState extends State<OverviewContent> {
                         children: [
                           FutureBuilder<String?>(
                             future: _displayNameFuture,
-                            builder: (context, snapshot) => Text(
+                            builder: (context, snapshot) => MarqueeText(
                               _greeting(context, snapshot.data),
                               style:
                                   (width < 560

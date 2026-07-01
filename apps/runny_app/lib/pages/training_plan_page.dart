@@ -195,7 +195,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       extendBodyBehindAppBar: true,
       backgroundColor: widget.embedded ? Colors.transparent : null,
       appBar: AppBar(
-        title: Text(_activeSchedule!['title'] ?? context.translate('your_training_plan'), style: TextStyle(color: colorScheme.onSurface)),
+        title: MarqueeText(
+          _activeSchedule!['title'] ?? context.translate('your_training_plan'),
+          style: theme.textTheme.titleLarge?.copyWith(color: colorScheme.onSurface),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [

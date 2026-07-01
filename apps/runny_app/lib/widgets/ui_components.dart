@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -606,6 +607,107 @@ class ResponsiveContent extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: child,
+      ),
+    );
+  }
+}
+
+/// Văn bản 1 dòng: nếu nội dung dài hơn vùng chứa thì tự cuộn ngang
+/// (trái ↔ phải) để người dùng đọc hết mà không bị cắt cụt. Nếu vừa đủ
+/// thì hiển thị tĩnh bình thường.
+class MarqueeText extends StatefulWidget {
+  final String text;
+  final TextStyle? style;
+
+  /// Tốc độ cuộn (pixel mỗi giây).
+  final double velocity;
+
+  /// Thời gian dừng ở mỗi đầu trước khi cuộn ngược lại.
+  final Duration pause;
+
+  const MarqueeText(
+    this.text, {
+    super.key,
+    this.style,
+    this.velocity = 35,
+    this.pause = const Duration(milliseconds: 1200),
+  });
+
+  @override
+  State<MarqueeText> createState() => _MarqueeTextState();
+}
+
+class _MarqueeTextState extends State<MarqueeText> {
+  final ScrollController _controller = ScrollController();
+  bool _running = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loop());
+  }
+
+  @override
+  void didUpdateWidget(covariant MarqueeText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Nội dung đổi → đưa về đầu để đo lại độ dài mới.
+    if (oldWidget.text != widget.text && _controller.hasClients) {
+      _controller.jumpTo(0);
+    }
+  }
+
+  Future<void> _loop() async {
+    if (_running) return;
+    _running = true;
+    while (mounted) {
+      if (!_controller.hasClients) {
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        continue;
+      }
+      final max = _controller.position.maxScrollExtent;
+      if (max <= 1) {
+        // Vừa vặn, không cần cuộn — kiểm tra lại sau (VD: xoay màn hình).
+        await Future<void>.delayed(const Duration(milliseconds: 800));
+        continue;
+      }
+      final duration =
+          Duration(milliseconds: (max / widget.velocity * 1000).round());
+      await Future<void>.delayed(widget.pause);
+      if (!await _animate(max, duration)) break;
+      await Future<void>.delayed(widget.pause);
+      if (!await _animate(0, duration)) break;
+    }
+    _running = false;
+  }
+
+  /// Cuộn tới [offset]; trả về false nếu widget đã bị huỷ.
+  Future<bool> _animate(double offset, Duration duration) async {
+    if (!mounted || !_controller.hasClients) return false;
+    await _controller.animateTo(
+      offset,
+      duration: duration,
+      curve: Curves.easeInOut,
+    );
+    return mounted && _controller.hasClients;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      controller: _controller,
+      scrollDirection: Axis.horizontal,
+      physics: const NeverScrollableScrollPhysics(),
+      child: Text(
+        widget.text,
+        style: widget.style,
+        maxLines: 1,
+        softWrap: false,
       ),
     );
   }
