@@ -204,14 +204,40 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         actions: [
           if (!allCompleted)
             IconButton(icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface), onPressed: _adjustPlan, tooltip: context.translate('optimize_plan_tooltip')),
-          IconButton(icon: Icon(Icons.history, color: colorScheme.onSurface), onPressed: _openHistory, tooltip: context.translate('training_history')),
-          IconButton(icon: Icon(Icons.refresh, color: colorScheme.onSurface), onPressed: _fetchData),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: colorScheme.onSurface),
             onSelected: (v) {
-              if (v == 'abandon') _abandonPlan();
+              switch (v) {
+                case 'history':
+                  _openHistory();
+                case 'refresh':
+                  _fetchData();
+                case 'abandon':
+                  _abandonPlan();
+              }
             },
             itemBuilder: (context) => [
+              PopupMenuItem<String>(
+                value: 'history',
+                child: Row(
+                  children: [
+                    Icon(Icons.history, color: colorScheme.onSurface, size: 20),
+                    const SizedBox(width: 10),
+                    Text(context.translate('training_history')),
+                  ],
+                ),
+              ),
+              PopupMenuItem<String>(
+                value: 'refresh',
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh, color: colorScheme.onSurface, size: 20),
+                    const SizedBox(width: 10),
+                    Text(context.translate('refresh')),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               PopupMenuItem<String>(
                 value: 'abandon',
                 child: Row(
