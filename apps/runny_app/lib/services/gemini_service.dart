@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'ai_http_stream.dart';
 import 'paywall_exception.dart';
 
 class GeminiService {
@@ -123,6 +124,87 @@ class GeminiService {
       }
       rethrow;
     }
+  }
+
+  /// Phiên bản streaming của [generateResponse]: gọi thẳng Edge Function
+  /// `openrouter` với `stream: true` và phát từng đoạn văn bản (`delta.content`)
+  /// ngay khi tới, để UI hiển thị chữ chạy dần thay vì đợi phản hồi đầy đủ.
+  ///
+  /// SSE (OpenAI-compatible): mỗi sự kiện là một dòng `data: {json}`; kết thúc
+  /// bằng `data: [DONE]`. Nếu server trả mã != 200 thì body là JSON lỗi
+  /// (guardrail/paywall) — gom lại và ném đúng loại ngoại lệ như bản không stream.
+  Stream<String> streamResponse(
+    String prompt, {
+    List<Map<String, String>>? history,
+  }) async* {
+    final messages = <Map<String, String>>[];
+    if (history != null) {
+      for (final m in history) {
+        final role = m['role'] == 'model' ? 'assistant' : (m['role'] ?? 'user');
+        messages.add({'role': role, 'content': m['content'] ?? ''});
+      }
+    }
+    messages.add({'role': 'user', 'content': prompt});
+
+    final supabaseUrl = dotenv.env['SUPABASE_URL'];
+    final anonKey = dotenv.env['SUPABASE_ANON_KEY'];
+    if (supabaseUrl == null || anonKey == null) {
+      throw Exception('Thiếu cấu hình SUPABASE_URL / SUPABASE_ANON_KEY.');
+    }
+    final url = Uri.parse('$supabaseUrl/functions/v1/openrouter');
+    final token =
+        Supabase.instance.client.auth.currentSession?.accessToken ?? anonKey;
+
+    final result = await postStreaming(
+      url,
+      {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+        'apikey': anonKey,
+      },
+      jsonEncode({
+        ..._modelPayload,
+        'messages': messages,
+        'stream': true,
+      }),
+    );
+
+    if (result.statusCode != 200) {
+      final errText = await _collectText(result.stream);
+      if (PaywallException.isUpgradeSignal(result.statusCode, errText)) {
+        throw PaywallException(_errorFromData(errText));
+      }
+      throw Exception(_errorFromData(errText));
+    }
+
+    final lines =
+        result.stream.transform(utf8.decoder).transform(const LineSplitter());
+    await for (final raw in lines) {
+      final line = raw.trim();
+      if (line.isEmpty || !line.startsWith('data:')) continue;
+      final data = line.substring(5).trim();
+      if (data == '[DONE]') break;
+      try {
+        final decoded = jsonDecode(data) as Map<String, dynamic>;
+        final choices = decoded['choices'] as List?;
+        if (choices == null || choices.isEmpty) continue;
+        final delta = (choices[0] as Map)['delta'] as Map?;
+        final content = delta?['content'];
+        if (content is String && content.isNotEmpty) {
+          yield content;
+        }
+      } catch (_) {
+        // Bỏ qua dòng không phải JSON hợp lệ (comment/keep-alive của SSE).
+      }
+    }
+  }
+
+  Future<String> _collectText(Stream<List<int>> stream) async {
+    final bytes = <int>[];
+    await for (final chunk in stream) {
+      bytes.addAll(chunk);
+    }
+    return utf8.decode(bytes, allowMalformed: true);
   }
 
   Future<Map<String, dynamic>> generateStructuredResponse(

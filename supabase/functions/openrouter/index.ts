@@ -201,10 +201,24 @@ function applyModelFallback(body: Record<string, unknown>): Record<string, unkno
   return { ...rest, models: deduped };
 }
 
+// Header cho phan hoi streaming (SSE): giu nguyen luong su kien tu provider.
+function sseHeaders(provider: string): Record<string, string> {
+  return {
+    ...corsHeaders,
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-AI-Provider': provider,
+  };
+}
+
 // Thu lan luot cac model Groq. Tra ve Response (200) dau tien thanh cong, nguoc lai null.
+// Khi [wantsStream] va provider tra ve OK: pass-through nguyen `res.body` (SSE) de
+// client nhan tung token ngay, khong buffer.
 async function tryGroq(
   rawBody: Record<string, unknown>,
   apiKey: string,
+  wantsStream: boolean,
 ): Promise<Response | null> {
   for (const model of getGroqModels()) {
     try {
@@ -218,6 +232,12 @@ async function tryGroq(
       });
 
       if (res.ok) {
+        if (wantsStream && res.body) {
+          return new Response(res.body, {
+            status: res.status,
+            headers: sseHeaders(`groq:${model}`),
+          });
+        }
         const data = await res.text();
         return new Response(data, {
           status: res.status,
@@ -238,6 +258,7 @@ async function tryGroq(
 async function callOpenRouter(
   rawBody: Record<string, unknown>,
   apiKey: string,
+  wantsStream: boolean,
 ): Promise<Response> {
   const body = applyModelFallback(rawBody);
   const response = await fetch(OPENROUTER_ENDPOINT, {
@@ -250,6 +271,13 @@ async function callOpenRouter(
     },
     body: JSON.stringify(body),
   });
+
+  if (wantsStream && response.ok && response.body) {
+    return new Response(response.body, {
+      status: response.status,
+      headers: sseHeaders('openrouter'),
+    });
+  }
 
   const responseData = await response.text();
   return new Response(responseData, {
@@ -323,16 +351,20 @@ serve(async (req) => {
     // --- Guardrail 4: gioi han chu de (chi chay bo) cho chat tu do. ---
     const body = injectGuardrail(rawBody);
 
+    // Chat tu do co the yeu cau streaming (client gui `stream: true`). Cac yeu cau
+    // JSON noi bo (response_format, vd tao ke hoach) khong stream.
+    const wantsStream = rawBody.stream === true && !rawBody.response_format;
+
     // 1) Groq lam provider chinh.
     if (groqApiKey) {
-      const groqRes = await tryGroq(body, groqApiKey);
+      const groqRes = await tryGroq(body, groqApiKey, wantsStream);
       if (groqRes) return groqRes;
       console.warn('Groq unavailable, falling back to OpenRouter');
     }
 
     // 2) Fallback sang OpenRouter.
     if (openRouterApiKey) {
-      return await callOpenRouter(body, openRouterApiKey);
+      return await callOpenRouter(body, openRouterApiKey, wantsStream);
     }
 
     return new Response(

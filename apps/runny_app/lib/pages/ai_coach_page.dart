@@ -15,6 +15,7 @@ import '../widgets/paywall.dart';
 import '../services/paywall_exception.dart';
 import '../models/workout_models.dart';
 import '../models/nutrition_models.dart';
+import '../models/weight_models.dart';
 import '../l10n/app_localizations.dart';
 
 /// Các loại dữ liệu người dùng có thể đính kèm cho HLV AI phân tích kèm câu hỏi.
@@ -48,7 +49,10 @@ class _AICoachPageState extends State<AICoachPage> {
   final SpeechService _speech = SpeechService();
   final WeatherService _weatherService = WeatherService();
   final List<Map<String, String>> _messages = [];
+  final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
+  // Đang nhận phản hồi streaming (chữ chạy dần trong bong bóng cuối).
+  bool _isStreaming = false;
   bool _isRecording = false;
   String _baseText = '';
   Activity? _contextActivity;
@@ -99,6 +103,8 @@ class _AICoachPageState extends State<AICoachPage> {
   void _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
+    // Chặn gửi chồng khi đang chờ/đang stream phản hồi trước đó.
+    if (_isLoading || _isStreaming) return;
 
     if (!_geminiService.isConfigured) {
       setState(() {
@@ -122,6 +128,7 @@ class _AICoachPageState extends State<AICoachPage> {
       _isLoading = true;
     });
     _controller.clear();
+    _scrollToBottom();
 
     // Cache context-dependent translations before any async gaps
     final errorOccurredTranslation = context.translate('error_occurred');
@@ -178,15 +185,43 @@ class _AICoachPageState extends State<AICoachPage> {
         });
         await _chatService.saveMessage('assistant', planCreatedTranslation);
       } else {
-        final response = await _geminiService.generateResponse(
-          prompt,
-          history: _messages.sublist(0, _messages.length - 1),
-        );
-        if (!mounted) return;
-        setState(() {
-          _messages.add({'role': 'assistant', 'content': response});
-        });
-        await _chatService.saveMessage('assistant', response);
+        // Streaming: phát từng đoạn văn bản ngay khi tới để chữ chạy dần, người
+        // dùng không phải đợi phản hồi đầy đủ.
+        final history = _messages.sublist(0, _messages.length - 1);
+        final buffer = StringBuffer();
+        int? assistantIndex; // vị trí bong bóng trả lời (tạo khi có token đầu)
+        setState(() => _isStreaming = true);
+        try {
+          await for (final chunk
+              in _geminiService.streamResponse(prompt, history: history)) {
+            buffer.write(chunk);
+            if (!mounted) return;
+            setState(() {
+              if (assistantIndex == null) {
+                _messages.add({
+                  'role': 'assistant',
+                  'content': buffer.toString(),
+                });
+                assistantIndex = _messages.length - 1;
+                _isLoading = false; // token đầu tiên -> tắt spinner chờ
+              } else {
+                _messages[assistantIndex!]['content'] = buffer.toString();
+              }
+            });
+            _scrollToBottom();
+          }
+        } catch (e) {
+          // Chưa nhận được token nào -> để catch ngoài hiển thị lỗi/paywall như cũ.
+          if (buffer.isEmpty) rethrow;
+          // Đã có nội dung một phần: giữ lại, coi như kết thúc sớm.
+          debugPrint('AI stream ended early: $e');
+        } finally {
+          if (mounted) setState(() => _isStreaming = false);
+        }
+        final full = buffer.toString();
+        if (full.isNotEmpty) {
+          await _chatService.saveMessage('assistant', full);
+        }
       }
     } on PaywallException catch (e) {
       // Hết quyền (vd hết trial) ngay khi gọi: mở luồng nâng cấp thay vì báo lỗi.
@@ -250,7 +285,10 @@ class _AICoachPageState extends State<AICoachPage> {
         try {
           final profile = await supabase
               .from('profiles')
-              .select('height_cm, weight_kg, max_hr, gender')
+              .select(
+                'height_cm, weight_kg, max_hr, gender, '
+                'target_weight_kg, start_weight_kg',
+              )
               .eq('id', user.id)
               .maybeSingle();
           if (profile != null) {
@@ -269,6 +307,24 @@ class _AICoachPageState extends State<AICoachPage> {
             }
             if (parts.isNotEmpty) {
               buffer.writeln('• Thể trạng: ${parts.join(', ')}.');
+            }
+
+            // Mục tiêu + xu hướng cân nặng: chỉ đính kèm khi người dùng ĐANG có
+            // mục tiêu cân nặng (đủ mốc bắt đầu + mục tiêu + hiện tại), giúp AI
+            // tư vấn theo tiến trình thực tế.
+            final goal = WeightGoal.fromProfile(profile);
+            if (goal.hasGoal) {
+              final dir = goal.isLosing ? 'giảm' : 'tăng';
+              buffer.writeln(
+                '• Mục tiêu cân nặng: ${goal.start!.toStringAsFixed(1)}kg → '
+                '${goal.target!.toStringAsFixed(1)}kg '
+                '(hiện tại ${goal.current!.toStringAsFixed(1)}kg, đã $dir '
+                '${goal.achievedDelta.toStringAsFixed(1)}kg, còn '
+                '${goal.remaining.toStringAsFixed(1)}kg, '
+                '${(goal.progress * 100).toStringAsFixed(0)}%).',
+              );
+              final trend = await _fetchWeightTrend(user.id);
+              if (trend != null) buffer.writeln('  Cột mốc gần đây: $trend.');
             }
           }
         } catch (e) {
@@ -360,6 +416,34 @@ class _AICoachPageState extends State<AICoachPage> {
     final body = buffer.toString().trim();
     if (body.isEmpty) return '';
     return '[Dữ liệu người dùng đính kèm để phân tích]\n$body';
+  }
+
+  /// Lấy các mốc cân nặng gần đây (tối đa 6 lần ghi) theo thứ tự thời gian và
+  /// định dạng thành chuỗi xu hướng "d/m: X.Ykg → ...". Trả về null nếu không có
+  /// dữ liệu hoặc lỗi (fail-soft).
+  Future<String?> _fetchWeightTrend(String userId) async {
+    try {
+      final rows = await Supabase.instance.client
+          .from('weight_logs')
+          .select('weight_kg, logged_at')
+          .eq('user_id', userId)
+          .order('logged_at', ascending: false)
+          .limit(6);
+      final logs = (rows as List).map((r) {
+        return WeightLog.fromJson(r as Map<String, dynamic>);
+      }).toList();
+      if (logs.isEmpty) return null;
+      // Đảo về thứ tự tăng dần (cũ -> mới) để thể hiện xu hướng.
+      final ordered = logs.reversed;
+      return ordered
+          .map((l) =>
+              '${l.loggedAt.day}/${l.loggedAt.month}: '
+              '${l.weightKg.toStringAsFixed(1)}kg')
+          .join(' → ');
+    } catch (e) {
+      debugPrint('Attach weight trend error: $e');
+      return null;
+    }
   }
 
   /// Lấy thời tiết hiện tại tại vị trí người dùng và định dạng thành một dòng
@@ -488,7 +572,22 @@ class _AICoachPageState extends State<AICoachPage> {
   void dispose() {
     _speech.cancel();
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Cuộn xuống cuối danh sách sau khung hình kế tiếp (dùng khi có tin nhắn mới
+  /// hoặc khi bong bóng streaming dài ra).
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   // ----- Speech-to-Text (Issue #29) -----
@@ -601,6 +700,7 @@ class _AICoachPageState extends State<AICoachPage> {
               children: [
                 Expanded(
                   child: ListView.builder(
+                    controller: _scrollController,
                     padding: const EdgeInsets.all(16),
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
