@@ -24,6 +24,7 @@ import '../services/entitlement_service.dart';
 import '../services/payment_redirect.dart';
 import '../widgets/paywall.dart';
 import '../widgets/dashboard_settings_sheet.dart';
+import '../widgets/pwa_install_button.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
@@ -300,11 +301,7 @@ class _DashboardPageState extends State<DashboardPage> {
               );
             },
           ),
-          IconButton(
-            icon: Icon(Icons.logout, color: colorScheme.onSurface),
-            tooltip: context.translate('logout'),
-            onPressed: () => _showLogoutDialog(context),
-          ),
+          const PwaInstallButton(),
         ],
       ),
       body: Stack(
@@ -457,56 +454,6 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: colorScheme.surface,
-        title: Text(context.translate('logout'), style: TextStyle(color: colorScheme.onSurface)),
-        content: Text(
-          context.translate('logout_confirm'),
-          style: TextStyle(color: colorScheme.onSurfaceVariant),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              context.translate('cancel'),
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              final errorPrefix = context.translate('error');
-              Navigator.pop(context);
-              final messenger = ScaffoldMessenger.of(context);
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(context.translate('logging_out')),
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-              try {
-                await Supabase.instance.client.auth.signOut();
-              } catch (e) {
-                messenger.showSnackBar(
-                  SnackBar(content: Text('$errorPrefix: $e')),
-                );
-              }
-            },
-            child: Text(
-              context.translate('logout'),
-              style: const TextStyle(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class OverviewContent extends StatefulWidget {

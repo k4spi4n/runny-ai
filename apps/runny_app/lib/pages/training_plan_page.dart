@@ -94,20 +94,65 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     if (!await ensurePaywall(context, 'plan')) return;
     if (!mounted) return;
 
+    // Bước 1: HLV AI phân tích và ĐỀ XUẤT (chưa lưu).
+    setState(() => _isLoading = true);
+    PlanAdjustmentProposal proposal;
+    try {
+      proposal = await _trainingService.proposePlanAdjustments();
+    } on NoCompletedWorkoutException {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.translate('adjust_need_workout'))),
+      );
+      return;
+    } on PaywallException catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      await showUpgradeSheet(context, message: e.message);
+      return;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.translate('error')}: $e')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (proposal.isEmpty) {
+      // AI thấy lịch đã hợp lý — không có gì để đổi.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.translate('adjust_no_change'))),
+      );
+      return;
+    }
+
+    // Bước 2: người dùng xem trước thay đổi + giải thích, xác nhận mới lưu.
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _AdjustmentPreviewDialog(proposal: proposal),
+    );
+    if (confirmed != true || !mounted) return;
+
+    // Bước 3: đã xác nhận -> ghi vào DB.
     setState(() => _isLoading = true);
     try {
-      await _trainingService.adjustPlanDynamically();
+      await _trainingService.applyPlanAdjustments(proposal.adjustments);
       await _fetchData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.translate('plan_adjusted'))),
         );
       }
-    } on PaywallException catch (e) {
-      if (mounted) await showUpgradeSheet(context, message: e.message);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -241,8 +286,18 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     // thêm nút "Khởi động" cho buổi tập sắp tới.
                     _WorkoutScheduleCard(
                       workout: nextWorkout,
-                      statusColor: _getStatusColor(nextWorkout['status']),
-                      statusIcon: _getStatusIcon(nextWorkout['status']),
+                      statusColor: _statusColorFor(
+                        nextWorkout,
+                        isNext: true,
+                        isLast: _workouts.isNotEmpty &&
+                            nextWorkout['id'] == _workouts.last['id'],
+                      ),
+                      statusIcon: _statusIconFor(
+                        nextWorkout,
+                        isNext: true,
+                        isLast: _workouts.isNotEmpty &&
+                            nextWorkout['id'] == _workouts.last['id'],
+                      ),
                       onAddActivity: () => _showAddActivityOptions(nextWorkout),
                       onReschedule: () => _rescheduleWorkout(nextWorkout),
                       onWarmUp: () => _askWarmUp(nextWorkout),
@@ -257,12 +312,17 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                       _workouts.length,
                       (index) {
                         final workout = _workouts[index];
+                        final isLast = index == _workouts.length - 1;
+                        final isNext = !allCompleted &&
+                            workout['id'] == nextWorkout['id'];
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 14),
                           child: _WorkoutScheduleCard(
                             workout: workout,
-                            statusColor: _getStatusColor(workout['status']),
-                            statusIcon: _getStatusIcon(workout['status']),
+                            statusColor: _statusColorFor(workout,
+                                isNext: isNext, isLast: isLast),
+                            statusIcon: _statusIconFor(workout,
+                                isNext: isNext, isLast: isLast),
                             onAddActivity: () => _showAddActivityOptions(workout),
                             onReschedule: () => _rescheduleWorkout(workout),
                           ),
@@ -468,6 +528,38 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         ),
       ),
     );
+  }
+
+  // Màu vàng "tự hào" cho buổi tập cuối cùng (vạch đích của cả lịch tập).
+  static const Color _finishLineColor = Color(0xFFFFC107);
+
+  /// Màu điểm nhấn của một buổi tập, theo thứ tự ưu tiên:
+  /// buổi cuối cùng (vàng tự hào) > đã hoàn thành (xanh lá) > buổi kế tiếp
+  /// (cam nổi bật) > mặc định theo trạng thái.
+  Color _statusColorFor(
+    Map<String, dynamic> w, {
+    required bool isNext,
+    required bool isLast,
+  }) {
+    final status = w['status'] as String? ?? 'planned';
+    if (isLast) return _finishLineColor;
+    if (status == 'completed') return Colors.greenAccent;
+    if (isNext && status == 'planned') return Colors.orangeAccent;
+    return _getStatusColor(status);
+  }
+
+  /// Icon của một buổi tập theo cùng thứ tự ưu tiên như [_statusColorFor];
+  /// buổi cuối cùng dùng icon huy chương.
+  IconData _statusIconFor(
+    Map<String, dynamic> w, {
+    required bool isNext,
+    required bool isLast,
+  }) {
+    final status = w['status'] as String? ?? 'planned';
+    if (isLast) return Icons.military_tech;
+    if (status == 'completed') return Icons.check_circle;
+    if (isNext && status == 'planned') return Icons.directions_run;
+    return _getStatusIcon(status);
   }
 
   Color _getStatusColor(String status) {
@@ -965,6 +1057,157 @@ class _PlanMetricCard extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Hộp thoại xem trước các điều chỉnh do HLV AI đề xuất: hiển thị nhận xét tổng
+/// quan + từng thay đổi "cũ → mới" kèm lý do; người dùng xác nhận mới lưu.
+class _AdjustmentPreviewDialog extends StatelessWidget {
+  final PlanAdjustmentProposal proposal;
+  const _AdjustmentPreviewDialog({required this.proposal});
+
+  /// Đổi 'YYYY-MM-DD' sang 'dd/MM' cho gọn; giữ nguyên nếu không phân tích được.
+  String _fmtDate(String? raw) {
+    if (raw == null) return '—';
+    final d = DateTime.tryParse(raw);
+    return d == null ? raw : DateFormat('dd/MM').format(d);
+  }
+
+  String _fmtDist(num? km) => km == null ? '—' : '$km km';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.auto_fix_high, color: colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(child: Text(context.translate('adjust_preview_title'))),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (proposal.summary != null && proposal.summary!.trim().isNotEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    proposal.summary!.trim(),
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: colorScheme.onSurface),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              Text(
+                context.translate('adjust_preview_changes'),
+                style: theme.textTheme.labelLarge
+                    ?.copyWith(color: colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
+              ...proposal.adjustments.map((adj) => _buildChangeTile(context, adj)),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(context.translate('cancel')),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(context.translate('adjust_preview_confirm')),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChangeTile(BuildContext context, WorkoutAdjustment adj) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    final rows = <Widget>[];
+    // Chỉ hiện dòng nào thực sự thay đổi.
+    if (adj.newDate != null && adj.newDate != adj.currentDate) {
+      rows.add(_changeRow(context, Icons.event,
+          '${_fmtDate(adj.currentDate)}  →  ${_fmtDate(adj.newDate)}'));
+    }
+    if (adj.newDistanceKm != null && adj.newDistanceKm != adj.currentDistanceKm) {
+      rows.add(_changeRow(context, Icons.straighten,
+          '${_fmtDist(adj.currentDistanceKm)}  →  ${_fmtDist(adj.newDistanceKm)}'));
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.black.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.12)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            adj.title,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w700, color: colorScheme.onSurface),
+          ),
+          const SizedBox(height: 8),
+          ...rows,
+          if (adj.reason.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              adj.reason,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _changeRow(BuildContext context, IconData icon, String text) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),

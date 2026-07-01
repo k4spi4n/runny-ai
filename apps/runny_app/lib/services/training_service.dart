@@ -3,6 +3,46 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'gemini_service.dart';
 
+/// Ném ra khi chưa có buổi tập nào hoàn thành (gắn hoạt động thực tế) — HLV AI
+/// cần ít nhất một buổi để căn cứ tinh chỉnh lịch.
+class NoCompletedWorkoutException implements Exception {}
+
+/// Một đề xuất điều chỉnh cho MỘT buổi tập sắp tới (chưa ghi vào DB). Giữ cả giá
+/// trị hiện tại lẫn giá trị mới để màn hình xem trước hiển thị "cũ → mới".
+class WorkoutAdjustment {
+  final String workoutId;
+  final String title;
+  final String? currentDate;
+  final num? currentDistanceKm;
+  final String? newDate;
+  final num? newDistanceKm;
+  final String reason;
+
+  WorkoutAdjustment({
+    required this.workoutId,
+    required this.title,
+    this.currentDate,
+    this.currentDistanceKm,
+    this.newDate,
+    this.newDistanceKm,
+    required this.reason,
+  });
+
+  /// Có thay đổi thực sự về ngày hoặc cự ly hay không.
+  bool get hasChange =>
+      (newDate != null && newDate != currentDate) ||
+      (newDistanceKm != null && newDistanceKm != currentDistanceKm);
+}
+
+/// Kết quả AI đề xuất tinh chỉnh lịch tập: nhận xét tổng quan + danh sách thay đổi.
+class PlanAdjustmentProposal {
+  final String? summary;
+  final List<WorkoutAdjustment> adjustments;
+  const PlanAdjustmentProposal({this.summary, required this.adjustments});
+
+  bool get isEmpty => adjustments.isEmpty;
+}
+
 class TrainingService {
   final SupabaseClient _supabase = Supabase.instance.client;
   final GeminiService _gemini = GeminiService();
@@ -280,12 +320,19 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
     await _supabase.from('scheduled_workouts').insert(workouts);
   }
 
-  Future<void> adjustPlanDynamically() async {
+  /// Yêu cầu AI đề xuất tinh chỉnh các buổi tập SẮP TỚI dựa trên TẤT CẢ các buổi
+  /// đã hoàn thành (đã gắn hoạt động thực tế) trong lịch hiện hành. KHÔNG ghi DB
+  /// — trả về đề xuất để người dùng xem trước rồi xác nhận qua
+  /// [applyPlanAdjustments].
+  ///
+  /// Ném [NoCompletedWorkoutException] nếu chưa có buổi tập nào hoàn thành, để UI
+  /// nhắc người dùng tập ít nhất một buổi trước. Trả về đề xuất rỗng nếu không có
+  /// lịch active hoặc không còn buổi 'planned' nào để điều chỉnh.
+  Future<PlanAdjustmentProposal> proposePlanAdjustments() async {
     _ensureGeminiReady();
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('User not logged in');
 
-    // 1. Fetch active schedule and its workouts
     final activeSchedule = await _supabase
         .from('training_schedules')
         .select()
@@ -293,64 +340,154 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
         .eq('status', 'active')
         .maybeSingle();
 
-    if (activeSchedule == null) return;
+    if (activeSchedule == null) {
+      return const PlanAdjustmentProposal(adjustments: []);
+    }
 
-    final workouts = await _supabase
+    final workouts = List<Map<String, dynamic>>.from(await _supabase
         .from('scheduled_workouts')
         .select()
         .eq('schedule_id', activeSchedule['id'])
-        .order('date', ascending: true);
+        .order('date', ascending: true));
 
-    // 2. Fetch recent activities
-    final recentActivities = await _supabase
+    // Căn cứ điều chỉnh = các buổi đã hoàn thành và có hoạt động thực tế đính kèm.
+    final completed = workouts
+        .where((w) => w['status'] == 'completed' && w['activity_id'] != null)
+        .toList();
+    if (completed.isEmpty) {
+      throw NoCompletedWorkoutException();
+    }
+
+    final upcoming =
+        workouts.where((w) => w['status'] == 'planned').toList();
+    if (upcoming.isEmpty) {
+      return const PlanAdjustmentProposal(adjustments: []);
+    }
+
+    // Nạp hoạt động thực tế của các buổi đã hoàn thành để so sánh kế hoạch vs thực tế.
+    final activityIds =
+        completed.map((w) => w['activity_id'] as String).toList();
+    final activities = List<Map<String, dynamic>>.from(await _supabase
         .from('activities')
         .select()
-        .eq('user_id', user.id)
-        .order('started_at', ascending: false)
-        .limit(3);
+        .inFilter('id', activityIds));
+    final activityById = {for (final a in activities) a['id'] as String: a};
 
-    // 3. Prepare prompt for adjustment
     const systemPrompt = '''
-Bạn là Huấn luyện viên Chạy bộ Ảo. Hãy phân tích tiến độ tập luyện và điều chỉnh lịch tập nếu cần.
-Nếu người dùng bỏ lỡ buổi tập hoặc tập quá sức, hãy dời lịch hoặc giảm cường độ.
-Phản hồi của bạn PHẢI là một đối tượng JSON chứa danh sách các điều chỉnh:
+Bạn là Huấn luyện viên Chạy bộ Ảo. Dựa trên KẾT QUẢ THỰC TẾ của các buổi đã tập, hãy tinh chỉnh các buổi tập SẮP TỚI cho phù hợp thể trạng người dùng.
+Nếu người dùng tập tốt hơn mục tiêu, có thể tăng nhẹ cường độ; nếu chưa đạt hoặc có dấu hiệu quá sức, hãy giảm cường độ hoặc dời lịch.
+CHỈ điều chỉnh các buổi có trong danh sách "buổi tập sắp tới" và CHỈ dùng đúng workout_id được cung cấp. Buổi nào đã hợp lý thì bỏ qua (không cần liệt kê).
+Phản hồi của bạn PHẢI là một đối tượng JSON:
 {
+  "summary": "Nhận xét tổng quan ngắn gọn về tiến độ và hướng điều chỉnh",
   "adjustments": [
     {
-      "workout_id": "uuid",
+      "workout_id": "uuid của buổi sắp tới",
       "new_date": "YYYY-MM-DD",
       "new_target_distance_km": 5.0,
-      "reason": "Giải thích lý do điều chỉnh"
+      "reason": "Giải thích ngắn gọn lý do điều chỉnh buổi này"
     }
   ]
 }
 ''';
 
-    final context =
-        '''
+    final completedSummary = completed.map((w) {
+      final act = activityById[w['activity_id']];
+      final planned = _formatWorkoutTargets(w);
+      final actual = act == null ? 'không rõ' : _formatActivityActual(act);
+      return '- ${w['title']} (${w['date']}): kế hoạch [$planned], thực tế [$actual]';
+    }).join('\n');
+
+    final upcomingSummary = upcoming.map((w) {
+      return '- id ${w['id']}: ${w['title']} vào ${w['date']}, mục tiêu [${_formatWorkoutTargets(w)}]';
+    }).join('\n');
+
+    final context = '''
 Lịch tập hiện tại: ${activeSchedule['title']}
-Các buổi tập sắp tới: ${workouts.where((w) => w['status'] == 'planned').map((w) => '${w['id']}: ${w['title']} vào ${w['date']}').join('; ')}
-Các hoạt động thực tế gần đây: ${recentActivities.map((a) => 'Ngày: ${a['started_at']}, KM: ${a['distance_km']}, Pace: ${(a['duration_min'] / a['distance_km']).toStringAsFixed(2)}').join('; ')}
+Các buổi đã hoàn thành (kế hoạch vs thực tế):
+$completedSummary
+
+Các buổi tập sắp tới (có thể điều chỉnh):
+$upcomingSummary
 ''';
 
-    // 4. Call Gemini
-    final adjustmentJson = await _gemini.generateStructuredResponse(
-      context,
-      systemPrompt,
-    );
+    final json =
+        await _gemini.generateStructuredResponse(context, systemPrompt);
 
-    // 5. Apply adjustments
-    for (final adj in adjustmentJson['adjustments']) {
+    final byId = {for (final w in workouts) w['id'] as String: w};
+    final adjustments = <WorkoutAdjustment>[];
+    final rawList = json['adjustments'];
+    if (rawList is List) {
+      for (final adj in rawList) {
+        if (adj is! Map) continue;
+        final wid = adj['workout_id']?.toString();
+        final current = wid == null ? null : byId[wid];
+        // Bỏ qua id AI bịa ra hoặc buổi không còn ở trạng thái 'planned'.
+        if (current == null || current['status'] != 'planned') continue;
+        final item = WorkoutAdjustment(
+          workoutId: wid!,
+          title: current['title'] as String? ?? 'Buổi tập',
+          currentDate: current['date'] as String?,
+          currentDistanceKm: current['target_distance_km'] as num?,
+          newDate: _validDate(adj['new_date']),
+          newDistanceKm:
+              _safeNumeric(adj['new_target_distance_km'], max: 99999.99),
+          reason: adj['reason']?.toString() ?? '',
+        );
+        // Chỉ giữ buổi có thay đổi thực sự để preview không hiện mục thừa.
+        if (item.hasChange) adjustments.add(item);
+      }
+    }
+
+    return PlanAdjustmentProposal(
+      summary: json['summary']?.toString(),
+      adjustments: adjustments,
+    );
+  }
+
+  /// Ghi các điều chỉnh đã được người dùng xác nhận vào DB.
+  Future<void> applyPlanAdjustments(List<WorkoutAdjustment> adjustments) async {
+    for (final adj in adjustments) {
       await _supabase
           .from('scheduled_workouts')
           .update({
-            if (adj['new_date'] != null) 'date': adj['new_date'],
-            if (adj['new_target_distance_km'] != null)
-              'target_distance_km': adj['new_target_distance_km'],
-            'description': 'Đã điều chỉnh bởi AI: ${adj['reason']}',
+            if (adj.newDate != null) 'date': adj.newDate,
+            if (adj.newDistanceKm != null)
+              'target_distance_km': adj.newDistanceKm,
+            if (adj.reason.isNotEmpty)
+              'description': 'Đã điều chỉnh bởi AI: ${adj.reason}',
           })
-          .eq('id', adj['workout_id']);
+          .eq('id', adj.workoutId);
     }
+  }
+
+  /// Ghép mục tiêu của một buổi tập thành chuỗi ngắn cho prompt (an toàn với null).
+  String _formatWorkoutTargets(Map<String, dynamic> w) {
+    final dist = (w['target_distance_km'] as num?)?.toDouble();
+    final dur = (w['target_duration_min'] as num?)?.toDouble();
+    final pace = (w['target_pace_min_per_km'] as num?)?.toDouble();
+    final parts = <String>[];
+    if (dist != null) parts.add('${dist}km');
+    if (dur != null) parts.add('$dur phút');
+    if (pace != null) parts.add('pace $pace');
+    return parts.isEmpty ? 'không rõ' : parts.join(', ');
+  }
+
+  /// Ghép kết quả thực tế của một hoạt động; pace tính AN TOÀN (không chia cho 0).
+  String _formatActivityActual(Map<String, dynamic> a) {
+    final dist = (a['distance_km'] as num?)?.toDouble() ?? 0;
+    final dur = (a['duration_min'] as num?)?.toDouble() ?? 0;
+    final pace = dist > 0 ? (dur / dist).toStringAsFixed(2) : 'N/A';
+    final hr = a['avg_hr'];
+    final hrPart = hr == null ? '' : ', nhịp tim ${hr}bpm';
+    return '${dist}km, $dur phút, pace $pace$hrPart';
+  }
+
+  /// Xác thực chuỗi ngày do AI trả về; trả null nếu không phải ngày hợp lệ.
+  String? _validDate(dynamic value) {
+    if (value is! String) return null;
+    final parsed = DateTime.tryParse(value.trim());
+    return parsed == null ? null : _dateOnly(parsed);
   }
 
   Future<String> analyzeActivity(String activityId) async {

@@ -31,6 +31,25 @@
 
   <title>runny_app</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Bắt sự kiện cài PWA: trình duyệt kích hoạt `beforeinstallprompt` khi app đủ
+    điều kiện cài. Ta chặn banner mặc định, lưu lại event để Dart gọi `prompt()`
+    khi người dùng bấm nút "Cài ứng dụng". `onPwaInstallable`/`onPwaInstalled`
+    là các callback do phía Dart gắn vào để cập nhật hiển thị nút.
+  -->
+  <script>
+    window.deferredPwaPrompt = null;
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window.deferredPwaPrompt = e;
+      if (typeof window.onPwaInstallable === 'function') window.onPwaInstallable();
+    });
+    window.addEventListener('appinstalled', function () {
+      window.deferredPwaPrompt = null;
+      if (typeof window.onPwaInstalled === 'function') window.onPwaInstalled();
+    });
+  </script>
 </head>
 <body>
   <!--
