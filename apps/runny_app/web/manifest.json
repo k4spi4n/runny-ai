@@ -1,11 +1,11 @@
 {
-    "name": "runny_app",
-    "short_name": "runny_app",
+    "name": "Runny AI - Trợ lý chạy bộ thông minh",
+    "short_name": "Runny AI",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#050814",
+    "theme_color": "#050814",
+    "description": "Trợ lý chạy bộ thông minh - huấn luyện viên AI đồng hành cùng bạn.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

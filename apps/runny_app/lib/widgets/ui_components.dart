@@ -468,29 +468,14 @@ class RunnyLogo extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Transform.rotate(
-              angle: -0.15,
-              child: Container(
-                width: fontSize * 1.4,
-                height: fontSize * 1.4,
-                decoration: BoxDecoration(
-                  gradient: accentPulseGradient,
-                  borderRadius: BorderRadius.circular(fontSize * 0.35),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFA6B27).withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Icon(Icons.bolt_rounded, color: Colors.white, size: fontSize * 1.1),
-          ],
+        ClipRRect(
+          borderRadius: BorderRadius.circular(fontSize * 0.35),
+          child: Image.asset(
+            'assets/images/runny-ai-logo.png',
+            width: fontSize * 1.4,
+            height: fontSize * 1.4,
+            fit: BoxFit.cover,
+          ),
         ),
         if (showText) ...[
           const SizedBox(width: 14),

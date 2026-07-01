@@ -82,6 +82,7 @@ flutter:
     - .env
     - lib/l10n/locales/en.json
     - lib/l10n/locales/vi.json
+    - assets/images/runny-ai-logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
