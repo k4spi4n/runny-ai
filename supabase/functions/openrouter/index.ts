@@ -105,9 +105,14 @@ async function checkAiAccess(
 ): Promise<{ allowed: boolean; reason?: string; tier?: string }> {
   const url = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  // Khi khong xac minh duoc entitlement (thieu cau hinh / RPC loi): tinh nang TRA
+  // PHI ('plan') fail-CLOSED (tu choi, tranh mo khoa mien phi luc ha tang loi);
+  // chat mien phi fail-OPEN de giu tinh san sang cua tinh nang co ban.
+  const onUnavailable: { allowed: boolean; reason?: string } =
+    feature === 'chat' ? { allowed: true } : { allowed: false, reason: 'unavailable' };
   if (!url || !serviceKey) {
     console.warn('AI access check skipped: SUPABASE_URL/SERVICE_ROLE_KEY not set.');
-    return { allowed: true };
+    return onUnavailable;
   }
   try {
     const res = await fetch(`${url}/rest/v1/rpc/check_ai_access`, {
@@ -128,13 +133,13 @@ async function checkAiAccess(
     });
     if (!res.ok) {
       console.warn(`check_ai_access RPC returned ${res.status}`);
-      return { allowed: true }; // fail-open
+      return onUnavailable;
     }
     const data = await res.json();
     return { allowed: data?.allowed !== false, reason: data?.reason, tier: data?.tier };
   } catch (e) {
     console.warn(`check_ai_access RPC failed: ${e}`);
-    return { allowed: true }; // fail-open
+    return onUnavailable;
   }
 }
 
@@ -339,6 +344,13 @@ serve(async (req) => {
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       }
+      if (access.reason === 'unavailable') {
+        // Fail-closed cho tinh nang tra phi: khong xac minh duoc quyen -> bao ban.
+        return new Response(
+          JSON.stringify({ error: 'Dịch vụ AI đang bận. Vui lòng thử lại sau giây lát.' }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
       const msg = access.reason === 'day'
         ? 'Bạn đã đạt giới hạn yêu cầu AI trong ngày. Nâng cấp gói để dùng nhiều hơn, hoặc thử lại vào ngày mai.'
         : 'Bạn đang gửi yêu cầu quá nhanh. Vui lòng chờ một lát rồi thử lại.';
@@ -374,7 +386,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in AI proxy:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal Server Error' }),
+      JSON.stringify({ error: (error as Error).message || 'Internal Server Error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }

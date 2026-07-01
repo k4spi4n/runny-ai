@@ -60,10 +60,10 @@ class SubscriptionService {
     return url;
   }
 
-  Future<void> cancelSubscription(String subscriptionId) async {
-    await _supabase
-        .from('user_subscriptions')
-        .update({'cancel_at_period_end': true})
-        .eq('id', subscriptionId);
+  /// Đặt hủy-cuối-kỳ cho subscription active của chính người dùng.
+  /// Đi qua RPC `request_subscription_cancellation` (SECURITY DEFINER) vì client
+  /// KHÔNG còn quyền ghi thẳng vào `user_subscriptions` (chống tự cấp "paid").
+  Future<void> cancelSubscription() async {
+    await _supabase.rpc('request_subscription_cancellation');
   }
 }
