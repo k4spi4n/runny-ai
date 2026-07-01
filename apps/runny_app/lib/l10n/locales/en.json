@@ -479,5 +479,8 @@
   "weight_goal_line": "Goal",
   "delete_entry": "Delete entry",
   "weight_tracking_cta": "Track weight & goals",
+  "weight_management": "Weight management",
+  "weight_no_data": "No weight logged yet",
+  "view_full": "View details",
   "no_shoe": "No shoe"
 }

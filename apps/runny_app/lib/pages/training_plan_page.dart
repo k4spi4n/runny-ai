@@ -12,7 +12,12 @@ import '../l10n/app_localizations.dart';
 import 'import_activity_page.dart';
 
 class TrainingPlanPage extends StatefulWidget {
-  const TrainingPlanPage({super.key});
+  /// [embedded] = true khi hiển thị bên trong khung tab của Dashboard: bỏ nền
+  /// gradient riêng (Dashboard đã vẽ gradient toàn màn) để không tạo ra "box"
+  /// hình chữ nhật lệch màu, đồng bộ với các tab còn lại.
+  final bool embedded;
+
+  const TrainingPlanPage({super.key, this.embedded = false});
 
   @override
   State<TrainingPlanPage> createState() => _TrainingPlanPageState();
@@ -143,6 +148,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
+      backgroundColor: widget.embedded ? Colors.transparent : null,
       appBar: AppBar(
         title: Text(_activeSchedule!['title'] ?? context.translate('your_training_plan'), style: TextStyle(color: colorScheme.onSurface)),
         backgroundColor: Colors.transparent,
@@ -174,7 +180,8 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       ),
       body: Stack(
         children: [
-          SizedBox.expand(child: DecoratedBox(decoration: BoxDecoration(gradient: sportPlatformGradient(context)))),
+          if (!widget.embedded)
+            SizedBox.expand(child: DecoratedBox(decoration: BoxDecoration(gradient: sportPlatformGradient(context)))),
           Positioned(
             top: 24,
             right: -100,

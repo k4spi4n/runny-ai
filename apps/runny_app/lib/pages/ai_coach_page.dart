@@ -23,7 +23,18 @@ enum _ChatAttachment { activities, metrics, plan, nutrition }
 class AICoachPage extends StatefulWidget {
   final Activity? initialActivity;
   final String? initialPrompt;
-  const AICoachPage({super.key, this.initialActivity, this.initialPrompt});
+
+  /// [embedded] = true khi hiển thị bên trong khung tab của Dashboard: bỏ nền
+  /// gradient riêng (Dashboard đã vẽ gradient toàn màn) để không tạo ra "box"
+  /// hình chữ nhật lệch màu, đồng bộ với các tab còn lại.
+  final bool embedded;
+
+  const AICoachPage({
+    super.key,
+    this.initialActivity,
+    this.initialPrompt,
+    this.embedded = false,
+  });
 
   @override
   State<AICoachPage> createState() => _AICoachPageState();
@@ -558,6 +569,7 @@ class _AICoachPageState extends State<AICoachPage> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
+      backgroundColor: widget.embedded ? Colors.transparent : null,
       appBar: AppBar(
         title: Text(context.translate('ai_coach'), style: TextStyle(color: colorScheme.onSurface)),
         backgroundColor: Colors.transparent,
@@ -578,11 +590,12 @@ class _AICoachPageState extends State<AICoachPage> {
       ),
       body: Stack(
         children: [
-          SizedBox.expand(
-            child: DecoratedBox(
-              decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
+          if (!widget.embedded)
+            SizedBox.expand(
+              child: DecoratedBox(
+                decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
+              ),
             ),
-          ),
           SafeArea(
             child: Column(
               children: [

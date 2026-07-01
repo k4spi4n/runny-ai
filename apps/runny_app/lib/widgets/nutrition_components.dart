@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/nutrition_models.dart';
+import '../models/weight_models.dart';
+import '../services/weight_service.dart';
+import '../pages/weight_tracking_page.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
+import 'ui_components.dart';
 
 class NutritionOverviewCard extends StatelessWidget {
   final DailyNutritionSummary summary;
@@ -14,63 +18,61 @@ class NutritionOverviewCard extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = context;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.translate('daily_goal'),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+    return glassCard(
+      context: context,
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.translate('daily_goal'),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${summary.caloriesIn.toInt()} / ${summary.goal.dailyCalories.toInt()} kcal',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${summary.caloriesIn.toInt()} / ${summary.goal.dailyCalories.toInt()} kcal',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
-                  ],
-                ),
-                _buildCircularProgress(context),
-              ],
-            ),
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatItem(
-                  context,
-                  l10n.translate('calories_in'),
-                  summary.caloriesIn.toInt().toString(),
-                  AppTheme.primary,
-                ),
-                _buildStatItem(
-                  context,
-                  l10n.translate('calories_out'),
-                  summary.caloriesOut.toInt().toString(),
-                  AppTheme.secondary,
-                ),
-                _buildStatItem(
-                  context,
-                  l10n.translate('calories_left'),
-                  summary.caloriesLeft.toInt().toString(),
-                  AppTheme.success,
-                ),
-              ],
-            ),
-          ],
-        ),
+                  ),
+                ],
+              ),
+              _buildCircularProgress(context),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStatItem(
+                context,
+                l10n.translate('calories_in'),
+                summary.caloriesIn.toInt().toString(),
+                AppTheme.primary,
+              ),
+              _buildStatItem(
+                context,
+                l10n.translate('calories_out'),
+                summary.caloriesOut.toInt().toString(),
+                AppTheme.secondary,
+              ),
+              _buildStatItem(
+                context,
+                l10n.translate('calories_left'),
+                summary.caloriesLeft.toInt().toString(),
+                AppTheme.success,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -146,44 +148,42 @@ class MacroTrackingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = context;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.translate('macros'),
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 24),
-            _buildMacroBar(
+    return glassCard(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.translate('macros'),
+            style: Theme.of(
               context,
-              l10n.translate('protein'),
-              summary.protein,
-              summary.goal.targetProteinGrams,
-              AppTheme.primary,
-            ),
-            const SizedBox(height: 16),
-            _buildMacroBar(
-              context,
-              l10n.translate('carbs'),
-              summary.carbs,
-              summary.goal.targetCarbsGrams,
-              AppTheme.secondary,
-            ),
-            const SizedBox(height: 16),
-            _buildMacroBar(
-              context,
-              l10n.translate('fat'),
-              summary.fat,
-              summary.goal.targetFatGrams,
-              AppTheme.accent,
-            ),
-          ],
-        ),
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 24),
+          _buildMacroBar(
+            context,
+            l10n.translate('protein'),
+            summary.protein,
+            summary.goal.targetProteinGrams,
+            AppTheme.primary,
+          ),
+          const SizedBox(height: 16),
+          _buildMacroBar(
+            context,
+            l10n.translate('carbs'),
+            summary.carbs,
+            summary.goal.targetCarbsGrams,
+            AppTheme.secondary,
+          ),
+          const SizedBox(height: 16),
+          _buildMacroBar(
+            context,
+            l10n.translate('fat'),
+            summary.fat,
+            summary.goal.targetFatGrams,
+            AppTheme.accent,
+          ),
+        ],
       ),
     );
   }
@@ -304,15 +304,20 @@ class MealSection extends StatelessWidget {
 
   Widget _buildMealTile(BuildContext context, MealLog log) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.5),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.14)
+              : Colors.black.withValues(alpha: 0.05),
         ),
       ),
       child: Row(
@@ -347,6 +352,202 @@ class MealSection extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Thẻ tóm tắt "Quản lý cân nặng" nhúng trong trang Dinh dưỡng: hiển thị cân
+/// nặng hiện tại + tiến trình mục tiêu ở dạng gọn, kèm nút mở màn hình
+/// [WeightTrackingPage] đầy đủ. Tự tải lại dữ liệu khi quay về từ màn hình đó.
+class WeightSummaryCard extends StatefulWidget {
+  const WeightSummaryCard({super.key});
+
+  @override
+  State<WeightSummaryCard> createState() => _WeightSummaryCardState();
+}
+
+class _WeightSummaryCardState extends State<WeightSummaryCard> {
+  final WeightService _service = WeightService();
+  WeightGoal? _goal;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final goal = await _service.fetchGoal();
+      if (mounted) {
+        setState(() {
+          _goal = goal;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _openFull() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const WeightTrackingPage()),
+    ).then((_) => _load());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final goal = _goal;
+
+    return glassCard(
+      context: context,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.secondary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.monitor_weight,
+                  color: AppTheme.secondary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  context.translate('weight_management'),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: _openFull,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(context.translate('view_full')),
+                    const SizedBox(width: 2),
+                    const Icon(Icons.arrow_forward_ios, size: 12),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else if (goal == null || goal.current == null)
+            _buildNoData(context)
+          else
+            _buildSummary(context, goal),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoData(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      context.translate('weight_no_data'),
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+
+  Widget _buildSummary(BuildContext context, WeightGoal goal) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              '${goal.current!.toStringAsFixed(1)} kg',
+              style: GoogleFonts.lexend(
+                fontWeight: FontWeight.w800,
+                fontSize: 24,
+                color: cs.onSurface,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              context.translate('current_weight'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const Spacer(),
+            if (goal.hasGoal)
+              Text(
+                '${context.translate('target_weight_short')}: ${goal.target!.toStringAsFixed(1)} kg',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+          ],
+        ),
+        if (goal.hasGoal) ...[
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: goal.progress == 0 ? 0.02 : goal.progress,
+              minHeight: 8,
+              backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                AppTheme.secondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            goal.reached
+                ? context.translate('goal_reached')
+                : context.translate('weight_remaining', [
+                    goal.remaining.toStringAsFixed(1),
+                    goal.isLosing
+                        ? context.translate('lose_weight')
+                        : context.translate('gain_weight'),
+                  ]),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ] else ...[
+          const SizedBox(height: 6),
+          Text(
+            context.translate('weight_goal_empty_desc'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

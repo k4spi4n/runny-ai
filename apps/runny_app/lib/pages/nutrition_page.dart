@@ -12,7 +12,12 @@ import '../services/gemini_service.dart';
 import '../widgets/ui_components.dart';
 
 class NutritionPage extends StatefulWidget {
-  const NutritionPage({super.key});
+  /// [embedded] = true khi hiển thị bên trong khung tab của Dashboard: bỏ nền
+  /// gradient riêng (Dashboard đã vẽ gradient toàn màn) để không tạo ra "box"
+  /// hình chữ nhật lệch màu, đồng bộ với các tab còn lại.
+  final bool embedded;
+
+  const NutritionPage({super.key, this.embedded = false});
 
   @override
   State<NutritionPage> createState() => _NutritionPageState();
@@ -38,6 +43,7 @@ class _NutritionPageState extends State<NutritionPage> {
 
     return Scaffold(
       extendBodyBehindAppBar: true,
+      backgroundColor: widget.embedded ? Colors.transparent : null,
       appBar: AppBar(
         title: Text(
           l10n.translate('nutrition'),
@@ -54,13 +60,14 @@ class _NutritionPageState extends State<NutritionPage> {
       ),
       body: Stack(
         children: [
-          SizedBox.expand(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: sportPlatformGradient(context),
+          if (!widget.embedded)
+            SizedBox.expand(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: sportPlatformGradient(context),
+                ),
               ),
             ),
-          ),
           if (nutritionService.isLoading && nutritionService.logs.isEmpty)
             const Center(child: CircularProgressIndicator())
           else
@@ -75,6 +82,8 @@ class _NutritionPageState extends State<NutritionPage> {
                   NutritionOverviewCard(summary: summary),
                   const SizedBox(height: 16),
                   MacroTrackingCard(summary: summary),
+                  const SizedBox(height: 16),
+                  const WeightSummaryCard(),
                   const SizedBox(height: 24),
                   MealSection(
                     title: l10n.translate('breakfast'),
