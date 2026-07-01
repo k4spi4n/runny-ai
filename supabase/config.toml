@@ -31,6 +31,22 @@ enable_confirmations = false
 [functions]
 # verify_jwt = true
 
+# Cac function huong client CHI decode JWT (khong tu verify chu ky) -> BAT BUOC
+# platform verify_jwt = true de chan token gia mao. Ghim tuong minh o day de mot
+# thay doi Dashboard vo tinh khong lam mat lop bao ve nay.
+# (Tren cloud: dam bao "Verify JWT" DANG BAT cho cac function nay trong Dashboard.)
+[functions.openrouter]
+verify_jwt = true
+
+[functions.food-recognition]
+verify_jwt = true
+
+[functions.payos-create-payment]
+verify_jwt = true
+
+[functions.strava_oauth]
+verify_jwt = true
+
 # Strava goi webhook khong kem JWT cua Supabase -> tat xac thuc JWT cho rieng
 # function nay (tren cloud: tat "Verify JWT" cho strava_webhook trong Dashboard).
 [functions.strava_webhook]

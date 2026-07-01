@@ -28,18 +28,10 @@ async function processEvent(body: any): Promise<void> {
   }
   const supabase = createClient(supabaseUrl, serviceKey);
 
-  // Xoá hoạt động bên Strava -> gỡ bản ghi tương ứng (nếu có).
-  if (aspectType === "delete") {
-    await supabase
-      .from("activities")
-      .delete()
-      .eq("strava_activity_id", objectId);
-    return;
-  }
-
-  if (aspectType !== "create" && aspectType !== "update") return;
-
-  // Tra cứu user theo athlete id (đã lưu khi kết nối OAuth).
+  // Webhook nay la PUBLIC (verify_jwt=false) va Strava KHONG ky payload -> ke tan
+  // cong co the gia mao su kien. Vi vay LUON tra cuu user theo athlete id truoc va
+  // gioi han moi thao tac (xoa/ghi) trong pham vi user do; tuyet doi khong dung
+  // rieng object_id (activity id) do client gui de dung cham du lieu nguoi khac.
   const { data: profile, error } = await supabase
     .from("profiles")
     .select("id, strava_access_token, strava_refresh_token, strava_expires_at")
@@ -50,6 +42,18 @@ async function processEvent(body: any): Promise<void> {
     console.warn(`Không tìm thấy user cho athlete ${ownerId}.`);
     return;
   }
+
+  // Xoá hoạt động bên Strava -> gỡ bản ghi tương ứng CỦA CHÍNH USER ĐÓ.
+  if (aspectType === "delete") {
+    await supabase
+      .from("activities")
+      .delete()
+      .eq("user_id", profile.id)
+      .eq("strava_activity_id", objectId);
+    return;
+  }
+
+  if (aspectType !== "create" && aspectType !== "update") return;
 
   try {
     const accessToken = await ensureFreshToken(supabase, profile);

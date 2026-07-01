@@ -69,9 +69,12 @@ async function checkAiAccess(
 ): Promise<{ allowed: boolean; reason?: string; tier?: string }> {
   const url = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  // 'food' la tinh nang tra phi -> fail-CLOSED: khong xac minh duoc quyen thi tu
+  // choi (tranh mo khoa mien phi khi ha tang loi/chua cau hinh).
+  const onUnavailable = { allowed: false, reason: 'unavailable' };
   if (!url || !serviceKey) {
     console.warn('AI access check skipped: SUPABASE_URL/SERVICE_ROLE_KEY not set.');
-    return { allowed: true };
+    return onUnavailable;
   }
   try {
     const res = await fetch(`${url}/rest/v1/rpc/check_ai_access`, {
@@ -93,13 +96,13 @@ async function checkAiAccess(
     });
     if (!res.ok) {
       console.warn(`check_ai_access RPC returned ${res.status}`);
-      return { allowed: true }; // fail-open
+      return onUnavailable;
     }
     const data = await res.json();
     return { allowed: data?.allowed !== false, reason: data?.reason, tier: data?.tier };
   } catch (e) {
     console.warn(`check_ai_access RPC failed: ${e}`);
-    return { allowed: true }; // fail-open
+    return onUnavailable;
   }
 }
 
@@ -187,6 +190,10 @@ serve(async (req) => {
           code: 'upgrade_required',
         }, 402);
       }
+      if (access.reason === 'unavailable') {
+        // Fail-closed: khong xac minh duoc quyen -> bao ban thay vi mo khoa mien phi.
+        return jsonResponse({ error: 'Dịch vụ đang bận. Vui lòng thử lại sau giây lát.' }, 503);
+      }
       const msg = access.reason === 'day'
         ? 'Bạn đã đạt giới hạn nhận diện món ăn trong ngày. Vui lòng thử lại vào ngày mai.'
         : 'Bạn đang gửi yêu cầu quá nhanh. Vui lòng chờ một lát rồi thử lại.';
@@ -202,7 +209,7 @@ serve(async (req) => {
       bytes,
     });
 
-    return jsonResponse(result);
+    return jsonResponse(result as unknown as Record<string, unknown>);
   } catch (error) {
     console.error('Food recognition error:', error);
 
