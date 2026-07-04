@@ -306,22 +306,28 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     const SizedBox(height: 16),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      runSpacing: 12,
-                      spacing: 12,
+                    Column(
                       children: [
-                        OutlinedButton.icon(
+                        _SocialLoginButton(
                           onPressed: _isLoading ? null : _showComingSoon,
-                          icon: const Icon(Icons.g_mobiledata, color: Colors.redAccent, size: 24),
-                          label: Text(context.translate('google_login')),
-                          style: secondaryActionButton(context),
+                          icon: const Icon(
+                            Icons.g_mobiledata,
+                            color: Colors.redAccent,
+                            size: 28,
+                          ),
+                          label: context.translate('google_login'),
+                          isDark: isDark,
                         ),
-                        OutlinedButton.icon(
+                        const SizedBox(height: 10),
+                        _SocialLoginButton(
                           onPressed: _isLoading ? null : _showComingSoon,
-                          icon: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 24),
-                          label: Text(context.translate('facebook_login')),
-                          style: secondaryActionButton(context),
+                          icon: const Icon(
+                            Icons.facebook,
+                            color: Color(0xFF1877F2),
+                            size: 24,
+                          ),
+                          label: context.translate('facebook_login'),
+                          isDark: isDark,
                         ),
                       ],
                     ),
@@ -343,6 +349,62 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SocialLoginButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final Widget icon;
+  final String label;
+  final bool isDark;
+
+  const _SocialLoginButton({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: textColor,
+          backgroundColor: isDark
+              ? Colors.white.withValues(alpha: 0.065)
+              : Colors.black.withValues(alpha: 0.025),
+          side: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.16)
+                : Colors.black.withValues(alpha: 0.08),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        child: Row(
+          children: [
+            SizedBox(width: 30, child: Center(child: icon)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
