@@ -464,10 +464,10 @@ class _AtomicFeatureCarouselState extends State<_AtomicFeatureCarousel>
 class _AtomicFeatureRow extends StatelessWidget {
   static const double _gap = 10;
   static const double _chipMinWidth = 96;
-  static const double _chipMaxWidth = 292;
   static const double _chipHorizontalPadding = 24;
   static const double _iconWidth = 18;
   static const double _iconGap = 8;
+  static const double _borderPadding = 3;
 
   final AnimationController controller;
   final List<_AtomicFeatureData> features;
@@ -483,9 +483,10 @@ class _AtomicFeatureRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final textStyle = _chipTextStyle(context);
     final textDirection = Directionality.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
     final chipWidths = [
       for (final feature in features)
-        _chipWidthFor(feature.label, textStyle, textDirection),
+        _chipWidthFor(feature.label, textStyle, textDirection, textScaler),
     ];
     final sequenceWidth = chipWidths.fold<double>(
       0,
@@ -543,15 +544,21 @@ class _AtomicFeatureRow extends StatelessWidget {
     String label,
     TextStyle style,
     TextDirection textDirection,
+    TextScaler textScaler,
   ) {
     final painter = TextPainter(
       text: TextSpan(text: label, style: style),
       maxLines: 1,
       textDirection: textDirection,
+      textScaler: textScaler,
     )..layout();
-    return (painter.width + _chipHorizontalPadding + _iconWidth + _iconGap)
-        .clamp(_chipMinWidth, _chipMaxWidth)
-        .toDouble();
+    return (painter.width +
+            _chipHorizontalPadding +
+            _iconWidth +
+            _iconGap +
+            _borderPadding)
+        .ceilToDouble()
+        .clamp(_chipMinWidth, double.infinity);
   }
 }
 
@@ -607,16 +614,16 @@ class _AtomicFeatureChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(11),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(feature.icon, size: 18, color: feature.color),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                feature.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: _AtomicFeatureRow._chipTextStyle(context),
-              ),
+            Text(
+              feature.label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
+              style: _AtomicFeatureRow._chipTextStyle(context),
             ),
           ],
         ),
