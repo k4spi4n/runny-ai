@@ -17,9 +17,7 @@ void main() {
     await Supabase.initialize(
       url: 'https://placeholder.supabase.co',
       anonKey: 'placeholder_anon_key',
-      authOptions: const FlutterAuthClientOptions(
-        autoRefreshToken: false,
-      ),
+      authOptions: const FlutterAuthClientOptions(autoRefreshToken: false),
     );
 
     // Build our app and trigger a frame.
@@ -34,7 +32,7 @@ void main() {
       ),
     );
 
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 100));
 
     // Verify that our app starts.
     expect(find.byType(RunnyLogo), findsAtLeastNWidgets(1));

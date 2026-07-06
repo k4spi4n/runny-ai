@@ -509,12 +509,17 @@ class _AtomicFeatureRow extends StatelessWidget {
 
             return Transform.translate(
               offset: Offset(offset, 0),
-              child: Row(
-                children: [
-                  _FeatureSequence(features: features),
-                  _FeatureSequence(features: features),
-                  _FeatureSequence(features: features),
-                ],
+              child: OverflowBox(
+                alignment: Alignment.centerLeft,
+                minWidth: sequenceWidth * 3,
+                maxWidth: sequenceWidth * 3,
+                child: Row(
+                  children: [
+                    _FeatureSequence(features: features),
+                    _FeatureSequence(features: features),
+                    _FeatureSequence(features: features),
+                  ],
+                ),
               ),
             );
           },
