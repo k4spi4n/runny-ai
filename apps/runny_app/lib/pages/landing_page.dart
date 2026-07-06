@@ -213,7 +213,7 @@ class _HeroSection extends StatelessWidget {
               style: headlineStyle,
             ),
             const SizedBox(height: 14),
-            _AnimatedGradientText(
+            _FixedGradientText(
               text: context.translate('landing_slogan'),
               textAlign: isWide ? TextAlign.start : TextAlign.center,
               style: theme.textTheme.headlineSmall?.copyWith(
@@ -286,61 +286,34 @@ class _HeroSection extends StatelessWidget {
   }
 }
 
-class _AnimatedGradientText extends StatefulWidget {
+class _FixedGradientText extends StatelessWidget {
   final String text;
   final TextAlign textAlign;
   final TextStyle? style;
 
-  const _AnimatedGradientText({
+  const _FixedGradientText({
     required this.text,
     required this.textAlign,
     required this.style,
   });
 
   @override
-  State<_AnimatedGradientText> createState() => _AnimatedGradientTextState();
-}
-
-class _AnimatedGradientTextState extends State<_AnimatedGradientText>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(seconds: 4),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        return ShaderMask(
-          blendMode: BlendMode.srcIn,
-          shaderCallback: (bounds) {
-            return LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: const [
-                Color(0xFFF85F2B),
-                Color(0xFFFFC66A),
-                Color(0xFFF85F2B),
-              ],
-              stops: const [0, 0.5, 1],
-              transform: GradientRotation(_controller.value * 2 * pi),
-            ).createShader(bounds);
-          },
-          child: Text(
-            widget.text,
-            textAlign: widget.textAlign,
-            style: widget.style?.copyWith(color: Colors.white),
-          ),
-        );
+    return ShaderMask(
+      blendMode: BlendMode.srcIn,
+      shaderCallback: (bounds) {
+        return const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [Color(0xFFFFC66A), Color(0xFFFFC66A), Color(0xFFF85F2B)],
+          stops: [0, 0.75, 1],
+        ).createShader(bounds);
       },
+      child: Text(
+        text,
+        textAlign: textAlign,
+        style: style?.copyWith(color: Colors.white),
+      ),
     );
   }
 }
