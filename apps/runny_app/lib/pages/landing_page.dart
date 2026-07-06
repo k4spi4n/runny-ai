@@ -416,46 +416,44 @@ class _AtomicFeatureCarouselState extends State<_AtomicFeatureCarousel>
         height: 154,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(22),
-          child: Stack(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _AtomicFeatureRow(
-                      controller: _controller,
-                      features: rows[0],
-                      reverse: false,
-                    ),
-                    _AtomicFeatureRow(
-                      controller: _controller,
-                      features: rows[1],
-                      reverse: true,
-                    ),
-                    _AtomicFeatureRow(
-                      controller: _controller,
-                      features: rows[2],
-                      reverse: false,
-                    ),
-                  ],
-                ),
+          child: ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (bounds) {
+              return const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Colors.transparent,
+                  Colors.white,
+                  Colors.white,
+                  Colors.transparent,
+                ],
+                stops: [0, 0.08, 0.92, 1],
+              ).createShader(bounds);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _AtomicFeatureRow(
+                    controller: _controller,
+                    features: rows[0],
+                    reverse: false,
+                  ),
+                  _AtomicFeatureRow(
+                    controller: _controller,
+                    features: rows[1],
+                    reverse: true,
+                  ),
+                  _AtomicFeatureRow(
+                    controller: _controller,
+                    features: rows[2],
+                    reverse: false,
+                  ),
+                ],
               ),
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: 42,
-                child: _CarouselFade(edge: Alignment.centerLeft),
-              ),
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                width: 42,
-                child: _CarouselFade(edge: Alignment.centerRight),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -621,30 +619,6 @@ class _AtomicFeatureChip extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CarouselFade extends StatelessWidget {
-  final Alignment edge;
-
-  const _CarouselFade({required this.edge});
-
-  @override
-  Widget build(BuildContext context) {
-    final isLeft = edge == Alignment.centerLeft;
-    final base = Theme.of(context).brightness == Brightness.dark
-        ? const Color(0xFF0A0D22)
-        : const Color(0xFFF5F7FA);
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: isLeft ? Alignment.centerLeft : Alignment.centerRight,
-          end: isLeft ? Alignment.centerRight : Alignment.centerLeft,
-          colors: [base.withValues(alpha: 0.82), base.withValues(alpha: 0)],
         ),
       ),
     );
