@@ -121,6 +121,15 @@ class _LandingNavbar extends StatelessWidget {
                       icon: const Icon(Icons.login_rounded, size: 18),
                       label: Text(context.translate('landing_login_signup')),
                       style: secondaryActionButton(context).copyWith(
+                        foregroundColor: const WidgetStatePropertyAll(
+                          Colors.white,
+                        ),
+                        side: WidgetStatePropertyAll(
+                          BorderSide(
+                            color: Colors.white.withValues(alpha: 0.36),
+                            width: 1.3,
+                          ),
+                        ),
                         padding: const WidgetStatePropertyAll(
                           EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                         ),
@@ -130,6 +139,7 @@ class _LandingNavbar extends StatelessWidget {
                     IconButton(
                       onPressed: onLogin,
                       icon: const Icon(Icons.login_rounded),
+                      color: Colors.white,
                       tooltip: context.translate('landing_login_signup'),
                     ),
                   const LanguageSwitcher(),
@@ -203,11 +213,10 @@ class _HeroSection extends StatelessWidget {
               style: headlineStyle,
             ),
             const SizedBox(height: 14),
-            Text(
-              context.translate('landing_slogan'),
+            _AnimatedGradientText(
+              text: context.translate('landing_slogan'),
               textAlign: isWide ? TextAlign.start : TextAlign.center,
               style: theme.textTheme.headlineSmall?.copyWith(
-                color: AppTheme.success,
                 fontWeight: FontWeight.w800,
                 height: 1.2,
               ),
@@ -267,6 +276,65 @@ class _HeroSection extends StatelessWidget {
             const SizedBox(width: 44),
             Expanded(flex: 9, child: visual),
           ],
+        );
+      },
+    );
+  }
+}
+
+class _AnimatedGradientText extends StatefulWidget {
+  final String text;
+  final TextAlign textAlign;
+  final TextStyle? style;
+
+  const _AnimatedGradientText({
+    required this.text,
+    required this.textAlign,
+    required this.style,
+  });
+
+  @override
+  State<_AnimatedGradientText> createState() => _AnimatedGradientTextState();
+}
+
+class _AnimatedGradientTextState extends State<_AnimatedGradientText>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 4),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return ShaderMask(
+          blendMode: BlendMode.srcIn,
+          shaderCallback: (bounds) {
+            return LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: const [
+                Color(0xFFF85F2B),
+                Color(0xFFFFC66A),
+                Color(0xFFF85F2B),
+              ],
+              stops: const [0, 0.5, 1],
+              transform: GradientRotation(_controller.value * 2 * pi),
+            ).createShader(bounds);
+          },
+          child: Text(
+            widget.text,
+            textAlign: widget.textAlign,
+            style: widget.style?.copyWith(color: Colors.white),
+          ),
         );
       },
     );
