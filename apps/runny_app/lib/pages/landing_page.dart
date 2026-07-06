@@ -48,7 +48,7 @@ class _LandingPageState extends State<LandingPage> {
               _LandingNavbar(onLogin: () => _goToAuth(context)),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(bottom: 36),
+                  padding: const EdgeInsets.only(bottom: 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -59,15 +59,17 @@ class _LandingPageState extends State<LandingPage> {
                           onGetStarted: () => _goToAuth(context, signUp: true),
                         ),
                       ),
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: theme.dividerColor.withValues(
+                          alpha: isDark ? 0.12 : 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      const _LandingFooter(),
                     ],
                   ),
-                ),
-              ),
-              Divider(
-                height: 1,
-                thickness: 1,
-                color: theme.dividerColor.withValues(
-                  alpha: isDark ? 0.12 : 0.2,
                 ),
               ),
             ],
@@ -121,12 +123,14 @@ class _LandingNavbar extends StatelessWidget {
                       icon: const Icon(Icons.login_rounded, size: 18),
                       label: Text(context.translate('landing_login_signup')),
                       style: secondaryActionButton(context).copyWith(
-                        foregroundColor: const WidgetStatePropertyAll(
-                          Colors.white,
+                        foregroundColor: WidgetStatePropertyAll(
+                          isDark ? Colors.white : theme.colorScheme.onSurface,
                         ),
                         side: WidgetStatePropertyAll(
                           BorderSide(
-                            color: Colors.white.withValues(alpha: 0.36),
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.36)
+                                : theme.colorScheme.onSurface.withValues(alpha: 0.24),
                             width: 1.3,
                           ),
                         ),
@@ -139,7 +143,7 @@ class _LandingNavbar extends StatelessWidget {
                     IconButton(
                       onPressed: onLogin,
                       icon: const Icon(Icons.login_rounded),
-                      color: Colors.white,
+                      color: isDark ? Colors.white : theme.colorScheme.onSurface,
                       tooltip: context.translate('landing_login_signup'),
                     ),
                   const LanguageSwitcher(),
@@ -1209,5 +1213,42 @@ class _RouteAndChartPainter extends CustomPainter {
     return oldDelegate.primary != primary ||
         oldDelegate.secondary != secondary ||
         oldDelegate.muted != muted;
+  }
+}
+
+class _LandingFooter extends StatelessWidget {
+  const _LandingFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            context.translate('landing_footer_copyright'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              height: 1.4,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Made by runners, for runners.',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+              fontStyle: FontStyle.italic,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
 }
