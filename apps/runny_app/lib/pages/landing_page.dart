@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -246,8 +247,8 @@ class _HeroSection extends StatelessWidget {
                 GradientButton.icon(
                   onPressed: onGetStarted,
                   width: 198,
-                  icon: const Icon(
-                    Icons.directions_run_rounded,
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedAiMagic,
                     color: Colors.white,
                     size: 20,
                   ),
@@ -874,173 +875,228 @@ class _HeroDashboardMockup extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final panelColor = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : Colors.white.withValues(alpha: 0.82);
 
     return AspectRatio(
-      aspectRatio: 0.92,
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? const [Color(0xFF0C1430), Color(0xFF102E34)]
-                : const [Color(0xFFFFFFFF), Color(0xFFEAF7FF)],
-          ),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.14)
-                : Colors.white.withValues(alpha: 0.9),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.08),
-              blurRadius: 34,
-              offset: const Offset(0, 22),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    gradient: accentPulseGradient,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const HugeIcon(
-                    icon: HugeIcons.strokeRoundedChatBot,
-                    color: Colors.white,
-                    size: 26,
-                  ),
+      aspectRatio: 0.88,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // 1. Background Main Activity Card
+          Positioned.fill(
+            bottom: 54, // Leave some room at the bottom for the overlapping AI card
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isDark
+                      ? const [Color(0xFF0D1230), Color(0xFF15193B)]
+                      : const [Color(0xFFFFFFFF), Color(0xFFF1F7FC)],
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.05),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.06),
+                    blurRadius: 24,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Activity Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        context.translate('landing_mockup_insight_title'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.directions_run_rounded,
+                            color: AppTheme.primary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _landingFeatureLabel(
+                              context,
+                              vi: 'Chạy Tempo chiều',
+                              en: 'Afternoon Tempo Run',
+                            ),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ],
                       ),
                       Text(
-                        context.translate('landing_mockup_insight_desc'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
+                        'Today',
+                        style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: panelColor,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: theme.colorScheme.outline.withValues(alpha: 0.18),
+                  const SizedBox(height: 12),
+                  // Stats Row
+                  Row(
+                    children: [
+                      _CompactDashboardStat(
+                        label: context.translate('landing_mockup_distance'),
+                        value: '8.4 km',
+                        color: AppTheme.success,
+                      ),
+                      const SizedBox(width: 8),
+                      _CompactDashboardStat(
+                        label: context.translate('landing_mockup_pace'),
+                        value: '5:28',
+                        color: AppTheme.secondary,
+                      ),
+                      const SizedBox(width: 8),
+                      _CompactDashboardStat(
+                        label: _landingFeatureLabel(
+                          context,
+                          vi: 'Thời gian',
+                          en: 'Time',
+                        ),
+                        value: '45:12',
+                        color: AppTheme.accent,
+                      ),
+                    ],
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        const _DashboardStat(
-                          labelKey: 'landing_mockup_distance',
-                          value: '8.4 km',
-                          icon: Icons.route_rounded,
+                  const SizedBox(height: 12),
+                  // Chart
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.black.withValues(alpha: 0.15)
+                            : Colors.black.withValues(alpha: 0.02),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.04)
+                              : Colors.black.withValues(alpha: 0.03),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CustomPaint(
+                          painter: _RouteAndChartPainter(
+                            primary: AppTheme.success,
+                            secondary: AppTheme.secondary,
+                            muted: theme.colorScheme.outline.withValues(
+                              alpha: isDark ? 0.15 : 0.28,
+                            ),
+                          ),
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Progress Bars
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ProgressBar(
+                          labelKey: 'landing_mockup_weekly_goal',
+                          value: 0.72,
                           color: AppTheme.success,
                         ),
-                        const SizedBox(width: 12),
-                        const _DashboardStat(
-                          labelKey: 'landing_mockup_pace',
-                          value: '5:28',
-                          icon: Icons.speed_rounded,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _ProgressBar(
+                          labelKey: 'landing_mockup_training_load',
+                          value: 0.56,
                           color: AppTheme.secondary,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    Expanded(
-                      child: CustomPaint(
-                        painter: _RouteAndChartPainter(
-                          primary: AppTheme.success,
-                          secondary: AppTheme.secondary,
-                          muted: theme.colorScheme.outline.withValues(
-                            alpha: 0.28,
-                          ),
-                        ),
-                        child: const SizedBox.expand(),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ProgressBar(
-                            labelKey: 'landing_mockup_weekly_goal',
-                            value: 0.72,
-                            color: AppTheme.success,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _ProgressBar(
-                            labelKey: 'landing_mockup_training_load',
-                            value: 0.56,
-                            color: AppTheme.secondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
               ),
             ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: AppTheme.success.withValues(alpha: isDark ? 0.16 : 0.12),
-                borderRadius: BorderRadius.circular(18),
+          ),
+
+          // 2. Floating AI Coach Insight Card (Overlapping at the bottom)
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 0,
+            child: _FloatingAiInsightCard(
+              isDark: isDark,
+              theme: theme,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactDashboardStat extends StatelessWidget {
+  const _CompactDashboardStat({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.04)
+              : Colors.black.withValues(alpha: 0.02),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.04)
+                : Colors.black.withValues(alpha: 0.02),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: color,
+                fontSize: 13,
               ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.auto_awesome_rounded,
-                    color: AppTheme.success,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      context.translate('landing_mockup_next'),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        height: 1.35,
-                      ),
-                    ),
-                  ),
-                ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -1050,54 +1106,140 @@ class _HeroDashboardMockup extends StatelessWidget {
   }
 }
 
-class _DashboardStat extends StatelessWidget {
-  const _DashboardStat({
-    required this.labelKey,
-    required this.value,
-    required this.icon,
-    required this.color,
+class _FloatingAiInsightCard extends StatelessWidget {
+  const _FloatingAiInsightCard({
+    required this.isDark,
+    required this.theme,
   });
 
-  final String labelKey;
-  final String value;
-  final IconData icon;
-  final Color color;
+  final bool isDark;
+  final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+    final cardBg = isDark
+        ? const Color(0xFF131835).withValues(alpha: 0.88)
+        : Colors.white.withValues(alpha: 0.92);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.18)
+        : Colors.black.withValues(alpha: 0.08);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? const Color(0xFFFF8E53) : Colors.black)
+                .withValues(alpha: isDark ? 0.18 : 0.1),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(19),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Glowing Avatar
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFFFA6B27), Color(0xFFFFC66A)],
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFA6B27).withValues(alpha: 0.4),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: HugeIcon(
+                      icon: HugeIcons.strokeRoundedChatBot,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Text Insights
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            context.translate('landing_mockup_insight_title'),
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: isDark ? Colors.white : Colors.black87,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1.5,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFFA6B27), Color(0xFFFF8E53)],
+                              ),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'AI',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        context.translate('landing_mockup_insight_desc'),
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primary,
+                          fontSize: 11.5,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        context.translate('landing_mockup_next'),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            Text(
-              context.translate(labelKey),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
