@@ -349,14 +349,11 @@ class _AtomicFeatureCarouselState extends State<_AtomicFeatureCarousel>
     final locale = Localizations.localeOf(context).languageCode;
     if (_rows != null && _rowLocale == locale) return;
 
-    final features = _atomicFeatures(context).toList()..shuffle(Random());
-    final rows = <List<_AtomicFeatureData>>[[], [], []];
-    for (var i = 0; i < features.length; i++) {
-      rows[i % rows.length].add(features[i]);
-    }
-
     _rowLocale = locale;
-    _rows = rows;
+    _rows = _featureRowsWithAiHighlights(
+      _atomicFeatures(context),
+      random: Random(),
+    );
   }
 
   @override
@@ -608,11 +605,43 @@ class _AtomicFeatureData {
 List<List<_AtomicFeatureData>> _balancedAtomicFeatureRows(
   BuildContext context,
 ) {
-  final features = _atomicFeatures(context);
+  return _featureRowsWithAiHighlights(_atomicFeatures(context));
+}
+
+List<List<_AtomicFeatureData>> _featureRowsWithAiHighlights(
+  List<_AtomicFeatureData> features, {
+  Random? random,
+}) {
   final rows = <List<_AtomicFeatureData>>[[], [], []];
-  for (var i = 0; i < features.length; i++) {
-    rows[i % rows.length].add(features[i]);
+
+  final aiFeatures = features.where((feature) => feature.isAi).toList();
+  final regularFeatures = features.where((feature) => !feature.isAi).toList();
+  if (random != null) {
+    aiFeatures.shuffle(random);
+    regularFeatures.shuffle(random);
   }
+
+  for (var i = 0; i < rows.length && aiFeatures.isNotEmpty; i++) {
+    rows[i].add(aiFeatures.removeAt(0));
+  }
+
+  final remainingFeatures = [...aiFeatures, ...regularFeatures];
+  if (random != null) {
+    remainingFeatures.shuffle(random);
+  }
+  for (var i = 0; i < remainingFeatures.length; i++) {
+    final shortestRow = rows.reduce(
+      (best, row) => row.length < best.length ? row : best,
+    );
+    shortestRow.add(remainingFeatures[i]);
+  }
+
+  if (random != null) {
+    for (final row in rows) {
+      row.shuffle(random);
+    }
+  }
+
   return rows;
 }
 
