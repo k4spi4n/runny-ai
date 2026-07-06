@@ -412,27 +412,12 @@ class _AtomicFeatureCarouselState extends State<_AtomicFeatureCarousel>
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 560),
-      child: Container(
+      child: SizedBox(
         height: 154,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.12),
-          ),
-        ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(22),
           child: Stack(
             children: [
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.white.withValues(alpha: 0.04)
-                        : Colors.white.withValues(alpha: 0.52),
-                  ),
-                ),
-              ),
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Column(
@@ -479,8 +464,12 @@ class _AtomicFeatureCarouselState extends State<_AtomicFeatureCarousel>
 }
 
 class _AtomicFeatureRow extends StatelessWidget {
-  static const double _itemWidth = 166;
   static const double _gap = 10;
+  static const double _chipMinWidth = 104;
+  static const double _chipMaxWidth = 236;
+  static const double _chipHorizontalPadding = 24;
+  static const double _iconWidth = 18;
+  static const double _iconGap = 8;
 
   final AnimationController controller;
   final List<_AtomicFeatureData> features;
@@ -494,7 +483,16 @@ class _AtomicFeatureRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sequenceWidth = features.length * (_itemWidth + _gap);
+    final textStyle = _chipTextStyle(context);
+    final textDirection = Directionality.of(context);
+    final chipWidths = [
+      for (final feature in features)
+        _chipWidthFor(feature.label, textStyle, textDirection),
+    ];
+    final sequenceWidth = chipWidths.fold<double>(
+      0,
+      (total, width) => total + width + _gap,
+    );
 
     return SizedBox(
       height: 38,
@@ -515,9 +513,9 @@ class _AtomicFeatureRow extends StatelessWidget {
                 maxWidth: sequenceWidth * 3,
                 child: Row(
                   children: [
-                    _FeatureSequence(features: features),
-                    _FeatureSequence(features: features),
-                    _FeatureSequence(features: features),
+                    _FeatureSequence(features: features, widths: chipWidths),
+                    _FeatureSequence(features: features, widths: chipWidths),
+                    _FeatureSequence(features: features, widths: chipWidths),
                   ],
                 ),
               ),
@@ -527,19 +525,50 @@ class _AtomicFeatureRow extends StatelessWidget {
       ),
     );
   }
+
+  static TextStyle _chipTextStyle(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return theme.textTheme.labelMedium?.copyWith(
+          color: isDark ? Colors.white : Colors.black87,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.white : Colors.black87,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        );
+  }
+
+  static double _chipWidthFor(
+    String label,
+    TextStyle style,
+    TextDirection textDirection,
+  ) {
+    final painter = TextPainter(
+      text: TextSpan(text: label, style: style),
+      maxLines: 1,
+      textDirection: textDirection,
+    )..layout();
+    return (painter.width + _chipHorizontalPadding + _iconWidth + _iconGap)
+        .clamp(_chipMinWidth, _chipMaxWidth)
+        .toDouble();
+  }
 }
 
 class _FeatureSequence extends StatelessWidget {
   final List<_AtomicFeatureData> features;
+  final List<double> widths;
 
-  const _FeatureSequence({required this.features});
+  const _FeatureSequence({required this.features, required this.widths});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        for (final feature in features) ...[
-          _AtomicFeatureChip(feature: feature),
+        for (var i = 0; i < features.length; i++) ...[
+          _AtomicFeatureChip(feature: features[i], width: widths[i]),
           const SizedBox(width: _AtomicFeatureRow._gap),
         ],
       ],
@@ -549,8 +578,9 @@ class _FeatureSequence extends StatelessWidget {
 
 class _AtomicFeatureChip extends StatelessWidget {
   final _AtomicFeatureData feature;
+  final double width;
 
-  const _AtomicFeatureChip({required this.feature});
+  const _AtomicFeatureChip({required this.feature, required this.width});
 
   @override
   Widget build(BuildContext context) {
@@ -558,7 +588,7 @@ class _AtomicFeatureChip extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      width: _AtomicFeatureRow._itemWidth,
+      width: width,
       height: 38,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -581,11 +611,7 @@ class _AtomicFeatureChip extends StatelessWidget {
               feature.label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: isDark ? Colors.white : Colors.black87,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
+              style: _AtomicFeatureRow._chipTextStyle(context),
             ),
           ),
         ],
@@ -611,7 +637,7 @@ class _CarouselFade extends StatelessWidget {
         gradient: LinearGradient(
           begin: isLeft ? Alignment.centerLeft : Alignment.centerRight,
           end: isLeft ? Alignment.centerRight : Alignment.centerLeft,
-          colors: [base.withValues(alpha: 0.95), base.withValues(alpha: 0)],
+          colors: [base.withValues(alpha: 0.82), base.withValues(alpha: 0)],
         ),
       ),
     );
