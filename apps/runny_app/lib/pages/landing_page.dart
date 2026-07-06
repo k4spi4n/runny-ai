@@ -382,72 +382,368 @@ class _HeroMetricsStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+    return const _AtomicFeatureCarousel();
+  }
+}
+
+class _AtomicFeatureCarousel extends StatefulWidget {
+  const _AtomicFeatureCarousel();
+
+  @override
+  State<_AtomicFeatureCarousel> createState() => _AtomicFeatureCarouselState();
+}
+
+class _AtomicFeatureCarouselState extends State<_AtomicFeatureCarousel>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 24),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _atomicFeatureRows(context);
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 560),
+      child: Container(
+        height: 154,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.12),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withValues(alpha: 0.04)
+                        : Colors.white.withValues(alpha: 0.52),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _AtomicFeatureRow(
+                      controller: _controller,
+                      features: rows[0],
+                      reverse: false,
+                    ),
+                    _AtomicFeatureRow(
+                      controller: _controller,
+                      features: rows[1],
+                      reverse: true,
+                    ),
+                    _AtomicFeatureRow(
+                      controller: _controller,
+                      features: rows[2],
+                      reverse: false,
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 42,
+                child: _CarouselFade(edge: Alignment.centerLeft),
+              ),
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                width: 42,
+                child: _CarouselFade(edge: Alignment.centerRight),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AtomicFeatureRow extends StatelessWidget {
+  static const double _itemWidth = 166;
+  static const double _gap = 10;
+
+  final AnimationController controller;
+  final List<_AtomicFeatureData> features;
+  final bool reverse;
+
+  const _AtomicFeatureRow({
+    required this.controller,
+    required this.features,
+    required this.reverse,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sequenceWidth = features.length * (_itemWidth + _gap);
+
+    return SizedBox(
+      height: 38,
+      child: ClipRect(
+        child: AnimatedBuilder(
+          animation: controller,
+          builder: (context, _) {
+            final progress = controller.value;
+            final offset = reverse
+                ? -progress * sequenceWidth
+                : -sequenceWidth + progress * sequenceWidth;
+
+            return Transform.translate(
+              offset: Offset(offset, 0),
+              child: Row(
+                children: [
+                  _FeatureSequence(features: features),
+                  _FeatureSequence(features: features),
+                  _FeatureSequence(features: features),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureSequence extends StatelessWidget {
+  final List<_AtomicFeatureData> features;
+
+  const _FeatureSequence({required this.features});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
       children: [
-        _MetricPill(
-          value: '42K',
-          label: context.translate('landing_metric_plan_ready'),
-        ),
-        _MetricPill(
-          value: '5:28',
-          label: context.translate('landing_metric_target_pace'),
-        ),
-        _MetricPill(
-          value: '87%',
-          label: context.translate('landing_metric_goal_trend'),
-        ),
+        for (final feature in features) ...[
+          _AtomicFeatureChip(feature: feature),
+          const SizedBox(width: _AtomicFeatureRow._gap),
+        ],
       ],
     );
   }
 }
 
-class _MetricPill extends StatelessWidget {
-  const _MetricPill({required this.value, required this.label});
+class _AtomicFeatureChip extends StatelessWidget {
+  final _AtomicFeatureData feature;
 
-  final String value;
-  final String label;
+  const _AtomicFeatureChip({required this.feature});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      width: _AtomicFeatureRow._itemWidth,
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: isDark
-            ? Colors.white.withValues(alpha: 0.07)
-            : Colors.black.withValues(alpha: 0.035),
-        borderRadius: BorderRadius.circular(8),
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.white.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: theme.colorScheme.outline.withValues(
-            alpha: isDark ? 0.22 : 0.5,
-          ),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.12)
+              : Colors.black.withValues(alpha: 0.06),
         ),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            value,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: AppTheme.secondary,
-            ),
-          ),
+          Icon(feature.icon, size: 18, color: feature.color),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
+          Expanded(
+            child: Text(
+              feature.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: isDark ? Colors.white : Colors.black87,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
+
+class _CarouselFade extends StatelessWidget {
+  final Alignment edge;
+
+  const _CarouselFade({required this.edge});
+
+  @override
+  Widget build(BuildContext context) {
+    final isLeft = edge == Alignment.centerLeft;
+    final base = Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF0A0D22)
+        : const Color(0xFFF5F7FA);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: isLeft ? Alignment.centerLeft : Alignment.centerRight,
+          end: isLeft ? Alignment.centerRight : Alignment.centerLeft,
+          colors: [base.withValues(alpha: 0.95), base.withValues(alpha: 0)],
+        ),
+      ),
+    );
+  }
+}
+
+class _AtomicFeatureData {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _AtomicFeatureData({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+}
+
+List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
+  const orange = Color(0xFFFF8E53);
+  const green = Color(0xFF4ADE80);
+  const blue = Color(0xFF3CABFF);
+  const yellow = Color(0xFFFFC66A);
+
+  return [
+    [
+      _AtomicFeatureData(
+        icon: Icons.smart_toy_rounded,
+        label: context.translate('ai_coach'),
+        color: orange,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.auto_awesome_rounded,
+        label: context.translate('create_plan_ai'),
+        color: green,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.tune_rounded,
+        label: context.translate('adjust_preview_title'),
+        color: blue,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.local_fire_department_rounded,
+        label: context.translate('warm_up'),
+        color: yellow,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.route_rounded,
+        label: context.translate('today_schedule'),
+        color: green,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.history_rounded,
+        label: context.translate('training_history'),
+        color: blue,
+      ),
+    ],
+    [
+      _AtomicFeatureData(
+        icon: Icons.upload_file_rounded,
+        label: context.translate('import_activity'),
+        color: blue,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.edit_note_rounded,
+        label: context.translate('manual_entry'),
+        color: yellow,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.link_rounded,
+        label: context.translate('attach_activity'),
+        color: green,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.speed_rounded,
+        label: context.translate('pace_title'),
+        color: orange,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.monitor_heart_rounded,
+        label: context.translate('heart_rate'),
+        color: green,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.landscape_rounded,
+        label: context.translate('elevation'),
+        color: blue,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.cloud_rounded,
+        label: context.translate('weather'),
+        color: yellow,
+      ),
+    ],
+    [
+      _AtomicFeatureData(
+        icon: Icons.restaurant_rounded,
+        label: context.translate('nutrition'),
+        color: green,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.camera_alt_rounded,
+        label: context.translate('ai_photo'),
+        color: orange,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.lightbulb_rounded,
+        label: context.translate('ai_meal_suggestions'),
+        color: yellow,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.monitor_weight_rounded,
+        label: context.translate('weight_tracking'),
+        color: blue,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.groups_rounded,
+        label: context.translate('community'),
+        color: green,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.leaderboard_rounded,
+        label: context.translate('leaderboard_tab'),
+        color: orange,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.emoji_events_rounded,
+        label: context.translate('badges_tab'),
+        color: yellow,
+      ),
+      _AtomicFeatureData(
+        icon: Icons.handshake_rounded,
+        label: context.translate('partner_matching'),
+        color: blue,
+      ),
+    ],
+  ];
 }
 
 class _HeroDashboardMockup extends StatelessWidget {
