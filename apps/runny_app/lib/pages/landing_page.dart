@@ -43,10 +43,7 @@ class _LandingPageState extends State<LandingPage> {
         child: SafeArea(
           child: Column(
             children: [
-              _LandingNavbar(
-                onGetStarted: () => _goToAuth(context, signUp: true),
-                onLogin: () => _goToAuth(context),
-              ),
+              _LandingNavbar(onLogin: () => _goToAuth(context)),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.only(bottom: 36),
@@ -80,9 +77,8 @@ class _LandingPageState extends State<LandingPage> {
 }
 
 class _LandingNavbar extends StatelessWidget {
-  const _LandingNavbar({required this.onGetStarted, required this.onLogin});
+  const _LandingNavbar({required this.onLogin});
 
-  final VoidCallback onGetStarted;
   final VoidCallback onLogin;
 
   @override
@@ -117,23 +113,11 @@ class _LandingNavbar extends StatelessWidget {
                 children: [
                   RunnyLogo(fontSize: isCompact ? 20 : 24),
                   const Spacer(),
-                  GradientButton.icon(
-                    onPressed: onGetStarted,
-                    width: isCompact ? 132 : 160,
-                    height: 44,
-                    icon: const Icon(
-                      Icons.directions_run_rounded,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                    label: Text(context.translate('get_started')),
-                  ),
                   if (!isCompact) ...[
-                    const SizedBox(width: 8),
                     OutlinedButton.icon(
                       onPressed: onLogin,
                       icon: const Icon(Icons.login_rounded, size: 18),
-                      label: Text(context.translate('login')),
+                      label: Text(context.translate('landing_login_signup')),
                       style: secondaryActionButton(context).copyWith(
                         padding: const WidgetStatePropertyAll(
                           EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -144,7 +128,7 @@ class _LandingNavbar extends StatelessWidget {
                     IconButton(
                       onPressed: onLogin,
                       icon: const Icon(Icons.login_rounded),
-                      tooltip: context.translate('login'),
+                      tooltip: context.translate('landing_login_signup'),
                     ),
                   const LanguageSwitcher(),
                   const ThemeToggle(),
@@ -211,14 +195,6 @@ class _HeroSection extends StatelessWidget {
               : CrossAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            badgeLabel(
-              context,
-              context.translate('landing_badge'),
-              background: isDark
-                  ? const Color(0xFF173A33)
-                  : const Color(0xFFE4F8EC),
-            ),
-            const SizedBox(height: 22),
             Text(
               'Runny AI',
               textAlign: isWide ? TextAlign.start : TextAlign.center,
