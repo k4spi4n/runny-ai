@@ -241,23 +241,27 @@ class _HeroSection extends StatelessWidget {
               children: [
                 GradientButton.icon(
                   onPressed: onGetStarted,
-                  width: isWide ? 500 : min(500, constraints.maxWidth),
-                  height: isWide ? 54 : 68,
+                  width: 198,
                   icon: const Icon(
                     Icons.directions_run_rounded,
                     color: Colors.white,
                     size: 20,
                   ),
-                  label: Text(
-                    context.translate('get_started'),
-                    maxLines: isWide ? 1 : 2,
-                    overflow: TextOverflow.visible,
-                    textAlign: TextAlign.center,
-                  ),
+                  label: Text(context.translate('get_started')),
                 ),
               ],
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 16),
+            Text(
+              context.translate('landing_cta_support'),
+              textAlign: isWide ? TextAlign.start : TextAlign.center,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 18),
             const _HeroMetricsStrip(),
           ],
         );
