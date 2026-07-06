@@ -621,19 +621,15 @@ List<List<_AtomicFeatureData>> _featureRowsWithAiHighlights(
     regularFeatures.shuffle(random);
   }
 
-  for (var i = 0; i < rows.length && aiFeatures.isNotEmpty; i++) {
-    rows[i].add(aiFeatures.removeAt(0));
+  for (var i = 0; i < aiFeatures.length; i++) {
+    rows[i % rows.length].add(aiFeatures[i]);
   }
 
-  final remainingFeatures = [...aiFeatures, ...regularFeatures];
-  if (random != null) {
-    remainingFeatures.shuffle(random);
-  }
-  for (var i = 0; i < remainingFeatures.length; i++) {
+  for (var i = 0; i < regularFeatures.length; i++) {
     final shortestRow = rows.reduce(
       (best, row) => row.length < best.length ? row : best,
     );
-    shortestRow.add(remainingFeatures[i]);
+    shortestRow.add(regularFeatures[i]);
   }
 
   if (random != null) {
@@ -799,6 +795,16 @@ List<_AtomicFeatureData> _atomicFeatures(BuildContext context) {
         en: 'AI meal suggestions',
       ),
       color: yellow,
+      isAi: true,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.insights_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'AI phân tích buổi tập',
+        en: 'AI workout analysis',
+      ),
+      color: blue,
       isAi: true,
     ),
     _AtomicFeatureData(
