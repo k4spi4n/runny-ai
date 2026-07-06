@@ -306,28 +306,32 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     const SizedBox(height: 16),
-                    Column(
+                    Row(
                       children: [
-                        _SocialLoginButton(
-                          onPressed: _isLoading ? null : _showComingSoon,
-                          icon: const Icon(
-                            Icons.g_mobiledata,
-                            color: Colors.redAccent,
-                            size: 28,
+                        Expanded(
+                          child: _SocialLoginButton(
+                            onPressed: _isLoading ? null : _showComingSoon,
+                            icon: const Icon(
+                              Icons.g_mobiledata,
+                              color: Colors.redAccent,
+                              size: 28,
+                            ),
+                            label: context.translate('google_login'),
+                            isDark: isDark,
                           ),
-                          label: context.translate('google_login'),
-                          isDark: isDark,
                         ),
-                        const SizedBox(height: 10),
-                        _SocialLoginButton(
-                          onPressed: _isLoading ? null : _showComingSoon,
-                          icon: const Icon(
-                            Icons.facebook,
-                            color: Color(0xFF1877F2),
-                            size: 24,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _SocialLoginButton(
+                            onPressed: _isLoading ? null : _showComingSoon,
+                            icon: const Icon(
+                              Icons.facebook,
+                              color: Color(0xFF1877F2),
+                              size: 24,
+                            ),
+                            label: context.translate('facebook_login'),
+                            isDark: isDark,
                           ),
-                          label: context.translate('facebook_login'),
-                          isDark: isDark,
                         ),
                       ],
                     ),
@@ -335,10 +339,12 @@ class _LoginPageState extends State<LoginPage> {
                     TextButton(
                       onPressed: () => setState(() => _isSignUp = !_isSignUp),
                       child: Text(
-                        _isSignUp ? context.translate('already_have_account') : context.translate('no_account_signup'),
+                        _isSignUp
+                            ? context.translate('already_have_account')
+                            : context.translate('no_account_signup'),
                         style: TextStyle(
-                          color: isDark ? Colors.white70 : Colors.black54, 
-                          fontWeight: FontWeight.w600
+                          color: isDark ? Colors.white70 : Colors.black54,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -389,18 +395,22 @@ class _SocialLoginButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(width: 30, child: Center(child: icon)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+            Flexible(child: SizedBox(width: 30, child: Center(child: icon))),
+            const SizedBox(width: 8),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ),
           ],
