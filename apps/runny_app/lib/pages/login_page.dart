@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/ui_components.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/unsigned_text_input_formatter.dart';
 
 class LoginPage extends StatefulWidget {
   final bool initialIsSignUp;
@@ -178,6 +179,9 @@ class _LoginPageState extends State<LoginPage> {
                   dialogContext.translate('email'),
                   icon: Icons.email,
                 ),
+                inputFormatters: [
+                  UnsignedTextInputFormatter(),
+                ],
               ),
             ],
           ),
@@ -272,6 +276,9 @@ class _LoginPageState extends State<LoginPage> {
                       decoration: themedInputDecoration(context, context.translate('email'), icon: Icons.email),
                       keyboardType: TextInputType.emailAddress,
                       style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                      inputFormatters: [
+                        UnsignedTextInputFormatter(),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     TextField(

@@ -194,7 +194,7 @@
   "feature_in_development": "Feature under development",
   "feature_in_development_desc": "Strava connection is coming soon. For now you can import activities from GPX/FIT/TCX files via the add-activity button.",
   "feature_coming_soon_title": "Feature under development",
-  "feature_coming_soon_body": "This feature is still being developed. Please check back later!",
+  "feature_coming_soon_body": "This feature is still being developed. Please enter your email to sign up/log in!",
   "fetching_weather": "Fetching weather data...",
   "find_partner": "Find Running Partners",
   "goal": "Goal",
