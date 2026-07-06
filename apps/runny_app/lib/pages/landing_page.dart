@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 
@@ -230,13 +232,19 @@ class _HeroSection extends StatelessWidget {
               children: [
                 GradientButton.icon(
                   onPressed: onGetStarted,
-                  width: 198,
+                  width: isWide ? 500 : min(500, constraints.maxWidth),
+                  height: isWide ? 54 : 68,
                   icon: const Icon(
                     Icons.directions_run_rounded,
                     color: Colors.white,
                     size: 20,
                   ),
-                  label: Text(context.translate('get_started')),
+                  label: Text(
+                    context.translate('get_started'),
+                    maxLines: isWide ? 1 : 2,
+                    overflow: TextOverflow.visible,
+                    textAlign: TextAlign.center,
+                  ),
                 ),
               ],
             ),
@@ -287,6 +295,24 @@ class _AtomicFeatureCarouselState extends State<_AtomicFeatureCarousel>
     vsync: this,
     duration: const Duration(seconds: 24),
   )..repeat();
+  List<List<_AtomicFeatureData>>? _rows;
+  String? _rowLocale;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final locale = Localizations.localeOf(context).languageCode;
+    if (_rows != null && _rowLocale == locale) return;
+
+    final features = _atomicFeatures(context).toList()..shuffle(Random());
+    final rows = <List<_AtomicFeatureData>>[[], [], []];
+    for (var i = 0; i < features.length; i++) {
+      rows[i % rows.length].add(features[i]);
+    }
+
+    _rowLocale = locale;
+    _rows = rows;
+  }
 
   @override
   void dispose() {
@@ -296,7 +322,7 @@ class _AtomicFeatureCarouselState extends State<_AtomicFeatureCarousel>
 
   @override
   Widget build(BuildContext context) {
-    final rows = _atomicFeatureRows(context);
+    final rows = _rows ?? _balancedAtomicFeatureRows(context);
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 560),
@@ -534,213 +560,218 @@ class _AtomicFeatureData {
   });
 }
 
-List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
+List<List<_AtomicFeatureData>> _balancedAtomicFeatureRows(
+  BuildContext context,
+) {
+  final features = _atomicFeatures(context);
+  final rows = <List<_AtomicFeatureData>>[[], [], []];
+  for (var i = 0; i < features.length; i++) {
+    rows[i % rows.length].add(features[i]);
+  }
+  return rows;
+}
+
+List<_AtomicFeatureData> _atomicFeatures(BuildContext context) {
   const orange = Color(0xFFFF8E53);
   const green = Color(0xFF4ADE80);
   const blue = Color(0xFF3CABFF);
   const yellow = Color(0xFFFFC66A);
 
   return [
-    [
-      _AtomicFeatureData(
-        icon: _hugeChatBotIcon,
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Chat với HLV AI',
-          en: 'Chat with AI coach',
-        ),
-        color: orange,
-        isAi: true,
+    _AtomicFeatureData(
+      icon: _hugeChatBotIcon,
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Chat với HLV AI',
+        en: 'Chat with AI coach',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.auto_awesome_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'AI tạo giáo án cá nhân',
-          en: 'AI builds personal plans',
-        ),
-        color: green,
-        isAi: true,
+      color: orange,
+      isAi: true,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.auto_awesome_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'AI tạo giáo án cá nhân',
+        en: 'AI builds personal plans',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.tune_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'AI tinh chỉnh lịch tập',
-          en: 'AI tunes training plans',
-        ),
-        color: blue,
-        isAi: true,
+      color: green,
+      isAi: true,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.tune_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'AI tinh chỉnh lịch tập',
+        en: 'AI tunes training plans',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.local_fire_department_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Gợi ý khởi động theo buổi',
-          en: 'Workout-specific warmups',
-        ),
-        color: yellow,
+      color: blue,
+      isAi: true,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.local_fire_department_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Gợi ý khởi động theo buổi',
+        en: 'Workout-specific warmups',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.route_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Lịch tập hôm nay',
-          en: "Today's workout schedule",
-        ),
-        color: green,
+      color: yellow,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.route_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Lịch tập hôm nay',
+        en: "Today's workout schedule",
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.history_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Lịch sử giáo án',
-          en: 'Training plan history',
-        ),
-        color: blue,
+      color: green,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.history_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Lịch sử giáo án',
+        en: 'Training plan history',
       ),
-    ],
-    [
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.upload_file_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Nhập file GPX/FIT/TCX',
-          en: 'Import GPX/FIT/TCX files',
-        ),
-        color: blue,
+      color: blue,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.upload_file_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Nhập file GPX/FIT/TCX',
+        en: 'Import GPX/FIT/TCX files',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.edit_note_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Ghi buổi chạy thủ công',
-          en: 'Manual run logging',
-        ),
-        color: yellow,
+      color: blue,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.edit_note_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Ghi buổi chạy thủ công',
+        en: 'Manual run logging',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.link_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Gắn hoạt động vào buổi tập',
-          en: 'Link runs to workouts',
-        ),
-        color: green,
+      color: yellow,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.link_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Gắn hoạt động vào buổi tập',
+        en: 'Link runs to workouts',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.speed_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Biểu đồ pace theo thời gian',
-          en: 'Pace chart over time',
-        ),
-        color: orange,
+      color: green,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.speed_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Biểu đồ pace theo thời gian',
+        en: 'Pace chart over time',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.monitor_heart_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Theo dõi vùng nhịp tim',
-          en: 'Heart-rate zone tracking',
-        ),
-        color: green,
+      color: orange,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.monitor_heart_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Theo dõi vùng nhịp tim',
+        en: 'Heart-rate zone tracking',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.landscape_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Phân tích độ cao tích lũy',
-          en: 'Elevation gain analysis',
-        ),
-        color: blue,
+      color: green,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.landscape_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Phân tích độ cao tích lũy',
+        en: 'Elevation gain analysis',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.cloud_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Thời tiết & chất lượng khí',
-          en: 'Weather and air quality',
-        ),
-        color: yellow,
+      color: blue,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.cloud_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Thời tiết & chất lượng khí',
+        en: 'Weather and air quality',
       ),
-    ],
-    [
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.restaurant_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Nhật ký dinh dưỡng runner',
-          en: 'Runner nutrition log',
-        ),
-        color: green,
+      color: yellow,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.restaurant_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Nhật ký dinh dưỡng runner',
+        en: 'Runner nutrition log',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.camera_alt_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'AI nhận diện món ăn từ ảnh',
-          en: 'AI food photo recognition',
-        ),
-        color: orange,
-        isAi: true,
+      color: green,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.camera_alt_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'AI nhận diện món ăn từ ảnh',
+        en: 'AI food photo recognition',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.lightbulb_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'AI gợi ý thực đơn',
-          en: 'AI meal suggestions',
-        ),
-        color: yellow,
-        isAi: true,
+      color: orange,
+      isAi: true,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.lightbulb_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'AI gợi ý thực đơn',
+        en: 'AI meal suggestions',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.monitor_weight_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Theo dõi cân nặng & mục tiêu',
-          en: 'Weight and goal tracking',
-        ),
-        color: blue,
+      color: yellow,
+      isAi: true,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.monitor_weight_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Theo dõi cân nặng & mục tiêu',
+        en: 'Weight and goal tracking',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.groups_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Cộng đồng runner',
-          en: 'Runner community',
-        ),
-        color: green,
+      color: blue,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.groups_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Cộng đồng runner',
+        en: 'Runner community',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.leaderboard_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Bảng xếp hạng cộng đồng',
-          en: 'Community leaderboard',
-        ),
-        color: orange,
+      color: green,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.leaderboard_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Bảng xếp hạng cộng đồng',
+        en: 'Community leaderboard',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.emoji_events_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Huy hiệu thành tích chạy',
-          en: 'Running achievement badges',
-        ),
-        color: yellow,
+      color: orange,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.emoji_events_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Huy hiệu thành tích chạy',
+        en: 'Running achievement badges',
       ),
-      _AtomicFeatureData(
-        icon: _materialIcon(Icons.handshake_rounded),
-        label: _landingFeatureLabel(
-          context,
-          vi: 'Ghép bạn chạy cùng pace',
-          en: 'Match partners by pace',
-        ),
-        color: blue,
+      color: yellow,
+    ),
+    _AtomicFeatureData(
+      icon: _materialIcon(Icons.handshake_rounded),
+      label: _landingFeatureLabel(
+        context,
+        vi: 'Ghép bạn chạy cùng pace',
+        en: 'Match partners by pace',
       ),
-    ],
+      color: blue,
+    ),
   ];
 }
 
