@@ -1,9 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../widgets/ui_components.dart';
 import 'login_page.dart';
+
+Widget Function(Color color, double size) _materialIcon(IconData icon) {
+  return (color, size) => Icon(icon, color: color, size: size);
+}
+
+Widget _hugeChatBotIcon(Color color, double size) {
+  return HugeIcon(
+    icon: HugeIcons.strokeRoundedChatBot,
+    color: color,
+    size: size,
+  );
+}
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -616,7 +629,7 @@ class _AtomicFeatureChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(feature.icon, size: 18, color: feature.color),
+            feature.icon(feature.color, 18),
             const SizedBox(width: 8),
             Text(
               feature.label,
@@ -633,7 +646,7 @@ class _AtomicFeatureChip extends StatelessWidget {
 }
 
 class _AtomicFeatureData {
-  final IconData icon;
+  final Widget Function(Color color, double size) icon;
   final String label;
   final Color color;
   final bool isAi;
@@ -655,7 +668,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
   return [
     [
       _AtomicFeatureData(
-        icon: Icons.smart_toy_rounded,
+        icon: _hugeChatBotIcon,
         label: _landingFeatureLabel(
           context,
           vi: 'Chat với HLV AI',
@@ -665,7 +678,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         isAi: true,
       ),
       _AtomicFeatureData(
-        icon: Icons.auto_awesome_rounded,
+        icon: _materialIcon(Icons.auto_awesome_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'AI tạo giáo án cá nhân',
@@ -675,7 +688,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         isAi: true,
       ),
       _AtomicFeatureData(
-        icon: Icons.tune_rounded,
+        icon: _materialIcon(Icons.tune_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'AI tinh chỉnh lịch tập',
@@ -685,7 +698,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         isAi: true,
       ),
       _AtomicFeatureData(
-        icon: Icons.local_fire_department_rounded,
+        icon: _materialIcon(Icons.local_fire_department_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Gợi ý khởi động theo buổi',
@@ -694,7 +707,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: yellow,
       ),
       _AtomicFeatureData(
-        icon: Icons.route_rounded,
+        icon: _materialIcon(Icons.route_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Lịch tập hôm nay',
@@ -703,7 +716,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: green,
       ),
       _AtomicFeatureData(
-        icon: Icons.history_rounded,
+        icon: _materialIcon(Icons.history_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Lịch sử giáo án',
@@ -714,7 +727,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
     ],
     [
       _AtomicFeatureData(
-        icon: Icons.upload_file_rounded,
+        icon: _materialIcon(Icons.upload_file_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Nhập file GPX/FIT/TCX',
@@ -723,7 +736,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: blue,
       ),
       _AtomicFeatureData(
-        icon: Icons.edit_note_rounded,
+        icon: _materialIcon(Icons.edit_note_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Ghi buổi chạy thủ công',
@@ -732,7 +745,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: yellow,
       ),
       _AtomicFeatureData(
-        icon: Icons.link_rounded,
+        icon: _materialIcon(Icons.link_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Gắn hoạt động vào buổi tập',
@@ -741,7 +754,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: green,
       ),
       _AtomicFeatureData(
-        icon: Icons.speed_rounded,
+        icon: _materialIcon(Icons.speed_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Biểu đồ pace theo thời gian',
@@ -750,7 +763,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: orange,
       ),
       _AtomicFeatureData(
-        icon: Icons.monitor_heart_rounded,
+        icon: _materialIcon(Icons.monitor_heart_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Theo dõi vùng nhịp tim',
@@ -759,7 +772,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: green,
       ),
       _AtomicFeatureData(
-        icon: Icons.landscape_rounded,
+        icon: _materialIcon(Icons.landscape_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Phân tích độ cao tích lũy',
@@ -768,7 +781,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: blue,
       ),
       _AtomicFeatureData(
-        icon: Icons.cloud_rounded,
+        icon: _materialIcon(Icons.cloud_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Thời tiết & chất lượng khí',
@@ -779,7 +792,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
     ],
     [
       _AtomicFeatureData(
-        icon: Icons.restaurant_rounded,
+        icon: _materialIcon(Icons.restaurant_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Nhật ký dinh dưỡng runner',
@@ -788,7 +801,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: green,
       ),
       _AtomicFeatureData(
-        icon: Icons.camera_alt_rounded,
+        icon: _materialIcon(Icons.camera_alt_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'AI nhận diện món ăn từ ảnh',
@@ -798,7 +811,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         isAi: true,
       ),
       _AtomicFeatureData(
-        icon: Icons.lightbulb_rounded,
+        icon: _materialIcon(Icons.lightbulb_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'AI gợi ý thực đơn',
@@ -808,7 +821,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         isAi: true,
       ),
       _AtomicFeatureData(
-        icon: Icons.monitor_weight_rounded,
+        icon: _materialIcon(Icons.monitor_weight_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Theo dõi cân nặng & mục tiêu',
@@ -817,7 +830,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: blue,
       ),
       _AtomicFeatureData(
-        icon: Icons.groups_rounded,
+        icon: _materialIcon(Icons.groups_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Cộng đồng runner',
@@ -826,7 +839,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: green,
       ),
       _AtomicFeatureData(
-        icon: Icons.leaderboard_rounded,
+        icon: _materialIcon(Icons.leaderboard_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Bảng xếp hạng cộng đồng',
@@ -835,7 +848,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: orange,
       ),
       _AtomicFeatureData(
-        icon: Icons.emoji_events_rounded,
+        icon: _materialIcon(Icons.emoji_events_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Huy hiệu thành tích chạy',
@@ -844,7 +857,7 @@ List<List<_AtomicFeatureData>> _atomicFeatureRows(BuildContext context) {
         color: yellow,
       ),
       _AtomicFeatureData(
-        icon: Icons.handshake_rounded,
+        icon: _materialIcon(Icons.handshake_rounded),
         label: _landingFeatureLabel(
           context,
           vi: 'Ghép bạn chạy cùng pace',
@@ -914,8 +927,8 @@ class _HeroDashboardMockup extends StatelessWidget {
                     gradient: accentPulseGradient,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(
-                    Icons.smart_toy_rounded,
+                  child: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedChatBot,
                     color: Colors.white,
                     size: 26,
                   ),
@@ -1220,7 +1233,7 @@ class _FeaturesSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final features = [
       _FeatureData(
-        icon: Icons.smart_toy_rounded,
+        icon: _hugeChatBotIcon,
         color: AppTheme.secondary,
         title: context.translate('landing_feature_ai_title'),
         bullets: [
@@ -1229,7 +1242,7 @@ class _FeaturesSection extends StatelessWidget {
         ],
       ),
       _FeatureData(
-        icon: Icons.query_stats_rounded,
+        icon: _materialIcon(Icons.query_stats_rounded),
         color: AppTheme.success,
         title: context.translate('landing_feature_tracking_full_title'),
         bullets: [
@@ -1238,7 +1251,7 @@ class _FeaturesSection extends StatelessWidget {
         ],
       ),
       _FeatureData(
-        icon: Icons.groups_rounded,
+        icon: _materialIcon(Icons.groups_rounded),
         color: const Color(0xFFFFC66A),
         title: context.translate('landing_feature_social_title'),
         bullets: [
@@ -1247,7 +1260,7 @@ class _FeaturesSection extends StatelessWidget {
         ],
       ),
       _FeatureData(
-        icon: Icons.monitor_weight_rounded,
+        icon: _materialIcon(Icons.monitor_weight_rounded),
         color: const Color(0xFF2DD4BF),
         title: context.translate('landing_feature_health_title'),
         bullets: [
@@ -1298,7 +1311,7 @@ class _FeatureData {
     required this.bullets,
   });
 
-  final IconData icon;
+  final Widget Function(Color color, double size) icon;
   final Color color;
   final String title;
   final List<String> bullets;
@@ -1336,7 +1349,7 @@ class _FeatureCard extends StatelessWidget {
               color: data.color.withValues(alpha: isDark ? 0.18 : 0.14),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(data.icon, color: data.color, size: 28),
+            child: data.icon(data.color, 28),
           ),
           const SizedBox(height: 16),
           Text(
@@ -1727,32 +1740,32 @@ class _TechStackSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final stack = [
       _TechItem(
-        icon: Icons.flutter_dash_rounded,
+        icon: _materialIcon(Icons.flutter_dash_rounded),
         title: 'Flutter',
         description: context.translate('landing_tech_flutter_desc'),
       ),
       _TechItem(
-        icon: Icons.lock_rounded,
+        icon: _materialIcon(Icons.lock_rounded),
         title: 'Supabase Auth',
         description: context.translate('landing_tech_supabase_desc'),
       ),
       _TechItem(
-        icon: Icons.storage_rounded,
+        icon: _materialIcon(Icons.storage_rounded),
         title: 'PostgreSQL',
         description: context.translate('landing_tech_postgres_desc'),
       ),
       _TechItem(
-        icon: Icons.psychology_rounded,
+        icon: _hugeChatBotIcon,
         title: 'OpenRouter / Gemini',
         description: context.translate('landing_tech_ai_desc'),
       ),
       _TechItem(
-        icon: Icons.sync_rounded,
+        icon: _materialIcon(Icons.sync_rounded),
         title: 'Strava API',
         description: context.translate('landing_tech_strava_desc'),
       ),
       _TechItem(
-        icon: Icons.cloud_rounded,
+        icon: _materialIcon(Icons.cloud_rounded),
         title: 'OpenWeather API',
         description: context.translate('landing_tech_weather_desc'),
       ),
@@ -1807,7 +1820,7 @@ class _TechItem {
     required this.description,
   });
 
-  final IconData icon;
+  final Widget Function(Color color, double size) icon;
   final String title;
   final String description;
 }
@@ -1834,7 +1847,7 @@ class _TechTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(item.icon, color: AppTheme.secondary, size: 28),
+          item.icon(AppTheme.secondary, 28),
           const SizedBox(width: 14),
           Expanded(
             child: Column(

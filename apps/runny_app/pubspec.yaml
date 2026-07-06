@@ -55,6 +55,7 @@ dependencies:
   font_awesome_flutter: ^11.0.0
   web: ^1.1.1
   xml: ^6.6.1
+  hugeicons: ^1.1.7
 
 dev_dependencies:
   flutter_test:

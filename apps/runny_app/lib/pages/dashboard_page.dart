@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -28,6 +29,18 @@ import '../widgets/pwa_install_button.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
+
+Widget Function(Color color, double size) _materialIcon(IconData icon) {
+  return (color, size) => Icon(icon, color: color, size: size);
+}
+
+Widget _hugeChatBotIcon(Color color, double size) {
+  return HugeIcon(
+    icon: HugeIcons.strokeRoundedChatBot,
+    color: color,
+    size: size,
+  );
+}
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -116,7 +129,9 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!mounted) return;
     await showUpgradeSheet(
       context,
-      message: context.translate('trial_reminder_message', ['${ent.trialDaysLeft}']),
+      message: context.translate('trial_reminder_message', [
+        '${ent.trialDaysLeft}',
+      ]),
     );
   }
 
@@ -136,7 +151,9 @@ class _DashboardPageState extends State<DashboardPage> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: Text(context.translate('strava_connected_imported', ['$imported'])),
+          content: Text(
+            context.translate('strava_connected_imported', ['$imported']),
+          ),
         ),
       );
     } catch (e) {
@@ -171,8 +188,8 @@ class _DashboardPageState extends State<DashboardPage> {
 
   NavigationRailDestination _buildRailDestination({
     required int index,
-    required IconData icon,
-    required IconData selectedIcon,
+    required Widget Function(Color color, double size) iconBuilder,
+    required Widget Function(Color color, double size) selectedIconBuilder,
     required String label,
   }) {
     final theme = Theme.of(context);
@@ -186,11 +203,9 @@ class _DashboardPageState extends State<DashboardPage> {
           scale: isHovered ? 1.15 : 1.0,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
-          child: Icon(
-            icon,
-            color: isHovered
-                ? colorScheme.primary
-                : colorScheme.onSurfaceVariant,
+          child: iconBuilder(
+            isHovered ? colorScheme.primary : colorScheme.onSurfaceVariant,
+            24,
           ),
         ),
       ),
@@ -200,7 +215,7 @@ class _DashboardPageState extends State<DashboardPage> {
           scale: isHovered ? 1.15 : 1.0,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
-          child: Icon(selectedIcon, color: colorScheme.primary),
+          child: selectedIconBuilder(colorScheme.primary, 24),
         ),
       ),
       label: HoverSyncWidget(
@@ -239,38 +254,38 @@ class _DashboardPageState extends State<DashboardPage> {
 
     final navItems = [
       (
-        icon: Icons.dashboard_outlined,
-        selectedIcon: Icons.dashboard,
+        iconBuilder: _materialIcon(Icons.dashboard_outlined),
+        selectedIconBuilder: _materialIcon(Icons.dashboard),
         label: context.translate('dashboard'),
       ),
       (
-        icon: Icons.calendar_month_outlined,
-        selectedIcon: Icons.calendar_month,
+        iconBuilder: _materialIcon(Icons.calendar_month_outlined),
+        selectedIconBuilder: _materialIcon(Icons.calendar_month),
         label: context.translate('training_plan'),
       ),
       (
-        icon: Icons.psychology_outlined,
-        selectedIcon: Icons.psychology,
+        iconBuilder: _hugeChatBotIcon,
+        selectedIconBuilder: _hugeChatBotIcon,
         label: context.translate('ai_coach'),
       ),
       (
-        icon: Icons.restaurant_outlined,
-        selectedIcon: Icons.restaurant,
+        iconBuilder: _materialIcon(Icons.restaurant_outlined),
+        selectedIconBuilder: _materialIcon(Icons.restaurant),
         label: context.translate('nutrition'),
       ),
       (
-        icon: Icons.history_outlined,
-        selectedIcon: Icons.history,
+        iconBuilder: _materialIcon(Icons.history_outlined),
+        selectedIconBuilder: _materialIcon(Icons.history),
         label: context.translate('history'),
       ),
       (
-        icon: Icons.groups_outlined,
-        selectedIcon: Icons.groups,
+        iconBuilder: _materialIcon(Icons.groups_outlined),
+        selectedIconBuilder: _materialIcon(Icons.groups),
         label: context.translate('community'),
       ),
       (
-        icon: Icons.person_outline,
-        selectedIcon: Icons.person,
+        iconBuilder: _materialIcon(Icons.person_outline),
+        selectedIconBuilder: _materialIcon(Icons.person),
         label: context.translate('profile'),
       ),
     ];
@@ -336,8 +351,8 @@ class _DashboardPageState extends State<DashboardPage> {
                         final item = navItems[index];
                         return _buildRailDestination(
                           index: index,
-                          icon: item.icon,
-                          selectedIcon: item.selectedIcon,
+                          iconBuilder: item.iconBuilder,
+                          selectedIconBuilder: item.selectedIconBuilder,
                           label: item.label,
                         );
                       }),
@@ -407,14 +422,13 @@ class _DashboardPageState extends State<DashboardPage> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
+                                    (isSelected
+                                        ? item.selectedIconBuilder
+                                        : item.iconBuilder)(
                                       isSelected
-                                          ? item.selectedIcon
-                                          : item.icon,
-                                      size: 22,
-                                      color: isSelected
                                           ? theme.primaryColor
                                           : colorScheme.onSurfaceVariant,
+                                      22,
                                     ),
                                     AnimatedSize(
                                       duration: const Duration(
@@ -453,7 +467,6 @@ class _DashboardPageState extends State<DashboardPage> {
           : null,
     );
   }
-
 }
 
 class OverviewContent extends StatefulWidget {
@@ -893,7 +906,10 @@ class _OverviewContentState extends State<OverviewContent> {
             else
               ...workouts.map(
                 (w) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 6,
+                  ),
                   child: glassCard(
                     context: context,
                     padding: EdgeInsets.zero,
@@ -1127,7 +1143,11 @@ class _OverviewContentState extends State<OverviewContent> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.auto_awesome, color: colorScheme.primary, size: 20),
+                  Icon(
+                    Icons.auto_awesome,
+                    color: colorScheme.primary,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     context.translate('ai_insight_title'),
@@ -1195,153 +1215,149 @@ class _OverviewContentState extends State<OverviewContent> {
                   children: [
                     Expanded(
                       child: FutureBuilder<WeatherSnapshot?>(
-                            future: _weatherFuture,
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return const SizedBox(
-                                  height: 32,
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
+                        future: _weatherFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const SizedBox(
+                              height: 32,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            );
+                          }
+
+                          final weather = snapshot.data;
+                          final error = snapshot.error;
+
+                          if (weather == null) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  error != null
+                                      ? '${context.translate('error')}: ${context.translate(error.toString())}'
+                                      : context.translate(
+                                          'weather_unavailable',
+                                        ),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
                                   ),
-                                );
-                              }
-
-                              final weather = snapshot.data;
-                              final error = snapshot.error;
-
-                              if (weather == null) {
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 8,
                                   children: [
-                                    Text(
-                                      error != null
-                                          ? '${context.translate('error')}: ${context.translate(error.toString())}'
-                                          : context.translate(
-                                              'weather_unavailable',
-                                            ),
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                            color: colorScheme.onSurfaceVariant,
-                                          ),
+                                    OutlinedButton.icon(
+                                      onPressed: () =>
+                                          _retryWeather(forceRequest: true),
+                                      icon: const Icon(
+                                        Icons.location_on,
+                                        size: 16,
+                                      ),
+                                      label: Text(
+                                        context.translate('allow_location'),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                      ),
                                     ),
-                                    const SizedBox(height: 12),
-                                    Wrap(
-                                      spacing: 8,
-                                      children: [
-                                        OutlinedButton.icon(
-                                          onPressed: () =>
-                                              _retryWeather(forceRequest: true),
-                                          icon: const Icon(
-                                            Icons.location_on,
-                                            size: 16,
-                                          ),
-                                          label: Text(
-                                            context.translate('allow_location'),
-                                          ),
-                                          style: OutlinedButton.styleFrom(
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                          ),
-                                        ),
-                                        TextButton.icon(
-                                          onPressed: () => _retryWeather(),
-                                          icon: const Icon(
-                                            Icons.refresh,
-                                            size: 16,
-                                          ),
-                                          label: Text(
-                                            context.translate('retry'),
-                                          ),
-                                          style: TextButton.styleFrom(
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                          ),
-                                        ),
-                                      ],
+                                    TextButton.icon(
+                                      onPressed: () => _retryWeather(),
+                                      icon: const Icon(Icons.refresh, size: 16),
+                                      label: Text(context.translate('retry')),
+                                      style: TextButton.styleFrom(
+                                        visualDensity: VisualDensity.compact,
+                                      ),
                                     ),
                                   ],
-                                );
-                              }
+                                ),
+                              ],
+                            );
+                          }
 
-                              final tempText = weather.temperatureC != null
-                                  ? '${weather.temperatureC!.toStringAsFixed(1)}°C'
-                                  : '--';
+                          final tempText = weather.temperatureC != null
+                              ? '${weather.temperatureC!.toStringAsFixed(1)}°C'
+                              : '--';
 
-                              // Chi hien nhiet do + AQI, bo cac thong tin phu
-                              // (tom tat thoi tiet, dia diem). Badge AQI xuong
-                              // dong rieng de khong bi tran/cat tren mobile.
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                          // Chi hien nhiet do + AQI, bo cac thong tin phu
+                          // (tom tat thoi tiet, dia diem). Badge AQI xuong
+                          // dong rieng de khong bi tran/cat tren mobile.
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
                                 children: [
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      if (weather.icon != null) ...[
-                                        Image.network(
-                                          'https://openweathermap.org/img/wn/${weather.icon}@2x.png',
-                                          width: 56,
-                                          height: 56,
-                                          errorBuilder:
-                                              (context, error, stackTrace) =>
-                                                  const Icon(
-                                                    Icons.cloud_queue,
-                                                    size: 32,
-                                                  ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                      ],
-                                      Flexible(
-                                        child: Text(
-                                          tempText,
-                                          style: theme.textTheme.titleLarge
-                                              ?.copyWith(
-                                                color: colorScheme.onSurface,
-                                                fontWeight: FontWeight.bold,
+                                  if (weather.icon != null) ...[
+                                    Image.network(
+                                      'https://openweathermap.org/img/wn/${weather.icon}@2x.png',
+                                      width: 56,
+                                      height: 56,
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              const Icon(
+                                                Icons.cloud_queue,
+                                                size: 32,
                                               ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
                                     ),
-                                    decoration: BoxDecoration(
-                                      color: weather.aqiColor
-                                          .withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                        color: weather.aqiColor
-                                            .withValues(alpha: 0.5),
-                                        width: 1,
-                                      ),
-                                    ),
+                                    const SizedBox(width: 12),
+                                  ],
+                                  Flexible(
                                     child: Text(
-                                      'AQI ${weather.aqi ?? '--'} - ${weather.aqiLabel}',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: weather.aqiColor,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                      tempText,
+                                      style: theme.textTheme.titleLarge
+                                          ?.copyWith(
+                                            color: colorScheme.onSurface,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],
-                              );
-                            },
-                          ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: weather.aqiColor.withValues(
+                                    alpha: 0.2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: weather.aqiColor.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  'AQI ${weather.aqi ?? '--'} - ${weather.aqiLabel}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: weather.aqiColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        badgeLabel(context, DateFormat('dd/MM/yyyy').format(DateTime.now())),
+                        badgeLabel(
+                          context,
+                          DateFormat('dd/MM/yyyy').format(DateTime.now()),
+                        ),
                         const SizedBox(height: 8),
                         FutureBuilder<int>(
                           future: _fetchStreak(),
@@ -1350,8 +1366,9 @@ class _OverviewContentState extends State<OverviewContent> {
                             final hasStreakMomentum = n > 2;
                             final isDark =
                                 Theme.of(context).brightness == Brightness.dark;
-                            final inactiveTextColor =
-                                isDark ? Colors.white : Colors.black87;
+                            final inactiveTextColor = isDark
+                                ? Colors.white
+                                : Colors.black87;
 
                             return Container(
                               padding: const EdgeInsets.symmetric(
@@ -1575,7 +1592,11 @@ class _OverviewContentState extends State<OverviewContent> {
               children: [
                 _ActionChip(
                   text: context.translate('import_activity'),
-                  icon: Icons.cloud_upload,
+                  icon: const Icon(
+                    Icons.cloud_upload,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -1587,7 +1608,11 @@ class _OverviewContentState extends State<OverviewContent> {
                 ),
                 _ActionChip(
                   text: context.translate('training_plan'),
-                  icon: Icons.calendar_month,
+                  icon: const Icon(
+                    Icons.calendar_month,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -1599,7 +1624,11 @@ class _OverviewContentState extends State<OverviewContent> {
                 ),
                 _ActionChip(
                   text: context.translate('ai_coach'),
-                  icon: Icons.psychology,
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedChatBot,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -1706,7 +1735,7 @@ class PerformanceStatCard extends StatelessWidget {
 
 class _ActionChip extends StatelessWidget {
   final String text;
-  final IconData icon;
+  final Widget icon;
   final VoidCallback onTap;
 
   const _ActionChip({
@@ -1737,7 +1766,7 @@ class _ActionChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.white, size: 18),
+            icon,
             const SizedBox(width: 10),
             Text(
               text,
