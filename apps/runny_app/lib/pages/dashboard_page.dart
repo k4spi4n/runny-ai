@@ -1343,40 +1343,60 @@ class _OverviewContentState extends State<OverviewContent> {
                       children: [
                         badgeLabel(context, DateFormat('dd/MM/yyyy').format(DateTime.now())),
                         const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: accentPulseGradient,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                context.translate('streak'),
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: Colors.white70,
-                                ),
+                        FutureBuilder<int>(
+                          future: _fetchStreak(),
+                          builder: (context, snapshot) {
+                            final n = snapshot.data ?? 0;
+                            final hasStreakMomentum = n > 2;
+                            final isDark =
+                                Theme.of(context).brightness == Brightness.dark;
+                            final inactiveTextColor =
+                                isDark ? Colors.white : Colors.black87;
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
                               ),
-                              const SizedBox(height: 2),
-                              FutureBuilder<int>(
-                                future: _fetchStreak(),
-                                builder: (context, snapshot) {
-                                  final n = snapshot.data ?? 0;
-                                  return Text(
-                                    context.translate('streak_days', ['$n']),
-                                    style: theme.textTheme.titleMedium?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w900,
+                              decoration: BoxDecoration(
+                                color: hasStreakMomentum
+                                    ? null
+                                    : (isDark
+                                          ? const Color(0xFF3A4057)
+                                          : const Color(0xFFE2E8F0)),
+                                gradient: hasStreakMomentum
+                                    ? accentPulseGradient
+                                    : null,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    context.translate('streak'),
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: hasStreakMomentum
+                                          ? Colors.white70
+                                          : inactiveTextColor.withValues(
+                                              alpha: 0.7,
+                                            ),
                                     ),
-                                  );
-                                },
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    context.translate('streak_days', ['$n']),
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          color: hasStreakMomentum
+                                              ? Colors.white
+                                              : inactiveTextColor,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
                       ],
                     ),
