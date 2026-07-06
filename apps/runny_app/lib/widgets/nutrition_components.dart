@@ -241,64 +241,116 @@ class MealSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : AppTheme.lightTextPrimary;
+    final statusColor = isDark
+        ? AppTheme.darkTextSecondary.withValues(alpha: 0.62)
+        : AppTheme.lightTextSecondary.withValues(alpha: 0.82);
+    final aiButtonColor = isDark
+        ? Colors.white.withValues(alpha: 0.10)
+        : const Color(0xFFFFF3D7);
+    final addButtonColor = isDark
+        ? AppTheme.primary.withValues(alpha: 0.14)
+        : const Color(0xFFFFE7D8);
+    final aiIconColor = isDark ? AppTheme.warning : const Color(0xFFE89A00);
+    final sectionFill = isDark
+        ? Colors.white.withValues(alpha: 0.045)
+        : Colors.white.withValues(alpha: 0.82);
+    final sectionBorder = isDark
+        ? Colors.white.withValues(alpha: 0.14)
+        : AppTheme.lightBorder.withValues(alpha: 0.95);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
-          child: Row(
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        color: sectionFill,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: sectionBorder, width: 1.1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: titleColor,
+                        fontWeight: FontWeight.w800,
+                        height: 1.18,
+                      ),
+                    ),
+                    if (logs.isEmpty) ...[
+                      const SizedBox(height: 30),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: Text(
+                          context.translate('no_items_logged'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: statusColor,
+                            fontStyle: FontStyle.italic,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
+              const SizedBox(width: 16),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton.filledTonal(
+                  IconButton(
                     onPressed: onAISuggest,
                     icon: const Icon(Icons.auto_awesome, size: 20),
                     style: IconButton.styleFrom(
-                      backgroundColor: Colors.amber.withValues(alpha: 0.1),
-                      foregroundColor: Colors.amber[700],
+                      backgroundColor: aiButtonColor,
+                      foregroundColor: aiIconColor,
+                      fixedSize: const Size(40, 40),
+                      minimumSize: const Size(40, 40),
+                      padding: EdgeInsets.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     tooltip: context.translate('ai_meal_suggestions'),
                   ),
                   const SizedBox(width: 8),
-                  IconButton.filledTonal(
+                  IconButton(
                     onPressed: onAdd,
                     icon: const Icon(Icons.add, size: 20),
                     style: IconButton.styleFrom(
-                      backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                      backgroundColor: addButtonColor,
                       foregroundColor: AppTheme.primary,
+                      fixedSize: const Size(40, 40),
+                      minimumSize: const Size(40, 40),
+                      padding: EdgeInsets.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
+                    tooltip: context.translate('add_food'),
                   ),
                 ],
               ),
             ],
           ),
-        ),
-        if (logs.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              context.translate('no_items_logged'),
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant.withValues(
-                  alpha: 0.5,
-                ),
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          )
-        else
-          ...logs.map((log) => _buildMealTile(context, log)),
-        const SizedBox(height: 16),
-      ],
+          if (logs.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            ...logs.map((log) => _buildMealTile(context, log)),
+          ] else
+            const SizedBox(height: 2),
+        ],
+      ),
     );
   }
 
