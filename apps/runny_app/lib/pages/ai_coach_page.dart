@@ -71,12 +71,18 @@ class _AICoachPageState extends State<AICoachPage> {
   @override
   void initState() {
     super.initState();
+    _controller.addListener(_handlePromptChanged);
     _contextActivity = widget.initialActivity;
     if (widget.initialPrompt != null && widget.initialPrompt!.isNotEmpty) {
       _controller.text = widget.initialPrompt!;
     }
     _loadGreeting();
     _loadHistory();
+  }
+
+  void _handlePromptChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   @override
@@ -296,6 +302,13 @@ class _AICoachPageState extends State<AICoachPage> {
         });
       }
     }
+  }
+
+  void _sendSuggestedQuestion(String question) {
+    if (_isLoading || _isStreaming) return;
+    _controller.text = question;
+    _controller.selection = TextSelection.collapsed(offset: question.length);
+    _sendMessage();
   }
 
   /// Tổng hợp dữ liệu người dùng đã chọn thành một khối văn bản để gửi kèm câu
@@ -642,6 +655,7 @@ class _AICoachPageState extends State<AICoachPage> {
 
   @override
   void dispose() {
+    _controller.removeListener(_handlePromptChanged);
     _speech.cancel();
     _controller.dispose();
     _scrollController.dispose();
@@ -888,6 +902,7 @@ class _AICoachPageState extends State<AICoachPage> {
                     ),
                   ),
                 if (_isRecording) _buildListeningIndicator(context),
+                _buildSuggestedQuestions(context),
                 _buildAttachmentBar(context),
                 Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -958,6 +973,63 @@ class _AICoachPageState extends State<AICoachPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSuggestedQuestions(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final shouldShow =
+        _controller.text.trim().isEmpty &&
+        !_isRecording &&
+        !_isLoading &&
+        !_isStreaming;
+    if (!shouldShow) return const SizedBox.shrink();
+
+    final suggestions = [
+      'Hôm nay tôi nên chạy bài gì?',
+      'Phân tích tiến bộ gần đây của tôi',
+      'Tôi nên cải thiện pace hay nhịp tim trước?',
+      'Gợi ý lịch tập 7 ngày tới',
+      'Tôi cần lưu ý gì để tránh chấn thương?',
+    ];
+
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
+        scrollDirection: Axis.horizontal,
+        itemBuilder: (context, index) {
+          final question = suggestions[index];
+          return ActionChip(
+            avatar: Icon(
+              Icons.auto_awesome_rounded,
+              size: 16,
+              color: colorScheme.primary,
+            ),
+            label: Text(question),
+            labelStyle: TextStyle(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+            backgroundColor: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.04),
+            side: BorderSide(
+              color: colorScheme.primary.withValues(
+                alpha: isDark ? 0.24 : 0.18,
+              ),
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            onPressed: () => _sendSuggestedQuestion(question),
+          );
+        },
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemCount: suggestions.length,
       ),
     );
   }
