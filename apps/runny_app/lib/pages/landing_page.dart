@@ -428,9 +428,9 @@ class _AtomicFeatureCarouselState extends State<_AtomicFeatureCarousel>
 
 class _AtomicFeatureRow extends StatelessWidget {
   static const double _gap = 10;
-  static const double _chipMinWidth = 124;
-  static const double _chipHorizontalPadding = 36;
-  static const double _chipFontLoadSafetyBuffer = 42;
+  static const double _chipMinWidth = 104;
+  static const double _chipHorizontalPadding = 28;
+  static const double _chipFontLoadSafetyBuffer = 18;
   static const double _iconWidth = 18;
   static const double _iconGap = 8;
   static const double _borderPadding = 3;
@@ -575,7 +575,7 @@ class _AtomicFeatureChip extends StatelessWidget {
         color: feature.isAi ? null : regularBorderColor,
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: innerColor,
           borderRadius: BorderRadius.circular(11),
