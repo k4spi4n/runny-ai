@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/ui_components.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/unsigned_text_input_formatter.dart';
 
 /// Hiển thị khi người dùng bấm liên kết đặt lại mật khẩu trong email
 /// (sự kiện `passwordRecovery`). Cho phép đặt mật khẩu mới rồi quay lại
@@ -65,52 +66,63 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     return Scaffold(
       body: Stack(
         children: [
-          Container(decoration: BoxDecoration(gradient: sportPlatformGradient(context))),
+          Container(
+            decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
+          ),
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 42),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 460),
                 child: glassCard(
-                context: context,
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const RunnyLogo(fontSize: 32),
-                    const SizedBox(height: 28),
-                    Text(
-                      context.translate('set_new_password'),
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : Colors.black87,
+                  context: context,
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const RunnyLogo(fontSize: 32),
+                      const SizedBox(height: 28),
+                      Text(
+                        context.translate('set_new_password'),
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 24),
-                    TextField(
-                      controller: _passwordController,
-                      decoration: themedInputDecoration(
-                        context,
-                        context.translate('new_password'),
-                        icon: Icons.lock,
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: _passwordController,
+                        decoration: themedInputDecoration(
+                          context,
+                          context.translate('new_password'),
+                          icon: Icons.lock,
+                        ),
+                        keyboardType: TextInputType.visiblePassword,
+                        obscureText: true,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        inputFormatters: [UnsignedTextInputFormatter()],
                       ),
-                      obscureText: true,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                    ),
-                    const SizedBox(height: 24),
-                    GradientButton(
-                      onPressed: _isLoading ? null : _submit,
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : Text(context.translate('update_password')),
-                    ),
-                  ],
+                      const SizedBox(height: 24),
+                      GradientButton(
+                        onPressed: _isLoading ? null : _submit,
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(context.translate('update_password')),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
               ),
             ),
           ),

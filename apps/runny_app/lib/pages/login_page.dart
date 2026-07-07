@@ -27,8 +27,12 @@ class _LoginPageState extends State<LoginPage> {
 
         // Pre-check phía server: chặn email sai định dạng / dùng-một-lần trước khi
         // gọi signUp (chốt chặn thật vẫn là trigger trg_guard_auth_signup ở DB).
-        final check = await Supabase.instance.client
-            .rpc('check_signup_email', params: {'p_email': email}) as Map;
+        final check =
+            await Supabase.instance.client.rpc(
+                  'check_signup_email',
+                  params: {'p_email': email},
+                )
+                as Map;
         if (check['allowed'] != true) {
           if (mounted) {
             final reason = check['reason'];
@@ -87,7 +91,8 @@ class _LoginPageState extends State<LoginPage> {
     } on AuthException catch (e) {
       if (mounted) {
         // Email chưa xác thực: cho phép gửi lại email xác thực ngay từ snackbar.
-        final notConfirmed = e.message.toLowerCase().contains('not confirmed') ||
+        final notConfirmed =
+            e.message.toLowerCase().contains('not confirmed') ||
             e.message.toLowerCase().contains('not been confirmed');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -106,7 +111,10 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.translate('error_occurred')), backgroundColor: Colors.redAccent),
+          SnackBar(
+            content: Text(context.translate('error_occurred')),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     } finally {
@@ -158,7 +166,9 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleForgotPassword() async {
-    final controller = TextEditingController(text: _emailController.text.trim());
+    final controller = TextEditingController(
+      text: _emailController.text.trim(),
+    );
     final email = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
@@ -179,9 +189,7 @@ class _LoginPageState extends State<LoginPage> {
                   dialogContext.translate('email'),
                   icon: Icons.email,
                 ),
-                inputFormatters: [
-                  UnsignedTextInputFormatter(),
-                ],
+                inputFormatters: [UnsignedTextInputFormatter()],
               ),
             ],
           ),
@@ -191,7 +199,8 @@ class _LoginPageState extends State<LoginPage> {
               child: Text(dialogContext.translate('cancel')),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+              onPressed: () =>
+                  Navigator.pop(dialogContext, controller.text.trim()),
               child: Text(dialogContext.translate('send')),
             ),
           ],
@@ -225,15 +234,14 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       body: Stack(
         children: [
-          Container(decoration: BoxDecoration(gradient: sportPlatformGradient(context))),
+          Container(
+            decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
+          ),
           Positioned(
             top: 40,
             right: 20,
             child: Row(
-              children: [
-                const LanguageSwitcher(),
-                const ThemeToggle(),
-              ],
+              children: [const LanguageSwitcher(), const ThemeToggle()],
             ),
           ),
           Positioned(
@@ -245,7 +253,10 @@ class _LoginPageState extends State<LoginPage> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [const Color(0xFFFA6B27).withValues(alpha: 0.35), Colors.transparent],
+                  colors: [
+                    const Color(0xFFFA6B27).withValues(alpha: 0.35),
+                    Colors.transparent,
+                  ],
                 ),
               ),
             ),
@@ -256,108 +267,133 @@ class _LoginPageState extends State<LoginPage> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 460),
                 child: glassCard(
-                context: context,
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const RunnyLogo(fontSize: 32),
-                    const SizedBox(height: 28),
-                    Text(
-                      _isSignUp ? context.translate('signup') : context.translate('login'),
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    TextField(
-                      controller: _emailController,
-                      decoration: themedInputDecoration(context, context.translate('email'), icon: Icons.email),
-                      keyboardType: TextInputType.emailAddress,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                      inputFormatters: [
-                        UnsignedTextInputFormatter(),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _passwordController,
-                      decoration: themedInputDecoration(context, context.translate('password'), icon: Icons.lock),
-                      obscureText: true,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                    ),
-                    const SizedBox(height: 24),
-                    GradientButton(
-                      onPressed: _isLoading ? null : _handleAuth,
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : Text(_isSignUp ? context.translate('signup') : context.translate('login')),
-                    ),
-                    if (!_isSignUp)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: _isLoading ? null : _handleForgotPassword,
-                          child: Text(
-                            context.translate('forgot_password'),
-                            style: TextStyle(
-                              color: isDark ? Colors.white70 : Colors.black54,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _SocialLoginButton(
-                            onPressed: _isLoading ? null : _showComingSoon,
-                            icon: const Icon(
-                              Icons.g_mobiledata,
-                              color: Colors.redAccent,
-                              size: 28,
-                            ),
-                            label: context.translate('google_login'),
-                            isDark: isDark,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _SocialLoginButton(
-                            onPressed: _isLoading ? null : _showComingSoon,
-                            icon: const Icon(
-                              Icons.facebook,
-                              color: Color(0xFF1877F2),
-                              size: 24,
-                            ),
-                            label: context.translate('facebook_login'),
-                            isDark: isDark,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: () => setState(() => _isSignUp = !_isSignUp),
-                      child: Text(
+                  context: context,
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const RunnyLogo(fontSize: 32),
+                      const SizedBox(height: 28),
+                      Text(
                         _isSignUp
-                            ? context.translate('already_have_account')
-                            : context.translate('no_account_signup'),
-                        style: TextStyle(
-                          color: isDark ? Colors.white70 : Colors.black54,
-                          fontWeight: FontWeight.w600,
+                            ? context.translate('signup')
+                            : context.translate('login'),
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: _emailController,
+                        decoration: themedInputDecoration(
+                          context,
+                          context.translate('email'),
+                          icon: Icons.email,
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        inputFormatters: [UnsignedTextInputFormatter()],
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _passwordController,
+                        decoration: themedInputDecoration(
+                          context,
+                          context.translate('password'),
+                          icon: Icons.lock,
+                        ),
+                        keyboardType: TextInputType.visiblePassword,
+                        obscureText: true,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                        inputFormatters: [UnsignedTextInputFormatter()],
+                      ),
+                      const SizedBox(height: 24),
+                      GradientButton(
+                        onPressed: _isLoading ? null : _handleAuth,
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                _isSignUp
+                                    ? context.translate('signup')
+                                    : context.translate('login'),
+                              ),
+                      ),
+                      if (!_isSignUp)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _isLoading
+                                ? null
+                                : _handleForgotPassword,
+                            child: Text(
+                              context.translate('forgot_password'),
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black54,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _SocialLoginButton(
+                              onPressed: _isLoading ? null : _showComingSoon,
+                              icon: const Icon(
+                                Icons.g_mobiledata,
+                                color: Colors.redAccent,
+                                size: 28,
+                              ),
+                              label: context.translate('google_login'),
+                              isDark: isDark,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _SocialLoginButton(
+                              onPressed: _isLoading ? null : _showComingSoon,
+                              icon: const Icon(
+                                Icons.facebook,
+                                color: Color(0xFF1877F2),
+                                size: 24,
+                              ),
+                              label: context.translate('facebook_login'),
+                              isDark: isDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: () => setState(() => _isSignUp = !_isSignUp),
+                        child: Text(
+                          _isSignUp
+                              ? context.translate('already_have_account')
+                              : context.translate('no_account_signup'),
+                          style: TextStyle(
+                            color: isDark ? Colors.white70 : Colors.black54,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
               ),
             ),
           ),
@@ -408,7 +444,9 @@ class _SocialLoginButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Flexible(child: SizedBox(width: 30, child: Center(child: icon))),
+            Flexible(
+              child: SizedBox(width: 30, child: Center(child: icon)),
+            ),
             const SizedBox(width: 8),
             Flexible(
               child: FittedBox(
