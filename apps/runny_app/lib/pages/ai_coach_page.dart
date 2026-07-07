@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -50,6 +52,7 @@ class _AICoachPageState extends State<AICoachPage> {
   final WeatherService _weatherService = WeatherService();
   final List<Map<String, String>> _messages = [];
   final ScrollController _scrollController = ScrollController();
+  String? _greetingText;
   bool _isLoading = false;
   // Đang nhận phản hồi streaming (chữ chạy dần trong bong bóng cuối).
   bool _isStreaming = false;
@@ -72,17 +75,19 @@ class _AICoachPageState extends State<AICoachPage> {
     if (widget.initialPrompt != null && widget.initialPrompt!.isNotEmpty) {
       _controller.text = widget.initialPrompt!;
     }
+    _loadGreeting();
     _loadHistory();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_contextActivity != null && _messages.isEmpty && _controller.text.isEmpty) {
-      _controller.text = context.translate(
-        'ai_coach_analyze_activity',
-        [_contextActivity!.distanceKm.toStringAsFixed(2)],
-      );
+    if (_contextActivity != null &&
+        _messages.isEmpty &&
+        _controller.text.isEmpty) {
+      _controller.text = context.translate('ai_coach_analyze_activity', [
+        _contextActivity!.distanceKm.toStringAsFixed(2),
+      ]);
     }
   }
 
@@ -98,6 +103,51 @@ class _AICoachPageState extends State<AICoachPage> {
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadGreeting() async {
+    final name = await _loadUserDisplayName();
+    final displayName = (name == null || name.isEmpty) ? 'bạn' : name;
+    final variants = [
+      'Xin chào $displayName, tôi có thể hỗ trợ bạn hôm nay?',
+      'Xin chào $displayName, tôi có thể đưa lời khuyên nào cho bạn hôm nay?',
+      'Xin chào $displayName, tôi có thể giúp bạn cải thiện chỉ số nào hôm nay?',
+    ];
+    if (!mounted) return;
+    setState(() {
+      _greetingText = variants[Random().nextInt(variants.length)];
+    });
+  }
+
+  Future<String?> _loadUserDisplayName() async {
+    final supabase = Supabase.instance.client;
+    final user = supabase.auth.currentUser;
+    if (user == null) return null;
+
+    try {
+      final profile = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', user.id)
+          .maybeSingle();
+      final displayName = (profile?['display_name'] as String?)?.trim();
+      if (displayName != null && displayName.isNotEmpty) {
+        return displayName;
+      }
+    } catch (e) {
+      debugPrint('Error loading AI greeting profile name: $e');
+    }
+
+    final metadataName =
+        (user.userMetadata?['display_name'] as String?) ??
+        (user.userMetadata?['name'] as String?);
+    final trimmedMetadataName = metadataName?.trim();
+    if (trimmedMetadataName != null && trimmedMetadataName.isNotEmpty) {
+      return trimmedMetadataName;
+    }
+
+    final emailPrefix = user.email?.split('@').first.trim();
+    return emailPrefix?.isEmpty == false ? emailPrefix : null;
   }
 
   void _sendMessage() async {
@@ -146,7 +196,9 @@ class _AICoachPageState extends State<AICoachPage> {
         contextActivity.notes ?? (hasEnglishL10n ? 'None' : 'Không có'),
         text,
       ]);
-      setState(() => _contextActivity = null); // Reset context immediately (safe since it's synchronous)
+      setState(
+        () => _contextActivity = null,
+      ); // Reset context immediately (safe since it's synchronous)
     }
 
     // Đính kèm dữ liệu người dùng đã chọn (Hoạt động, Chỉ số, Kế hoạch, Dinh dưỡng).
@@ -164,7 +216,8 @@ class _AICoachPageState extends State<AICoachPage> {
     try {
       // Check if user is asking for a plan (localized keywords)
       final lowercaseText = text.toLowerCase();
-      bool isRequestingPlan = lowercaseText.contains('lịch tập') ||
+      bool isRequestingPlan =
+          lowercaseText.contains('lịch tập') ||
           lowercaseText.contains('kế hoạch') ||
           lowercaseText.contains('training plan') ||
           lowercaseText.contains('schedule');
@@ -192,8 +245,10 @@ class _AICoachPageState extends State<AICoachPage> {
         int? assistantIndex; // vị trí bong bóng trả lời (tạo khi có token đầu)
         setState(() => _isStreaming = true);
         try {
-          await for (final chunk
-              in _geminiService.streamResponse(prompt, history: history)) {
+          await for (final chunk in _geminiService.streamResponse(
+            prompt,
+            history: history,
+          )) {
             buffer.write(chunk);
             if (!mounted) return;
             setState(() {
@@ -231,10 +286,7 @@ class _AICoachPageState extends State<AICoachPage> {
       if (!mounted) return;
       final errorMsg = '$errorOccurredTranslation: $e';
       setState(() {
-        _messages.add({
-          'role': 'assistant',
-          'content': errorMsg,
-        });
+        _messages.add({'role': 'assistant', 'content': errorMsg});
       });
       await _chatService.saveMessage('assistant', errorMsg);
     } finally {
@@ -265,8 +317,9 @@ class _AICoachPageState extends State<AICoachPage> {
             .select()
             .order('started_at', ascending: false)
             .limit(7);
-        final activities =
-            (rows as List).map((j) => Activity.fromJson(j)).toList();
+        final activities = (rows as List)
+            .map((j) => Activity.fromJson(j))
+            .toList();
         if (activities.isNotEmpty) {
           buffer.writeln('• Hoạt động gần đây:');
           for (final a in activities) {
@@ -436,9 +489,11 @@ class _AICoachPageState extends State<AICoachPage> {
       // Đảo về thứ tự tăng dần (cũ -> mới) để thể hiện xu hướng.
       final ordered = logs.reversed;
       return ordered
-          .map((l) =>
-              '${l.loggedAt.day}/${l.loggedAt.month}: '
-              '${l.weightKg.toStringAsFixed(1)}kg')
+          .map(
+            (l) =>
+                '${l.loggedAt.day}/${l.loggedAt.month}: '
+                '${l.weightKg.toStringAsFixed(1)}kg',
+          )
           .join(' → ');
     } catch (e) {
       debugPrint('Attach weight trend error: $e');
@@ -462,7 +517,9 @@ class _AICoachPageState extends State<AICoachPage> {
       }
       if (w.summary != null) parts.add(w.summary!.toLowerCase());
       if (w.humidity != null) parts.add('độ ẩm ${w.humidity}%');
-      if (w.windKph != null) parts.add('gió ${w.windKph!.toStringAsFixed(0)} km/h');
+      if (w.windKph != null) {
+        parts.add('gió ${w.windKph!.toStringAsFixed(0)} km/h');
+      }
       if (w.aqi != null) parts.add('AQI ${w.aqi} (${w.aqiLabel})');
       if (parts.isEmpty) return null;
       final place = w.locationName != null ? ' tại ${w.locationName}' : '';
@@ -545,16 +602,31 @@ class _AICoachPageState extends State<AICoachPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
-        title: Text(context.translate('delete_history'), style: TextStyle(color: theme.colorScheme.onSurface)),
-        content: Text(context.translate('delete_history_confirm'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+        title: Text(
+          context.translate('delete_history'),
+          style: TextStyle(color: theme.colorScheme.onSurface),
+        ),
+        content: Text(
+          context.translate('delete_history_confirm'),
+          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(context.translate('cancel'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              context.translate('cancel'),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(context.translate('delete'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: Text(
+              context.translate('delete'),
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -611,8 +683,9 @@ class _AICoachPageState extends State<AICoachPage> {
         final combined = '$_baseText$sep$text';
         setState(() {
           _controller.text = combined;
-          _controller.selection =
-              TextSelection.collapsed(offset: combined.length);
+          _controller.selection = TextSelection.collapsed(
+            offset: combined.length,
+          );
         });
         if (isFinal) _baseText = combined;
       },
@@ -632,8 +705,7 @@ class _AICoachPageState extends State<AICoachPage> {
     setState(() {
       _isRecording = false;
       _controller.text = _baseText;
-      _controller.selection =
-          TextSelection.collapsed(offset: _baseText.length);
+      _controller.selection = TextSelection.collapsed(offset: _baseText.length);
     });
   }
 
@@ -657,7 +729,9 @@ class _AICoachPageState extends State<AICoachPage> {
 
   void _showToast(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -670,7 +744,10 @@ class _AICoachPageState extends State<AICoachPage> {
       extendBodyBehindAppBar: true,
       backgroundColor: widget.embedded ? Colors.transparent : null,
       appBar: AppBar(
-        title: Text(context.translate('ai_coach'), style: TextStyle(color: colorScheme.onSurface)),
+        title: Text(
+          context.translate('ai_coach'),
+          style: TextStyle(color: colorScheme.onSurface),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: Navigator.canPop(context)
@@ -692,7 +769,9 @@ class _AICoachPageState extends State<AICoachPage> {
           if (!widget.embedded)
             SizedBox.expand(
               child: DecoratedBox(
-                decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
+                decoration: BoxDecoration(
+                  gradient: sportPlatformGradient(context),
+                ),
               ),
             ),
           SafeArea(
@@ -702,9 +781,13 @@ class _AICoachPageState extends State<AICoachPage> {
                   child: ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.all(16),
-                    itemCount: _messages.length,
+                    itemCount:
+                        _messages.length + (_greetingText != null ? 1 : 0),
                     itemBuilder: (context, index) {
-                      final msg = _messages[index];
+                      final hasGreeting = _greetingText != null;
+                      final msg = hasGreeting && index == 0
+                          ? {'role': 'assistant', 'content': _greetingText!}
+                          : _messages[index - (hasGreeting ? 1 : 0)];
                       final isUser = msg['role'] == 'user';
                       return Align(
                         alignment: isUser
@@ -713,11 +796,15 @@ class _AICoachPageState extends State<AICoachPage> {
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           padding: const EdgeInsets.all(12),
-                          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                          constraints: BoxConstraints(
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                          ),
                           decoration: BoxDecoration(
                             color: isUser
                                 ? colorScheme.primary
-                                : (isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.05)),
+                                : (isDark
+                                      ? Colors.white.withValues(alpha: 0.12)
+                                      : Colors.black.withValues(alpha: 0.05)),
                             borderRadius: BorderRadius.only(
                               topLeft: const Radius.circular(20),
                               topRight: const Radius.circular(20),
@@ -727,12 +814,17 @@ class _AICoachPageState extends State<AICoachPage> {
                             border: isUser
                                 ? null
                                 : Border.all(
-                                    color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05)),
+                                    color: isDark
+                                        ? Colors.white.withValues(alpha: 0.1)
+                                        : Colors.black.withValues(alpha: 0.05),
+                                  ),
                           ),
                           child: Text(
                             msg['content']!,
                             style: TextStyle(
-                              color: isUser ? Colors.white : colorScheme.onSurface,
+                              color: isUser
+                                  ? Colors.white
+                                  : colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -743,31 +835,51 @@ class _AICoachPageState extends State<AICoachPage> {
                 if (_isLoading)
                   Padding(
                     padding: const EdgeInsets.all(8),
-                    child: CircularProgressIndicator(color: colorScheme.primary),
+                    child: CircularProgressIndicator(
+                      color: colorScheme.primary,
+                    ),
                   ),
                 if (_contextActivity != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: colorScheme.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.2)),
+                        border: Border.all(
+                          color: colorScheme.primary.withValues(alpha: 0.2),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.description_outlined, color: colorScheme.primary, size: 18),
+                          Icon(
+                            Icons.description_outlined,
+                            color: colorScheme.primary,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             '${context.translate('activity')}: ${_contextActivity!.distanceKm.toStringAsFixed(2)}km',
-                            style: TextStyle(color: colorScheme.primary, fontSize: 13, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              color: colorScheme.primary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                           const SizedBox(width: 4),
                           IconButton(
-                            onPressed: () => setState(() => _contextActivity = null),
-                            icon: Icon(Icons.close, color: colorScheme.primary, size: 14),
+                            onPressed: () =>
+                                setState(() => _contextActivity = null),
+                            icon: Icon(
+                              Icons.close,
+                              color: colorScheme.primary,
+                              size: 14,
+                            ),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
@@ -787,7 +899,10 @@ class _AICoachPageState extends State<AICoachPage> {
                           child: IconButton(
                             onPressed: _cancelRecording,
                             tooltip: 'Huỷ ghi âm',
-                            icon: Icon(Icons.close, color: colorScheme.onSurfaceVariant),
+                            icon: Icon(
+                              Icons.close,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       Expanded(
@@ -798,15 +913,23 @@ class _AICoachPageState extends State<AICoachPage> {
                             hintText: _isRecording
                                 ? 'Đang nghe...'
                                 : 'Hỏi HLV ảo hoặc yêu cầu lịch tập...',
-                            hintStyle: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                            hintStyle: TextStyle(
+                              color: colorScheme.onSurfaceVariant.withValues(
+                                alpha: 0.5,
+                              ),
+                            ),
                             filled: true,
-                            fillColor: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
+                            fillColor: isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Colors.black.withValues(alpha: 0.04),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(30),
                               borderSide: BorderSide.none,
                             ),
                             contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 10),
+                              horizontal: 20,
+                              vertical: 10,
+                            ),
                           ),
                           onSubmitted: (_) => _sendMessage(),
                         ),
@@ -877,8 +1000,11 @@ class _AICoachPageState extends State<AICoachPage> {
             return Center(
               child: Row(
                 children: [
-                  Icon(Icons.attach_file,
-                      size: 16, color: colorScheme.onSurfaceVariant),
+                  Icon(
+                    Icons.attach_file,
+                    size: 16,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     context.translate('chat_attach_label'),
@@ -936,7 +1062,10 @@ class _AICoachPageState extends State<AICoachPage> {
             Text(
               'Đang nghe... Hãy nói câu hỏi của bạn',
               style: TextStyle(
-                  color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w600),
+                color: Colors.redAccent,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             SizedBox(width: 10),
             _AudioWave(),
@@ -963,7 +1092,8 @@ class _MicButton extends StatefulWidget {
   State<_MicButton> createState() => _MicButtonState();
 }
 
-class _MicButtonState extends State<_MicButton> with SingleTickerProviderStateMixin {
+class _MicButtonState extends State<_MicButton>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
@@ -1015,7 +1145,8 @@ class _PulsingDot extends StatefulWidget {
   State<_PulsingDot> createState() => _PulsingDotState();
 }
 
-class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderStateMixin {
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 700),
@@ -1034,7 +1165,10 @@ class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderState
       child: Container(
         width: 10,
         height: 10,
-        decoration: const BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+        decoration: const BoxDecoration(
+          color: Colors.redAccent,
+          shape: BoxShape.circle,
+        ),
       ),
     );
   }
@@ -1048,7 +1182,8 @@ class _AudioWave extends StatefulWidget {
   State<_AudioWave> createState() => _AudioWaveState();
 }
 
-class _AudioWaveState extends State<_AudioWave> with SingleTickerProviderStateMixin {
+class _AudioWaveState extends State<_AudioWave>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1000),
