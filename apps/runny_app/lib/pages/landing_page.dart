@@ -428,9 +428,9 @@ class _AtomicFeatureCarouselState extends State<_AtomicFeatureCarousel>
 
 class _AtomicFeatureRow extends StatelessWidget {
   static const double _gap = 10;
-  static const double _chipMinWidth = 98;
-  static const double _chipHorizontalPadding = 28;
-  static const double _chipFontLoadSafetyBuffer = 10;
+  static const double _chipMinWidth = 88;
+  static const double _chipHorizontalPadding = 24;
+  static const double _chipFontLoadSafetyBuffer = 4;
   static const double _iconWidth = 18;
   static const double _iconGap = 8;
   static const double _borderPadding = 3;
