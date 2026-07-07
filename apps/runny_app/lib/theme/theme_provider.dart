@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ThemeProvider extends ChangeNotifier {
   static const String _themeKey = 'theme_mode';
   final SharedPreferences _prefs;
-  
+
   ThemeMode _themeMode;
 
   ThemeProvider(this._prefs) : _themeMode = _loadThemeMode(_prefs);
@@ -17,7 +17,9 @@ class ThemeProvider extends ChangeNotifier {
     final mode = prefs.getString(_themeKey);
     if (mode == 'light') return ThemeMode.light;
     if (mode == 'dark') return ThemeMode.dark;
-    return ThemeMode.system;
+    // First-time web visitors should see the intended dark landing page
+    // regardless of Safari, OS, or embedded browser defaults.
+    return ThemeMode.dark;
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
