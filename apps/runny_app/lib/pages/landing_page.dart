@@ -131,7 +131,9 @@ class _LandingNavbar extends StatelessWidget {
                           BorderSide(
                             color: isDark
                                 ? Colors.white.withValues(alpha: 0.36)
-                                : theme.colorScheme.onSurface.withValues(alpha: 0.24),
+                                : theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.24,
+                                  ),
                             width: 1.3,
                           ),
                         ),
@@ -144,7 +146,9 @@ class _LandingNavbar extends StatelessWidget {
                     IconButton(
                       onPressed: onLogin,
                       icon: const Icon(Icons.login_rounded),
-                      color: isDark ? Colors.white : theme.colorScheme.onSurface,
+                      color: isDark
+                          ? Colors.white
+                          : theme.colorScheme.onSurface,
                       tooltip: context.translate('landing_login_signup'),
                     ),
                   const LanguageSwitcher(),
@@ -424,8 +428,9 @@ class _AtomicFeatureCarouselState extends State<_AtomicFeatureCarousel>
 
 class _AtomicFeatureRow extends StatelessWidget {
   static const double _gap = 10;
-  static const double _chipMinWidth = 96;
-  static const double _chipHorizontalPadding = 24;
+  static const double _chipMinWidth = 124;
+  static const double _chipHorizontalPadding = 36;
+  static const double _chipFontLoadSafetyBuffer = 42;
   static const double _iconWidth = 18;
   static const double _iconGap = 8;
   static const double _borderPadding = 3;
@@ -517,7 +522,8 @@ class _AtomicFeatureRow extends StatelessWidget {
             _chipHorizontalPadding +
             _iconWidth +
             _iconGap +
-            _borderPadding)
+            _borderPadding +
+            _chipFontLoadSafetyBuffer)
         .ceilToDouble()
         .clamp(_chipMinWidth, double.infinity);
   }
@@ -569,7 +575,7 @@ class _AtomicFeatureChip extends StatelessWidget {
         color: feature.isAi ? null : regularBorderColor,
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: innerColor,
           borderRadius: BorderRadius.circular(11),
@@ -883,7 +889,8 @@ class _HeroDashboardMockup extends StatelessWidget {
         children: [
           // 1. Background Main Activity Card
           Positioned.fill(
-            bottom: 54, // Leave some room at the bottom for the overlapping AI card
+            bottom:
+                54, // Leave some room at the bottom for the overlapping AI card
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1036,10 +1043,7 @@ class _HeroDashboardMockup extends StatelessWidget {
             left: 12,
             right: 12,
             bottom: 0,
-            child: _FloatingAiInsightCard(
-              isDark: isDark,
-              theme: theme,
-            ),
+            child: _FloatingAiInsightCard(isDark: isDark, theme: theme),
           ),
         ],
       ),
@@ -1107,10 +1111,7 @@ class _CompactDashboardStat extends StatelessWidget {
 }
 
 class _FloatingAiInsightCard extends StatelessWidget {
-  const _FloatingAiInsightCard({
-    required this.isDark,
-    required this.theme,
-  });
+  const _FloatingAiInsightCard({required this.isDark, required this.theme});
 
   final bool isDark;
   final ThemeData theme;
@@ -1131,8 +1132,9 @@ class _FloatingAiInsightCard extends StatelessWidget {
         border: Border.all(color: borderColor, width: 1.2),
         boxShadow: [
           BoxShadow(
-            color: (isDark ? const Color(0xFFFF8E53) : Colors.black)
-                .withValues(alpha: isDark ? 0.18 : 0.1),
+            color: (isDark ? const Color(0xFFFF8E53) : Colors.black).withValues(
+              alpha: isDark ? 0.18 : 0.1,
+            ),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
