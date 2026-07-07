@@ -981,6 +981,7 @@ class _AICoachPageState extends State<AICoachPage> {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final shouldShow =
+        _messages.isEmpty &&
         _controller.text.trim().isEmpty &&
         !_isRecording &&
         !_isLoading &&
