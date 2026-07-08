@@ -89,7 +89,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         setState(() {
           _activeSchedule = schedule;
           _workouts = workouts;
-          _runReminders = reminders;
+          _runReminders = {};
         });
       }
     } catch (e) {
@@ -449,6 +449,14 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                           ),
                           onAddActivity: () => _showAddActivityOptions(workout),
                           onReschedule: () => _rescheduleWorkout(workout),
+                          reminder: _runReminders[workout['id']],
+                          onReminderChanged: (workoutAt, leadMinutes, enabled) =>
+                              _saveReminder(
+                            workout: workout,
+                            workoutAt: workoutAt,
+                            leadMinutes: leadMinutes,
+                            enabled: enabled,
+                          ),
                         ),
                       );
                     }),
