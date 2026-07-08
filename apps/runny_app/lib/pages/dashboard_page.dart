@@ -1579,12 +1579,10 @@ class _OverviewContentState extends State<OverviewContent> {
                             size: 28,
                           ),
                         ),
-                        title: Text(
+                        title: MarqueeText(
                           activity.name ??
                               activity.notes ??
                               context.translate('run_activity'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: colorScheme.onSurface,

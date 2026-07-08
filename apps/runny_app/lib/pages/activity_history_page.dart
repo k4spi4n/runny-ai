@@ -1515,7 +1515,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                   size: 24,
                 ),
               ),
-              title: Text(
+              title: MarqueeText(
                 activity.name ??
                     activity.notes ??
                     context.translate('run_activity'),

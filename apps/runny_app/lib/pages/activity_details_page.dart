@@ -282,7 +282,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
             onPressed: () => Navigator.pop(context, _hasChanged),
           ),
-          title: Text(
+          title: MarqueeText(
             _activity.name ??
                 _activity.notes ??
                 context.translate('activity_details'),
