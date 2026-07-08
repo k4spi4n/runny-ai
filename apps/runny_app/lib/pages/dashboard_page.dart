@@ -565,7 +565,10 @@ class _OverviewContentState extends State<OverviewContent> {
           '(quãng đường, nhịp độ, nhịp tim), kèm đúng 1 gợi ý cải thiện cụ thể. '
           'Trả lời bằng $langName, văn phong thân thiện, không dùng markdown hay tiêu đề.';
 
-      final insight = await GeminiService().generateResponse(prompt);
+      final insight = await GeminiService().generateResponse(
+        prompt,
+        preferredProvider: 'cerebras',
+      );
       final trimmed = insight.trim();
       if (trimmed.isEmpty) return null;
 

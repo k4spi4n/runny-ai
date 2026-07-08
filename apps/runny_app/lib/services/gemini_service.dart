@@ -11,9 +11,13 @@ class GeminiService {
   final List<String> _modelList;
 
   GeminiService()
-      : _modelName = dotenv.env['OPENROUTER_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct:free',
-        _modelList = _parseModels(dotenv.env['OPENROUTER_MODELS']) {
-    debugPrint('GeminiService: Using Supabase Edge Function AI proxy (Groq primary, OpenRouter fallback).');
+    : _modelName =
+          dotenv.env['OPENROUTER_MODEL'] ??
+          'meta-llama/llama-3.3-70b-instruct:free',
+      _modelList = _parseModels(dotenv.env['OPENROUTER_MODELS']) {
+    debugPrint(
+      'GeminiService: Using Supabase Edge Function AI proxy (Groq primary, Cerebras/OpenRouter fallback).',
+    );
   }
 
   /// Tach chuoi model phan tach boi dau phay (vd: "a:free, b:free") thanh danh sach.
@@ -65,31 +69,29 @@ class GeminiService {
   Future<String> generateResponse(
     String prompt, {
     List<Map<String, String>>? history,
+    String? preferredProvider,
   }) async {
     try {
       final messages = <Map<String, String>>[];
 
       if (history != null) {
         for (final m in history) {
-          final role = m['role'] == 'model' ? 'assistant' : (m['role'] ?? 'user');
-          messages.add({
-            'role': role,
-            'content': m['content'] ?? '',
-          });
+          final role = m['role'] == 'model'
+              ? 'assistant'
+              : (m['role'] ?? 'user');
+          messages.add({'role': role, 'content': m['content'] ?? ''});
         }
       }
 
-      messages.add({
-        'role': 'user',
-        'content': prompt,
-      });
+      messages.add({'role': 'user', 'content': prompt});
+
+      final providerPayload = preferredProvider == null
+          ? const <String, dynamic>{}
+          : {'provider_preference': preferredProvider};
 
       final response = await Supabase.instance.client.functions.invoke(
         'openrouter',
-        body: {
-          ..._modelPayload,
-          'messages': messages,
-        },
+        body: {..._modelPayload, ...providerPayload, 'messages': messages},
       );
 
       if (response.status != 200) {
@@ -104,7 +106,9 @@ class GeminiService {
           : (response.data as Map);
       final choices = decoded['choices'] as List?;
       if (choices == null || choices.isEmpty) {
-        throw Exception('Invalid response structure from OpenRouter proxy: $decoded');
+        throw Exception(
+          'Invalid response structure from OpenRouter proxy: $decoded',
+        );
       }
 
       final message = choices[0]['message'] as Map?;
@@ -155,19 +159,11 @@ class GeminiService {
     final token =
         Supabase.instance.client.auth.currentSession?.accessToken ?? anonKey;
 
-    final result = await postStreaming(
-      url,
-      {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-        'apikey': anonKey,
-      },
-      jsonEncode({
-        ..._modelPayload,
-        'messages': messages,
-        'stream': true,
-      }),
-    );
+    final result = await postStreaming(url, {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+      'apikey': anonKey,
+    }, jsonEncode({..._modelPayload, 'messages': messages, 'stream': true}));
 
     if (result.statusCode != 200) {
       final errText = await _collectText(result.stream);
@@ -177,8 +173,9 @@ class GeminiService {
       throw Exception(_errorFromData(errText));
     }
 
-    final lines =
-        result.stream.transform(utf8.decoder).transform(const LineSplitter());
+    final lines = result.stream
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
     await for (final raw in lines) {
       final line = raw.trim();
       if (line.isEmpty || !line.startsWith('data:')) continue;
@@ -238,7 +235,9 @@ class GeminiService {
           : (response.data as Map);
       final choices = decoded['choices'] as List?;
       if (choices == null || choices.isEmpty) {
-        throw Exception('Invalid response structure from OpenRouter proxy: $decoded');
+        throw Exception(
+          'Invalid response structure from OpenRouter proxy: $decoded',
+        );
       }
 
       final message = choices[0]['message'] as Map?;
@@ -254,7 +253,9 @@ class GeminiService {
         if (lastBackticks > 0) {
           cleanedContent = cleanedContent.substring(0, lastBackticks);
         }
-        cleanedContent = cleanedContent.replaceFirst(RegExp(r'^```json\s*'), '').trim();
+        cleanedContent = cleanedContent
+            .replaceFirst(RegExp(r'^```json\s*'), '')
+            .trim();
       }
 
       return jsonDecode(cleanedContent);
