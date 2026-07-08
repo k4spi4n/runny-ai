@@ -326,13 +326,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                             color: colorScheme.onSurface,
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        Text(
-                          context.translate('ai_keeping_pace'),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
+                        const SizedBox(height: 16),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
