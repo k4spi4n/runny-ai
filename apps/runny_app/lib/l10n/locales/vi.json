@@ -275,6 +275,7 @@
   "metrics_tab": "Chỉ số",
   "min_km": "phút/km",
   "minute_short": "phút",
+  "second_short": "giây",
   "next": "Tiếp tục",
   "next_workout": "Buổi tập tiếp theo",
   "no_account_signup": "Chưa có tài khoản? Đăng ký",
@@ -593,15 +594,5 @@
   "reminder_before_minutes": "Trước %s phút",
   "reminder_before_1h": "Trước 1 giờ",
   "reminder_saved": "Đã lưu nhắc lịch.",
-  "reminder_error": "Không thể lưu nhắc lịch",
-  "run_timer": "Bộ đếm buổi chạy",
-  "timer_not_started": "Chưa bắt đầu",
-  "timer_running": "Đang chạy",
-  "timer_paused": "Tạm dừng",
-  "timer_finished": "Kết thúc",
-  "timer_start": "Bắt đầu",
-  "timer_pause": "Tạm dừng",
-  "timer_resume": "Tiếp tục",
-  "timer_finish": "Kết thúc",
-  "timer_reset": "Đặt lại"
+  "reminder_error": "Không thể lưu nhắc lịch"
 }

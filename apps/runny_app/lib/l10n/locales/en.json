@@ -275,6 +275,7 @@
   "metrics_tab": "Metrics",
   "min_km": "min/km",
   "minute_short": "min",
+  "second_short": "sec",
   "next": "Next",
   "next_workout": "Next Workout",
   "no_account_signup": "Don't have an account? Sign Up",
@@ -592,15 +593,5 @@
   "reminder_before_1h": "1 hour before",
   "reminder_saved": "Reminder saved.",
   "reminder_error": "Unable to save reminder",
-  "run_timer": "Run timer",
-  "timer_not_started": "Not started",
-  "timer_running": "Running",
-  "timer_paused": "Paused",
-  "timer_finished": "Finished",
-  "timer_start": "Start",
-  "timer_pause": "Pause",
-  "timer_resume": "Resume",
-  "timer_finish": "Finish",
-  "timer_reset": "Reset",
   "no_shoe": "No shoe"
 }
