@@ -6,15 +6,9 @@ import 'package:runny_app/widgets/manual_workout_form.dart';
 
 void main() {
   Finder fieldWithLabel(String label) {
-    final decoratedField = find.byWidgetPredicate(
-      (widget) =>
-          widget is InputDecorator && widget.decoration.labelText == label,
-      description: 'InputDecorator with label "$label"',
-    );
-
-    return find.ancestor(
-      of: decoratedField,
-      matching: find.byType(TextFormField),
+    return find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.decoration?.labelText == label,
+      description: 'TextField with label "$label"',
     );
   }
 
