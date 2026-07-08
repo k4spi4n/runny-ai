@@ -367,49 +367,25 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                         const Center(child: CircularProgressIndicator()),
                         const SizedBox(height: 24),
                       ],
-                      // Thời gian bắt đầu & thời gian nhập
+                      // Thời gian thực hiện (bắt đầu - kết thúc)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.play_circle_outline,
-                                  size: 16,
-                                  color: colorScheme.primary,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  '${context.translate('start_time')}: ${DateFormat('HH:mm dd/MM/yyyy').format(_activity.startedAt)}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                ),
-                              ],
+                            Icon(
+                              Icons.play_circle_outline,
+                              size: 16,
+                              color: colorScheme.primary,
                             ),
-                            if (_activity.createdAt != null)
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.download_done,
-                                    size: 16,
-                                    color: colorScheme.secondary,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '${context.translate('imported_time')}: ${DateFormat('HH:mm dd/MM/yyyy').format(_activity.createdAt!)}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
+                            const SizedBox(width: 6),
+                            Text(
+                              _formatStartEnd(_activity.startedAt, _activity.durationMin),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface,
                               ),
+                            ),
                           ],
                         ),
                       ),
@@ -483,6 +459,29 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                               color: colorScheme.onSurfaceVariant,
                               fontSize: 16,
                             ),
+                          ),
+                        ),
+                      ],
+                      if (_activity.createdAt != null) ...[
+                        const SizedBox(height: 24),
+                        Center(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.download_done,
+                                size: 14,
+                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                '${context.translate('imported_time')}: ${DateFormat('HH:mm dd/MM/yyyy').format(_activity.createdAt!)}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -901,5 +900,17 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         ],
       ),
     );
+  }
+
+  String _formatStartEnd(DateTime start, double durationMin) {
+    final end = start.add(Duration(seconds: (durationMin * 60).round()));
+    final startFmt = DateFormat('HH:mm');
+    final endFmt = DateFormat('HH:mm');
+    final dateFmt = DateFormat('dd/MM/yyyy');
+    if (start.year == end.year && start.month == end.month && start.day == end.day) {
+      return '${startFmt.format(start)} - ${endFmt.format(end)} ${dateFmt.format(start)}';
+    } else {
+      return '${DateFormat('HH:mm dd/MM/yyyy').format(start)} - ${DateFormat('HH:mm dd/MM/yyyy').format(end)}';
+    }
   }
 }
