@@ -1,0 +1,4 @@
+node_modules/
+.tmp-props/
+public/screenshots/
+.remotion/

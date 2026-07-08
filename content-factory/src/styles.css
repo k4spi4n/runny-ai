@@ -1,0 +1,263 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+}
+
+.stage {
+  overflow: hidden;
+  color: #14213d;
+  background: #ffffff;
+}
+
+.runnerBackground {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.backgroundScrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.78) 28%, rgba(255, 255, 255, 0.2) 58%, rgba(244, 249, 255, 0.28) 100%),
+    radial-gradient(circle at 50% 92%, rgba(255, 190, 65, 0.08), transparent 24%);
+}
+
+.grain {
+  display: none;
+}
+
+.brand {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0;
+  color: rgba(20, 33, 61, 0.48);
+}
+
+.copy {
+  position: absolute;
+  z-index: 4;
+  top: 98px;
+  left: 34px;
+  right: 34px;
+  text-align: center;
+  padding: 8px 0 18px;
+}
+
+.copy h1 {
+  margin: 0;
+  font-size: 54px;
+  font-weight: 900;
+  line-height: 1.16;
+  letter-spacing: 0;
+  white-space: pre-line;
+  color: transparent;
+  background: linear-gradient(90deg, #ff8a1c 0%, #ffb22e 48%, #ffd76a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter:
+    drop-shadow(0 2px 0 rgba(153, 87, 0, 0.06))
+    drop-shadow(0 8px 16px rgba(255, 169, 38, 0.14));
+}
+
+.phone {
+  position: absolute;
+  z-index: 3;
+  width: 478px;
+  height: 980px;
+  transform-origin: center center;
+  filter: drop-shadow(0 22px 24px rgba(20, 33, 61, 0.28));
+}
+
+.phoneGhost {
+  z-index: 2;
+  opacity: 0.86;
+  filter: drop-shadow(0 16px 18px rgba(20, 33, 61, 0.2));
+}
+
+.phoneBezel {
+  position: absolute;
+  inset: 0;
+  padding: 18px;
+  border-radius: 78px;
+  background:
+    linear-gradient(145deg, #f4f1eb 0%, #353535 7%, #060606 13%, #111 86%, #8b8b83 100%);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.28),
+    inset 0 0 0 10px rgba(0, 0, 0, 0.94),
+    inset 0 0 0 16px rgba(255, 255, 255, 0.06);
+}
+
+.phoneBezel::before,
+.phoneBezel::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  width: 7px;
+  border-radius: 8px;
+  background: linear-gradient(#bbb, #696969);
+}
+
+.phoneBezel::before {
+  top: 210px;
+  height: 76px;
+}
+
+.phoneBezel::after {
+  top: 304px;
+  height: 98px;
+}
+
+.phoneBezel > .statusBar {
+  position: absolute;
+  z-index: 6;
+  top: 31px;
+  left: 52px;
+  right: 52px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #ffffff;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.72);
+  pointer-events: none;
+}
+
+.statusIcons {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.signal {
+  width: 18px;
+  height: 13px;
+  background: linear-gradient(to top, #fff 0 26%, transparent 26% 100%),
+    linear-gradient(to top, #fff 0 48%, transparent 48% 100%),
+    linear-gradient(to top, #fff 0 72%, transparent 72% 100%),
+    linear-gradient(to top, #fff 0 100%, transparent 100%);
+  background-size: 3px 100%, 3px 100%, 3px 100%, 3px 100%;
+  background-position: 0 0, 5px 0, 10px 0, 15px 0;
+  background-repeat: no-repeat;
+}
+
+.wifi {
+  width: 18px;
+  height: 13px;
+  border: 3px solid #fff;
+  border-bottom: 0;
+  border-left-color: transparent;
+  border-right-color: transparent;
+  border-radius: 18px 18px 0 0;
+  position: relative;
+}
+
+.wifi::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #fff;
+  transform: translateX(-50%);
+}
+
+.battery {
+  width: 26px;
+  height: 13px;
+  border: 2px solid #fff;
+  border-radius: 4px;
+  position: relative;
+}
+
+.battery::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 5px;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.battery::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: -5px;
+  width: 3px;
+  height: 5px;
+  border-radius: 0 3px 3px 0;
+  background: #fff;
+}
+
+.speaker {
+  position: absolute;
+  z-index: 5;
+  top: 28px;
+  left: 50%;
+  width: 150px;
+  height: 40px;
+  border-radius: 28px;
+  transform: translateX(-50%);
+  background: #050505;
+  box-shadow: inset -28px 0 0 rgba(15, 22, 46, 0.9);
+}
+
+.speaker::after {
+  content: "";
+  position: absolute;
+  top: 14px;
+  right: 30px;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: #0a8457;
+}
+
+.screenFrame {
+  width: 100%;
+  height: 100%;
+  border-radius: 62px;
+  background: linear-gradient(180deg, #050814 0 72px, #ffffff 72px 100%);
+  overflow: hidden;
+}
+
+.screen {
+  display: block;
+  width: 100%;
+  height: calc(100% - 58px);
+  margin-top: 58px;
+  object-fit: cover;
+  object-position: top center;
+  border-radius: 0 0 50px 50px;
+}
+
+.bottomGlow {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 92px;
+  background: linear-gradient(to top, rgba(218, 229, 246, 0.34), transparent);
+  z-index: 4;
+  pointer-events: none;
+}
