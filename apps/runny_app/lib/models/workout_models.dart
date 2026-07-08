@@ -110,6 +110,7 @@ class TrainingSchedule {
   final DateTime? endDate;
   final String? goalDescription;
   final String status;
+  final String source;
 
   TrainingSchedule({
     this.id,
@@ -121,6 +122,7 @@ class TrainingSchedule {
     this.endDate,
     this.goalDescription,
     required this.status,
+    this.source = 'ai',
   });
 
   factory TrainingSchedule.fromJson(Map<String, dynamic> json) {
@@ -142,6 +144,7 @@ class TrainingSchedule {
           : null,
       goalDescription: json['goal_description'],
       status: json['status'] ?? 'active',
+      source: json['source'] ?? 'ai',
     );
   }
 
@@ -156,6 +159,7 @@ class TrainingSchedule {
       'end_date': endDate?.toIso8601String().split('T')[0],
       'goal_description': goalDescription,
       'status': status,
+      'source': source,
     };
   }
 }
@@ -165,11 +169,14 @@ class ScheduledWorkout {
   final String scheduleId;
   final String userId;
   final DateTime date;
+  final String? startTime;
   final String title;
   final String? description;
   final double? targetDistanceKm;
   final double? targetDurationMin;
   final double? targetPaceMinPerKm;
+  final String? workoutType;
+  final String source;
   final String status;
   final String? activityId;
 
@@ -178,11 +185,14 @@ class ScheduledWorkout {
     required this.scheduleId,
     required this.userId,
     required this.date,
+    this.startTime,
     required this.title,
     this.description,
     this.targetDistanceKm,
     this.targetDurationMin,
     this.targetPaceMinPerKm,
+    this.workoutType,
+    this.source = 'ai',
     required this.status,
     this.activityId,
   });
@@ -193,6 +203,7 @@ class ScheduledWorkout {
       scheduleId: json['schedule_id'],
       userId: json['user_id'],
       date: DateTime.parse(json['date']),
+      startTime: json['start_time'],
       title: json['title'],
       description: json['description'],
       targetDistanceKm: json['target_distance_km'] != null
@@ -204,6 +215,8 @@ class ScheduledWorkout {
       targetPaceMinPerKm: json['target_pace_min_per_km'] != null
           ? (json['target_pace_min_per_km'] as num).toDouble()
           : null,
+      workoutType: json['workout_type'],
+      source: json['source'] ?? 'ai',
       status: json['status'],
       activityId: json['activity_id'],
     );
@@ -215,13 +228,36 @@ class ScheduledWorkout {
       'schedule_id': scheduleId,
       'user_id': userId,
       'date': date.toIso8601String().split('T')[0],
+      'start_time': startTime,
       'title': title,
       'description': description,
       'target_distance_km': targetDistanceKm,
       'target_duration_min': targetDurationMin,
       'target_pace_min_per_km': targetPaceMinPerKm,
+      'workout_type': workoutType,
+      'source': source,
       'status': status,
       'activity_id': activityId,
     };
   }
+}
+
+class ManualWorkoutInput {
+  final String title;
+  final DateTime date;
+  final String startTime;
+  final double targetDurationMin;
+  final double targetDistanceKm;
+  final String workoutType;
+  final String? notes;
+
+  const ManualWorkoutInput({
+    required this.title,
+    required this.date,
+    required this.startTime,
+    required this.targetDurationMin,
+    required this.targetDistanceKm,
+    required this.workoutType,
+    this.notes,
+  });
 }
