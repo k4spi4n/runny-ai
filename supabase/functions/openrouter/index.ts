@@ -33,6 +33,7 @@ function envInt(name: string, fallback: number): number {
 const MAX_MESSAGES = () => envInt('AI_MAX_MESSAGES', 40);          // so luong message toi da
 const MAX_MESSAGE_CHARS = () => envInt('AI_MAX_MESSAGE_CHARS', 4000); // do dai 1 message
 const MAX_TOTAL_CHARS = () => envInt('AI_MAX_TOTAL_CHARS', 16000);    // tong do dai noi dung
+const MAX_IMAGE_DATA_URL_CHARS = () => envInt('AI_MAX_IMAGE_DATA_URL_CHARS', 4_100_000);
 const MAX_PER_MIN = () => envInt('AI_MAX_PER_MIN', 8);               // so request/phut/user (trial|paid)
 const MAX_PER_DAY = () => envInt('AI_MAX_PER_DAY', 30);              // so request/ngay/user (trial|paid)
 const FREE_MAX_PER_MIN = () => envInt('AI_FREE_MAX_PER_MIN', 3);     // so request/phut/user (free tier)
@@ -45,6 +46,7 @@ Nếu người dùng hỏi ngoài phạm vi trên (ví dụ: lập trình, chín
 Luôn trả lời bằng tiếng Việt, ngắn gọn, thân thiện.`;
 
 type ChatMessage = { role?: string; content?: unknown };
+type ImageUrlPart = { type?: string; text?: unknown; image_url?: { url?: unknown } };
 type ProviderPreference = 'groq' | 'cerebras' | null;
 
 // Lay user id tu JWT (platform da verify_jwt). Tra null neu khong phai user that.
@@ -78,16 +80,62 @@ function validateBody(rawBody: Record<string, unknown>): string | null {
   }
   let total = 0;
   for (const m of messages as ChatMessage[]) {
-    const content = typeof m?.content === 'string' ? m.content : '';
-    if (content.length > MAX_MESSAGE_CHARS()) {
+    const contentResult = validateMessageContent(m?.content);
+    if (contentResult.error) return contentResult.error;
+    if (contentResult.textChars > MAX_MESSAGE_CHARS()) {
       return 'Tin nhắn quá dài. Vui lòng rút gọn câu hỏi của bạn.';
     }
-    total += content.length;
+    total += contentResult.textChars;
   }
   if (total > MAX_TOTAL_CHARS()) {
     return 'Nội dung gửi đi quá lớn. Vui lòng rút gọn.';
   }
   return null;
+}
+
+function validateMessageContent(content: unknown): { textChars: number; error: string | null } {
+  if (typeof content === 'string') {
+    return { textChars: content.length, error: null };
+  }
+
+  if (!Array.isArray(content)) {
+    return { textChars: 0, error: 'Yêu cầu không hợp lệ: nội dung tin nhắn không được hỗ trợ.' };
+  }
+
+  let textChars = 0;
+  let imageCount = 0;
+  for (const rawPart of content as ImageUrlPart[]) {
+    if (!rawPart || typeof rawPart !== 'object') {
+      return { textChars, error: 'Yêu cầu không hợp lệ: nội dung ảnh không đúng định dạng.' };
+    }
+
+    if (rawPart.type === 'text') {
+      if (typeof rawPart.text !== 'string') {
+        return { textChars, error: 'Yêu cầu không hợp lệ: phần chữ không đúng định dạng.' };
+      }
+      textChars += rawPart.text.length;
+      continue;
+    }
+
+    if (rawPart.type === 'image_url') {
+      const url = rawPart.image_url?.url;
+      if (typeof url !== 'string' || !url.startsWith('data:image/')) {
+        return { textChars, error: 'Yêu cầu không hợp lệ: chỉ hỗ trợ ảnh dạng data URL.' };
+      }
+      if (url.length > MAX_IMAGE_DATA_URL_CHARS()) {
+        return { textChars, error: 'Ảnh gửi đi quá lớn. Vui lòng chọn ảnh nhỏ hơn.' };
+      }
+      imageCount++;
+      if (imageCount > 1) {
+        return { textChars, error: 'Mỗi yêu cầu chỉ hỗ trợ một ảnh.' };
+      }
+      continue;
+    }
+
+    return { textChars, error: 'Yêu cầu không hợp lệ: nội dung tin nhắn không được hỗ trợ.' };
+  }
+
+  return { textChars, error: null };
 }
 
 // Chen guardrail chu de vao dau danh sach messages cho cac yeu cau chat tu do.
@@ -165,6 +213,12 @@ const GROQ_DEFAULT_MODELS = [
   'llama-3.1-8b-instant',
 ];
 
+// Client chi duoc yeu cau model Groq ngoai danh sach mac dinh khi server da
+// allowlist ro rang. Dung cho tac vu vision nhap buoi tap tu anh chup man hinh.
+const GROQ_CLIENT_ALLOWED_MODELS = [
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+];
+
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
 // --- Cerebras config (fallback 1) --------------------------------------------
@@ -220,7 +274,10 @@ function getFallbackModels(): string[] {
 function getPreferredGroqModels(rawBody: Record<string, unknown>): string[] {
   const models = getGroqModels();
   const preferred = getPreferredModel(rawBody);
-  if (!preferred || !models.includes(preferred)) return models;
+  if (!preferred) return models;
+  if (!models.includes(preferred) && !GROQ_CLIENT_ALLOWED_MODELS.includes(preferred)) {
+    return models;
+  }
   return [preferred, ...models.filter((model) => model !== preferred)];
 }
 
