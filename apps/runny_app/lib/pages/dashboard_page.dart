@@ -52,6 +52,8 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 0;
   bool _isRailHovered = false;
+  final GlobalKey<_OverviewContentState> _overviewKey =
+      GlobalKey<_OverviewContentState>();
 
   late final List<Widget> _pages;
   late final List<HoverSync> _navSyncs;
@@ -67,6 +69,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _dashboardLayout.load();
     _pages = [
       OverviewContent(
+        key: _overviewKey,
         layout: _dashboardLayout,
         onViewAllActivities: () => setState(() => _selectedIndex = 4),
         onViewTrainingPlan: () => setState(() => _selectedIndex = 1),
@@ -101,6 +104,17 @@ class _DashboardPageState extends State<DashboardPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
     await _maybeShowTrialReminder();
+  }
+
+  Future<void> _openImportActivity() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ImportActivityPage()),
+    );
+    if (result == true && mounted) {
+      _overviewKey.currentState?.refreshActivityData();
+      await context.read<NutritionService>().refresh();
+    }
   }
 
   /// Nhắc nâng cấp mỗi 4 ngày kể từ ngày tạo tài khoản trong lúc còn trial
@@ -156,6 +170,10 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
       );
+      if (imported > 0) {
+        _overviewKey.currentState?.refreshActivityData();
+        await context.read<NutritionService>().refresh();
+      }
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('$errorText: $e')));
@@ -307,14 +325,7 @@ class _DashboardPageState extends State<DashboardPage> {
           IconButton(
             icon: Icon(Icons.add_circle_outline, color: colorScheme.onSurface),
             tooltip: context.translate('import_activity'),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ImportActivityPage(),
-                ),
-              );
-            },
+            onPressed: _openImportActivity,
           ),
           const PwaInstallButton(),
         ],
@@ -622,6 +633,26 @@ class _OverviewContentState extends State<OverviewContent> {
     setState(() {
       _weatherFuture = _fetchLatestWeather(forceRequest: forceRequest);
     });
+  }
+
+  void refreshActivityData() {
+    if (!mounted) return;
+    setState(() {
+      _weatherFuture = _fetchLatestWeather();
+      _insightFuture = null;
+      _insightLang = null;
+    });
+  }
+
+  Future<void> _openImportActivity() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ImportActivityPage()),
+    );
+    if (result == true && mounted) {
+      refreshActivityData();
+      await context.read<NutritionService>().refresh();
+    }
   }
 
   Future<Position?> _getCurrentPosition({bool forceRequest = false}) async {
@@ -1601,14 +1632,7 @@ class _OverviewContentState extends State<OverviewContent> {
                     color: Colors.white,
                     size: 18,
                   ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ImportActivityPage(),
-                      ),
-                    );
-                  },
+                  onTap: _openImportActivity,
                 ),
                 _ActionChip(
                   text: context.translate('training_plan'),
