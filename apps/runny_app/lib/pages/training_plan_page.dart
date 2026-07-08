@@ -333,47 +333,84 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                             color: colorScheme.onSurfaceVariant,
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        // Row 3 cột co giãn -> luôn nằm cùng hàng và nén lại trên
-                        // mobile thay vì xuống dòng tốn không gian.
-                        // Bọc IntrinsicHeight: Row nằm trong vùng cuộn dọc (chiều
-                        // cao không giới hạn) nên CrossAxisAlignment.stretch sẽ ép
-                        // con cao vô hạn -> lỗi layout "forces an infinite height"
-                        // làm cả trang trắng (ở release Flutter không in lỗi này).
-                        // IntrinsicHeight cho Row một chiều cao xác định = thẻ cao
-                        // nhất, vừa hợp lệ vừa giữ 3 thẻ cao bằng nhau.
-                        IntrinsicHeight(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: _PlanMetricCard(
-                                  label: context.translate('workout'),
-                                  value: '${_workouts.length}',
-                                  icon: Icons.fitness_center,
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.fitness_center_rounded,
+                                      color: colorScheme.primary,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      context.translate('workout'),
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _PlanMetricCard(
-                                  label: context.translate('completed'),
-                                  value: '$completionRate%',
-                                  icon: Icons.check_circle,
+                                Text(
+                                  context.translate('workout_progress', [
+                                    completedWorkouts.toString(),
+                                    _workouts.length.toString(),
+                                  ]),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: colorScheme.onSurface,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _PlanMetricCard(
-                                  label: context.translate('goal'),
-                                  value:
-                                      nextWorkout['target_distance_km']
-                                          ?.toString() ??
-                                      '---',
-                                  icon: Icons.track_changes,
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            _GradientProgressBar(
+                              progress: _workouts.isEmpty
+                                  ? 0.0
+                                  : completedWorkouts / _workouts.length,
+                              gradient: secondaryPulseGradient,
+                            ),
+                            const SizedBox(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.check_circle_rounded,
+                                      color: colorScheme.primary,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      context.translate('completed'),
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
-                          ),
+                                Text(
+                                  '$completionRate%',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            _GradientProgressBar(
+                              progress: completionRate / 100.0,
+                              gradient: accentPulseGradient,
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -1823,61 +1860,54 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
   }
 }
 
-class _PlanMetricCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
+class _GradientProgressBar extends StatelessWidget {
+  final double progress;
+  final Gradient gradient;
 
-  const _PlanMetricCard({
-    required this.label,
-    required this.value,
-    required this.icon,
+  const _GradientProgressBar({
+    required this.progress,
+    required this.gradient,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      height: 10,
+      width: double.infinity,
       decoration: BoxDecoration(
         color: isDark
             ? Colors.white.withValues(alpha: 0.08)
             : Colors.black.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.14)
-              : Colors.black.withValues(alpha: 0.05),
-        ),
+        borderRadius: BorderRadius.circular(5),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: colorScheme.primary, size: 22),
-          const SizedBox(height: 10),
-          FittedBox(
-            fit: BoxFit.scaleDown,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth = constraints.maxWidth;
+          final progressWidth = maxWidth * progress.clamp(0.0, 1.0);
+          return Align(
             alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: TextStyle(
-                color: colorScheme.onSurface,
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOut,
+              width: progressWidth,
+              height: 10,
+              decoration: BoxDecoration(
+                gradient: gradient,
+                borderRadius: BorderRadius.circular(5),
+                boxShadow: [
+                  BoxShadow(
+                    color: gradient.colors.first.withValues(alpha: 0.35),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

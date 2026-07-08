@@ -97,6 +97,7 @@
   "under_goal": "Under Goal",
   "over_goal": "Over Goal",
   "workout": "Workout",
+  "workout_progress": "%s / %s workouts",
   "duration": "Duration",
   "activity": "Activity",
   "steps": "Steps",
