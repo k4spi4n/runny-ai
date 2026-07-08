@@ -237,6 +237,7 @@ const GROQ_DEFAULT_MODELS = [
 // allowlist ro rang. Dung cho tac vu vision nhap buoi tap tu anh chup man hinh.
 const GROQ_CLIENT_ALLOWED_MODELS = [
   'meta-llama/llama-4-scout-17b-16e-instruct',
+  'qwen/qwen3.6-27b',
 ];
 
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
@@ -246,6 +247,10 @@ const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 // Ghi de: `supabase secrets set CEREBRAS_MODELS="zai-glm-4.7,gpt-oss-120b"`.
 const CEREBRAS_DEFAULT_MODELS = [
   'zai-glm-4.7',
+];
+
+const CEREBRAS_VISION_MODELS = [
+  'gemma-4-31b',
 ];
 
 const CEREBRAS_ENDPOINT = 'https://api.cerebras.ai/v1/chat/completions';
@@ -266,10 +271,34 @@ const DEFAULT_FALLBACK_MODELS = [
   'openrouter/free',
 ];
 
+const OPENROUTER_VISION_FALLBACK_MODELS = [
+  'qwen/qwen3.6-27b',
+  'google/gemini-2.0-flash-exp:free',
+  'meta-llama/llama-3.2-11b-vision-instruct:free',
+];
+
 // OpenRouter chi cho phep toi da 3 model trong mang `models`.
 const MAX_MODELS = 3;
 
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
+
+function hasImageInput(rawBody: Record<string, unknown>): boolean {
+  const messages = rawBody.messages;
+  if (!Array.isArray(messages)) return false;
+  for (const msg of messages) {
+    if (msg && typeof msg === 'object') {
+      const content = msg.content;
+      if (Array.isArray(content)) {
+        for (const item of content) {
+          if (item && typeof item === 'object' && item.type === 'image_url') {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
 
 function parseList(raw: string | undefined): string[] {
   if (!raw || raw.trim().length === 0) return [];
@@ -281,14 +310,22 @@ function getGroqModels(): string[] {
   return custom.length > 0 ? custom : GROQ_DEFAULT_MODELS;
 }
 
-function getCerebrasModels(): string[] {
+function getCerebrasModels(rawBody?: Record<string, unknown>): string[] {
   const custom = parseList(Deno.env.get('CEREBRAS_MODELS'));
-  return custom.length > 0 ? custom : CEREBRAS_DEFAULT_MODELS;
+  if (custom.length > 0) return custom;
+  if (rawBody && hasImageInput(rawBody)) {
+    return CEREBRAS_VISION_MODELS;
+  }
+  return CEREBRAS_DEFAULT_MODELS;
 }
 
-function getFallbackModels(): string[] {
+function getFallbackModels(rawBody?: Record<string, unknown>): string[] {
   const custom = parseList(Deno.env.get('OPENROUTER_FALLBACK_MODELS'));
-  return custom.length > 0 ? custom : DEFAULT_FALLBACK_MODELS;
+  if (custom.length > 0) return custom;
+  if (rawBody && hasImageInput(rawBody)) {
+    return OPENROUTER_VISION_FALLBACK_MODELS;
+  }
+  return DEFAULT_FALLBACK_MODELS;
 }
 
 function getPreferredGroqModels(rawBody: Record<string, unknown>): string[] {
@@ -345,18 +382,19 @@ function applyModelFallback(body: Record<string, unknown>): Record<string, unkno
   const {
     provider_preference: _pp,
     preferred_provider: _pp2,
-    preferred_model: _pm,
-    provider_model: _pm2,
+    preferred_model: pm,
+    provider_model: pm2,
     ...cleanBody
   } = body;
-  const fallback = getFallbackModels();
+  const fallback = getFallbackModels(body);
 
   if (Array.isArray(cleanBody.models) && cleanBody.models.length > 0) {
     const capped = [...new Set(cleanBody.models as unknown[])].slice(0, MAX_MODELS);
     return { ...cleanBody, models: capped };
   }
 
-  const primary = typeof cleanBody.model === 'string' ? cleanBody.model : null;
+  const preferred = (typeof pm === 'string' ? pm : null) ?? (typeof pm2 === 'string' ? pm2 : null);
+  const primary = typeof cleanBody.model === 'string' ? cleanBody.model : preferred;
   const models = primary ? [primary, ...fallback] : [...fallback];
   const deduped = [...new Set(models)].slice(0, MAX_MODELS);
 
@@ -425,7 +463,7 @@ async function tryCerebras(
   apiKey: string,
   wantsStream: boolean,
 ): Promise<Response | null> {
-  for (const model of getCerebrasModels()) {
+  for (const model of getCerebrasModels(rawBody)) {
     try {
       const res = await fetch(CEREBRAS_ENDPOINT, {
         method: 'POST',
@@ -579,7 +617,13 @@ serve(async (req) => {
           getPreferredGroqModels(rawBody),
         );
         if (groqRes) return groqRes;
-        console.warn('Preferred Groq unavailable, falling back to OpenRouter');
+        console.warn('Preferred Groq unavailable, falling back to Cerebras/OpenRouter');
+      }
+
+      if (cerebrasApiKey && hasImageInput(rawBody)) {
+        const cerebrasRes = await tryCerebras(body, cerebrasApiKey, wantsStream);
+        if (cerebrasRes) return cerebrasRes;
+        console.warn('Cerebras vision fallback unavailable, falling back to OpenRouter');
       }
 
       if (openRouterApiKey) {
@@ -587,7 +631,7 @@ serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ error: 'Preferred Groq failed and no OpenRouter fallback key is configured.' }),
+        JSON.stringify({ error: 'Preferred Groq failed and no other fallback was successful.' }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
