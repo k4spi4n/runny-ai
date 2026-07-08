@@ -139,7 +139,6 @@
   "body_metrics": "Body Metrics",
   "bpm": "bpm",
   "spm": "spm",
-  "cancel": "Cancel",
   "city_region": "City / Region",
   "complete_create_plan": "Complete & Create Plan",
   "completed": "Completed",
@@ -438,16 +437,10 @@
   "link_error": "Failed to link activity.",
   "save": "Save",
   "delete": "Delete",
-  "view_all": "View all",
-  "unknown_location": "Unknown location",
   "clear_weather": "Clear",
   "weather_location_error": "Unable to get your current location. Please enable location services or check browser permissions.",
   "weather_server_error": "Weather service is temporarily unavailable. Please check the server status and try again.",
   "runner_hud": "Runner HUD",
-  "streak": "Streak",
-  "streak_days": "%s days",
-  "nutrition_status": "Nutrition status",
-  "performance_stats": "Performance stats",
   "macros": "Macros",
   "no_items_logged": "No items logged yet",
   "ai_meal_suggestions": "AI meal suggestions",
@@ -626,6 +619,5 @@
   "timer_pause": "Pause",
   "timer_resume": "Resume",
   "timer_finish": "Finish",
-  "timer_reset": "Reset",
-  "no_shoe": "No shoe"
+  "timer_reset": "Reset"
 }
