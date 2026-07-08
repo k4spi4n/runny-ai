@@ -1599,14 +1599,29 @@ class _OverviewContentState extends State<OverviewContent> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              DateFormat(
-                                'dd/MM/yyyy',
-                              ).format(activity.startedAt.toLocal()),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  DateFormat('HH:mm dd/MM/yyyy').format(activity.startedAt),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                                if (activity.createdAt != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${context.translate('imported_time')}: ${DateFormat('HH:mm dd/MM').format(activity.createdAt!)}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(width: 4),
                             Icon(

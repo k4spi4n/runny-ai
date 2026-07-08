@@ -2,6 +2,7 @@ class Activity {
   final String? id;
   final String userId;
   final DateTime startedAt;
+  final DateTime? createdAt;
   final double distanceKm;
   final double durationMin;
   final int? avgHr;
@@ -22,6 +23,7 @@ class Activity {
     this.id,
     required this.userId,
     required this.startedAt,
+    this.createdAt,
     required this.distanceKm,
     required this.durationMin,
     this.avgHr,
@@ -44,6 +46,9 @@ class Activity {
       id: json['id'],
       userId: json['user_id'],
       startedAt: DateTime.parse(json['started_at']).toLocal(),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at']).toLocal()
+          : null,
       distanceKm: (json['distance_km'] as num).toDouble(),
       durationMin: (json['duration_min'] as num).toDouble(),
       avgHr: json['avg_hr'],
@@ -71,6 +76,7 @@ class Activity {
       if (id != null) 'id': id,
       'user_id': userId,
       'started_at': startedAt.toUtc().toIso8601String(),
+      if (createdAt != null) 'created_at': createdAt!.toUtc().toIso8601String(),
       'distance_km': distanceKm,
       'duration_min': durationMin,
       'avg_hr': avgHr,

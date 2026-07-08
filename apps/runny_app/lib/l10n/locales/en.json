@@ -212,6 +212,8 @@
   "import_error": "Import error",
   "import_success": "Activity imported successfully!",
   "imported_from": "Imported from %s",
+  "imported_time": "Imported time",
+  "start_time": "Start time",
   "multi_file_hint": "You can select multiple files at once.",
   "importing_progress": "Importing %s/%s...",
   "imported_summary": "Imported %s • Skipped %s duplicates • Failed %s",

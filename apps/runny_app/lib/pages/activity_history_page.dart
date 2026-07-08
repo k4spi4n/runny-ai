@@ -1531,9 +1531,39 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                   fontSize: 13,
                 ),
               ),
-              trailing: Icon(
-                Icons.chevron_right,
-                color: colorScheme.onSurfaceVariant,
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        DateFormat('HH:mm dd/MM/yyyy').format(activity.startedAt),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      if (activity.createdAt != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '${context.translate('imported_time')}: ${DateFormat('HH:mm dd/MM').format(activity.createdAt!)}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.chevron_right,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ],
               ),
             ),
           ),

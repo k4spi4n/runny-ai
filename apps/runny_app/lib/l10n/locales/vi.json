@@ -212,6 +212,8 @@
   "import_error": "Lỗi nhập hoạt động",
   "import_success": "Nhập hoạt động thành công!",
   "imported_from": "Nhập từ %s",
+  "imported_time": "Thời điểm nhập",
+  "start_time": "Thời điểm bắt đầu",
   "multi_file_hint": "Có thể chọn nhiều file cùng lúc.",
   "importing_progress": "Đang nhập %s/%s...",
   "imported_summary": "Đã nhập %s • Bỏ qua %s trùng • Lỗi %s",

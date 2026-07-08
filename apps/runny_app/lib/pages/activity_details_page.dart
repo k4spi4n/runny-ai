@@ -7,6 +7,7 @@ import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
 import '../services/weather_service.dart';
 import '../l10n/app_localizations.dart';
+import 'package:intl/intl.dart';
 import 'ai_coach_page.dart';
 
 class ActivityDetailsPage extends StatefulWidget {
@@ -366,6 +367,52 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                         const Center(child: CircularProgressIndicator()),
                         const SizedBox(height: 24),
                       ],
+                      // Thời gian bắt đầu & thời gian nhập
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.play_circle_outline,
+                                  size: 16,
+                                  color: colorScheme.primary,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${context.translate('start_time')}: ${DateFormat('HH:mm dd/MM/yyyy').format(_activity.startedAt)}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_activity.createdAt != null)
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.download_done,
+                                    size: 16,
+                                    color: colorScheme.secondary,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${context.translate('imported_time')}: ${DateFormat('HH:mm dd/MM/yyyy').format(_activity.createdAt!)}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
                       _buildSummaryHeader(context),
                       const SizedBox(height: 24),
                       if (_activity.weatherSummary != null ||
