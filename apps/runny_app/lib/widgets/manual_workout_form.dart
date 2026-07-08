@@ -260,7 +260,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
           LayoutBuilder(
             builder: (context, constraints) {
               final durationField = _NumberField(
-                key: const ValueKey('manual_workout_duration_field'),
+                fieldKey: const ValueKey('manual_workout_duration_field'),
                 controller: _durationController,
                 enabled: !_isSubmitting,
                 label: context.translate('manual_workout_duration_label'),
@@ -270,7 +270,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
                 isDark: isDark,
               );
               final distanceField = _NumberField(
-                key: const ValueKey('manual_workout_distance_field'),
+                fieldKey: const ValueKey('manual_workout_distance_field'),
                 controller: _distanceController,
                 enabled: !_isSubmitting,
                 label: context.translate('manual_workout_distance_label'),
@@ -434,6 +434,7 @@ class _PickerTile extends StatelessWidget {
 }
 
 class _NumberField extends StatelessWidget {
+  final Key fieldKey;
   final TextEditingController controller;
   final bool enabled;
   final String label;
@@ -443,7 +444,7 @@ class _NumberField extends StatelessWidget {
   final bool isDark;
 
   const _NumberField({
-    super.key,
+    required this.fieldKey,
     required this.controller,
     required this.enabled,
     required this.label,
@@ -456,6 +457,7 @@ class _NumberField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextFormField(
+      key: fieldKey,
       controller: controller,
       enabled: enabled,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
