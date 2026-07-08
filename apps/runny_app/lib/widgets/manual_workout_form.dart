@@ -215,6 +215,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           TextFormField(
+            key: const ValueKey('manual_workout_title_field'),
             controller: _titleController,
             enabled: !_isSubmitting,
             decoration: themedInputDecoration(
@@ -259,6 +260,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
           LayoutBuilder(
             builder: (context, constraints) {
               final durationField = _NumberField(
+                key: const ValueKey('manual_workout_duration_field'),
                 controller: _durationController,
                 enabled: !_isSubmitting,
                 label: context.translate('manual_workout_duration_label'),
@@ -268,6 +270,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
                 isDark: isDark,
               );
               final distanceField = _NumberField(
+                key: const ValueKey('manual_workout_distance_field'),
                 controller: _distanceController,
                 enabled: !_isSubmitting,
                 label: context.translate('manual_workout_distance_label'),
@@ -319,6 +322,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
           ),
           const SizedBox(height: 16),
           TextFormField(
+            key: const ValueKey('manual_workout_notes_field'),
             controller: _notesController,
             enabled: !_isSubmitting,
             maxLines: 4,
@@ -439,6 +443,7 @@ class _NumberField extends StatelessWidget {
   final bool isDark;
 
   const _NumberField({
+    super.key,
     required this.controller,
     required this.enabled,
     required this.label,
