@@ -39,7 +39,8 @@ flutter pub get
    ```env
    # supabase/functions/.env
    GROQ_API_KEY=YOUR_KEY            # AI text/chat (CHÍNH) — https://console.groq.com/keys
-   OPENROUTER_API_KEY=YOUR_KEY      # AI text/chat (FALLBACK) — https://openrouter.ai/keys
+   CEREBRAS_API_KEY=YOUR_KEY        # AI text/chat (FALLBACK 1) — https://cloud.cerebras.ai/
+   OPENROUTER_API_KEY=YOUR_KEY      # AI text/chat (FALLBACK 2) — https://openrouter.ai/keys
    WAQI_API_KEY=YOUR_KEY            # AQI (chính) — https://aqicn.org/data-platform/token/
    OPENWEATHER_API_KEY=YOUR_KEY     # Thời tiết + AQI dự phòng — https://openweathermap.org/api
    FOOD_RECOGNITION_PROVIDER=mock   # Nhận dạng món ăn hiện dùng mock, chưa cần key
@@ -58,6 +59,7 @@ flutter pub get
 3. Thiết lập các keys bảo mật trên cloud backend:
    ```bash
    supabase secrets set GROQ_API_KEY=YOUR_KEY
+   supabase secrets set CEREBRAS_API_KEY=YOUR_KEY
    supabase secrets set OPENROUTER_API_KEY=YOUR_KEY
    supabase secrets set WAQI_API_KEY=YOUR_KEY
    supabase secrets set OPENWEATHER_API_KEY=YOUR_KEY
@@ -78,7 +80,7 @@ supabase functions deploy weather
 ```
 Mở tệp `.env` và cập nhật các thông số:
 - **SUPABASE_URL** và **SUPABASE_ANON_KEY**: Địa chỉ URL và khóa public của dự án Supabase (lấy từ kết quả lệnh `supabase status` khi chạy local, hoặc tại mục Cài đặt API trên Cloud). Lưu ý dùng **Project URL** (cổng API `http://127.0.0.1:34321` khi local) chứ không phải chuỗi kết nối database; `SUPABASE_ANON_KEY` nhận `Publishable key` (`sb_publishable_...`) hoặc `anon key` JWT, **không phải** Storage S3 Access Key.
-- **Chú ý bảo mật**: Không cấu hình các private API key (`GROQ_API_KEY`, `OPENROUTER_API_KEY`, `WAQI_API_KEY`, `OPENWEATHER_API_KEY`) trong file `.env` này. Toàn bộ các dịch vụ AI và thời tiết sẽ được proxy qua Edge Functions để bảo mật 100% (tránh lộ key khi đóng gói Web app). Các key đó cấu hình ở phía server theo Bước 3.
+- **Chú ý bảo mật**: Không cấu hình các private API key (`GROQ_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`, `WAQI_API_KEY`, `OPENWEATHER_API_KEY`) trong file `.env` này. Toàn bộ các dịch vụ AI và thời tiết sẽ được proxy qua Edge Functions để bảo mật 100% (tránh lộ key khi đóng gói Web app). Các key đó cấu hình ở phía server theo Bước 3.
 
 ### 4. Environment Variables
 Copy the `.env.example` to `.env` in the `apps/runny_app` directory:
@@ -88,6 +90,7 @@ cp .env.example .env
 Fill in the required keys:
 - `SUPABASE_URL` & `SUPABASE_ANON_KEY`: From your Supabase Project Settings.
 - `OPENROUTER_API_KEY`: From [OpenRouter](https://openrouter.ai/).
+- `CEREBRAS_API_KEY`: From [Cerebras Cloud](https://cloud.cerebras.ai/).
 - `GEMINI_API_KEY`: From [Google AI Studio](https://aistudio.google.com/).
 - `STRAVA_CLIENT_ID` & `STRAVA_CLIENT_SECRET`: From [Strava API Settings](https://www.strava.com/settings/api).
 

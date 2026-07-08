@@ -1,15 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 // =============================================================================
-// AI chat proxy: Groq (chinh) -> OpenRouter (fallback).
+// AI chat proxy: Groq (chinh) -> Cerebras (fallback 1) -> OpenRouter (fallback 2).
 //
 // Endpoint van giu ten `openrouter` de client khong phai doi (functions.invoke).
 // Luong xu ly:
 //   1. Neu co GROQ_API_KEY  -> thu lan luot cac model Groq. Tra ve ngay khi 1
 //      model phan hoi 200. Groq nhanh (LPU) nen lam provider chinh.
 //   2. Neu Groq that bai (thieu key / 429 rate-limit / 5xx / loi mang) -> fallback
-//      sang OpenRouter voi co che `models` fallback san co.
-// Ca hai deu OpenAI-compatible nen body & response giu nguyen dinh dang.
+//      sang Cerebras neu co CEREBRAS_API_KEY.
+//   3. Neu Cerebras cung that bai -> fallback sang OpenRouter voi co che `models`
+//      fallback san co.
+// Tat ca provider deu OpenAI-compatible nen body & response giu nguyen dinh dang.
 // =============================================================================
 
 const corsHeaders = {
@@ -153,7 +155,23 @@ const GROQ_DEFAULT_MODELS = [
 
 const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 
-// --- OpenRouter config (fallback) -------------------------------------------
+// --- Cerebras config (fallback 1) --------------------------------------------
+// Model mac dinh uu tien quota free trial hien tai (8K context, 5 RPM, 1M TPD).
+// Ghi de: `supabase secrets set CEREBRAS_MODELS="zai-glm-4.7,gpt-oss-120b"`.
+const CEREBRAS_DEFAULT_MODELS = [
+  'zai-glm-4.7',
+];
+
+const CEREBRAS_ENDPOINT = 'https://api.cerebras.ai/v1/chat/completions';
+
+// Cerebras tinh quota token dua tren max_completion_tokens neu co; neu khong co
+// co the uoc tinh theo maximum sequence length va de cham TPM som. Dat mac dinh
+// rieng cho chat/JSON de giu fallback on dinh, nhung van ton trong client neu da
+// gui max_completion_tokens/max_tokens.
+const CEREBRAS_CHAT_MAX_COMPLETION_TOKENS = () => envInt('CEREBRAS_CHAT_MAX_COMPLETION_TOKENS', 1024);
+const CEREBRAS_STRUCTURED_MAX_COMPLETION_TOKENS = () => envInt('CEREBRAS_STRUCTURED_MAX_COMPLETION_TOKENS', 4096);
+
+// --- OpenRouter config (fallback 2) ------------------------------------------
 // Danh sach model free mac dinh dung lam fallback (theo thu tu uu tien).
 // Co the ghi de bang secret: `supabase secrets set OPENROUTER_FALLBACK_MODELS="a:free,b:free"`
 const DEFAULT_FALLBACK_MODELS = [
@@ -177,6 +195,11 @@ function getGroqModels(): string[] {
   return custom.length > 0 ? custom : GROQ_DEFAULT_MODELS;
 }
 
+function getCerebrasModels(): string[] {
+  const custom = parseList(Deno.env.get('CEREBRAS_MODELS'));
+  return custom.length > 0 ? custom : CEREBRAS_DEFAULT_MODELS;
+}
+
 function getFallbackModels(): string[] {
   const custom = parseList(Deno.env.get('OPENROUTER_FALLBACK_MODELS'));
   return custom.length > 0 ? custom : DEFAULT_FALLBACK_MODELS;
@@ -187,6 +210,22 @@ function getFallbackModels(): string[] {
 function buildGroqBody(rawBody: Record<string, unknown>, model: string): Record<string, unknown> {
   const { model: _m, models: _ms, ...rest } = rawBody;
   return { ...rest, model };
+}
+
+// Body gui sang Cerebras: tuong tu Groq, bo model(s) OpenRouter va dat model
+// rieng. Dat max_completion_tokens mac dinh neu client chua gui de tranh
+// provider uoc tinh token dau ra qua lon luc rate-limit.
+function buildCerebrasBody(rawBody: Record<string, unknown>, model: string): Record<string, unknown> {
+  const { model: _m, models: _ms, ...rest } = rawBody;
+  const hasExplicitMax =
+    typeof rest.max_completion_tokens === 'number' ||
+    typeof rest.max_tokens === 'number';
+  if (hasExplicitMax) return { ...rest, model };
+
+  const maxCompletionTokens = rawBody.response_format
+    ? CEREBRAS_STRUCTURED_MAX_COMPLETION_TOKENS()
+    : CEREBRAS_CHAT_MAX_COMPLETION_TOKENS();
+  return { ...rest, model, max_completion_tokens: maxCompletionTokens };
 }
 
 // Chuan hoa body cho OpenRouter: dam bao luon co mang `models` de ap dung fallback routing.
@@ -260,6 +299,46 @@ async function tryGroq(
   return null;
 }
 
+// Thu lan luot cac model Cerebras. Dung lam tang dem sau Groq, truoc OpenRouter.
+async function tryCerebras(
+  rawBody: Record<string, unknown>,
+  apiKey: string,
+  wantsStream: boolean,
+): Promise<Response | null> {
+  for (const model of getCerebrasModels()) {
+    try {
+      const res = await fetch(CEREBRAS_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(buildCerebrasBody(rawBody, model)),
+      });
+
+      if (res.ok) {
+        if (wantsStream && res.body) {
+          return new Response(res.body, {
+            status: res.status,
+            headers: sseHeaders(`cerebras:${model}`),
+          });
+        }
+        const data = await res.text();
+        return new Response(data, {
+          status: res.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-AI-Provider': `cerebras:${model}` },
+        });
+      }
+
+      const errText = await res.text();
+      console.warn(`Cerebras model ${model} returned ${res.status}: ${errText}`);
+    } catch (e) {
+      console.warn(`Cerebras model ${model} request failed: ${e}`);
+    }
+  }
+  return null;
+}
+
 async function callOpenRouter(
   rawBody: Record<string, unknown>,
   apiKey: string,
@@ -299,12 +378,13 @@ serve(async (req) => {
 
   try {
     const groqApiKey = Deno.env.get('GROQ_API_KEY');
+    const cerebrasApiKey = Deno.env.get('CEREBRAS_API_KEY');
     const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
 
-    if (!groqApiKey && !openRouterApiKey) {
-      console.error('Neither GROQ_API_KEY nor OPENROUTER_API_KEY is set');
+    if (!groqApiKey && !cerebrasApiKey && !openRouterApiKey) {
+      console.error('No AI provider key is set');
       return new Response(
-        JSON.stringify({ error: 'No AI provider key configured on the server (set GROQ_API_KEY and/or OPENROUTER_API_KEY).' }),
+        JSON.stringify({ error: 'No AI provider key configured on the server (set GROQ_API_KEY, CEREBRAS_API_KEY, and/or OPENROUTER_API_KEY).' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -371,16 +451,23 @@ serve(async (req) => {
     if (groqApiKey) {
       const groqRes = await tryGroq(body, groqApiKey, wantsStream);
       if (groqRes) return groqRes;
-      console.warn('Groq unavailable, falling back to OpenRouter');
+      console.warn('Groq unavailable, falling back to Cerebras');
     }
 
-    // 2) Fallback sang OpenRouter.
+    // 2) Fallback sang Cerebras.
+    if (cerebrasApiKey) {
+      const cerebrasRes = await tryCerebras(body, cerebrasApiKey, wantsStream);
+      if (cerebrasRes) return cerebrasRes;
+      console.warn('Cerebras unavailable, falling back to OpenRouter');
+    }
+
+    // 3) Fallback sang OpenRouter.
     if (openRouterApiKey) {
       return await callOpenRouter(body, openRouterApiKey, wantsStream);
     }
 
     return new Response(
-      JSON.stringify({ error: 'Groq failed and no OpenRouter fallback key is configured.' }),
+      JSON.stringify({ error: 'Groq/Cerebras failed and no OpenRouter fallback key is configured.' }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (error) {
