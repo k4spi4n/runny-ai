@@ -462,6 +462,8 @@
   "analyzing_with_ai": "Đang phân tích bằng AI...",
   "analyze_with_ai": "Phân tích bằng AI",
   "food_image_upload_error": "Không thể tải ảnh. Vui lòng thử lại.",
+  "image_optimized_size": "Đã tối ưu: %s → %s (-%s%)",
+  "optimizing_image": "Đang tối ưu dung lượng ảnh...",
   "food_camera_error": "Không thể mở camera. Vui lòng tải ảnh từ thư viện.",
   "food_image_required": "Vui lòng chọn hoặc chụp ảnh món ăn.",
   "food_save_error": "Không thể lưu món ăn: %s",

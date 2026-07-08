@@ -462,6 +462,8 @@
   "analyzing_with_ai": "Analyzing with AI...",
   "analyze_with_ai": "Analyze with AI",
   "food_image_upload_error": "Unable to upload the image. Please try again.",
+  "image_optimized_size": "Optimized: %s → %s (-%s%)",
+  "optimizing_image": "Optimizing image size...",
   "food_camera_error": "Unable to open the camera. Please upload an image from your library.",
   "food_image_required": "Please choose or take a photo of your food.",
   "food_save_error": "Unable to save food: %s",

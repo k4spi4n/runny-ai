@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/activity_parser.dart';
 import '../services/activity_screenshot_import_service.dart';
+import '../services/image_compress_service.dart';
 import '../services/paywall_exception.dart';
 import '../services/weather_service.dart';
 import '../l10n/app_localizations.dart';
@@ -29,6 +30,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   final WeatherService _weatherService = WeatherService();
   final ActivityScreenshotImportService _screenshotImportService =
       ActivityScreenshotImportService();
+  final ImageCompressService _compressService = ImageCompressService();
   List<Shoe> _activeShoes = [];
   String? _selectedShoeId;
   ScreenshotActivityResult? _screenshotPreview;
@@ -220,11 +222,23 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
 
       setState(() {
         _statusMessage =
+            l?.translate('optimizing_image') ?? 'optimizing_image';
+      });
+
+      final compressedBytes = await _compressService.compress(
+        bytes: bytes,
+        filename: file.name,
+        maxWidth: 1800,
+        quality: 85,
+      );
+
+      setState(() {
+        _statusMessage =
             l?.translate('analyzing_screenshot') ?? 'analyzing_screenshot';
       });
 
       final resultFromAi = await _screenshotImportService.analyzeImage(
-        bytes: bytes,
+        bytes: compressedBytes,
         filename: file.name,
       );
 

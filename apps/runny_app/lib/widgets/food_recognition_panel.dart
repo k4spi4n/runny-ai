@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/food_recognition_models.dart';
 import '../models/nutrition_models.dart';
 import '../services/food_recognition_service.dart';
+import '../services/image_compress_service.dart';
 import '../services/paywall_exception.dart';
 import '../theme/app_theme.dart';
 import '../l10n/app_localizations.dart';
@@ -32,6 +33,7 @@ class FoodRecognitionPanel extends StatefulWidget {
 class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
   final _service = FoodRecognitionService();
   final _imagePicker = ImagePicker();
+  final _compressService = ImageCompressService();
   final _formKey = GlobalKey<FormState>();
   final _foodNameController = TextEditingController();
   final _caloriesController = TextEditingController();
@@ -46,8 +48,11 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
   FoodRecognitionResult? _result;
   bool _isAnalyzing = false;
   bool _isSaving = false;
+  bool _isCompressing = false;
   bool _didSetDefaultUnit = false;
   String? _errorMessage;
+  int? _originalSize;
+  int? _compressedSize;
 
   @override
   void didChangeDependencies() {
@@ -85,14 +90,27 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
       }
 
       setState(() {
-        _imageBytes = bytes;
-        _filename = file.name;
-        _result = null;
+        _isCompressing = true;
         _errorMessage = null;
+      });
+
+      final compressedBytes = await _compressService.compress(
+        bytes: bytes,
+        filename: file.name,
+      );
+
+      setState(() {
+        _imageBytes = compressedBytes;
+        _filename = file.name;
+        _originalSize = bytes.length;
+        _compressedSize = compressedBytes.length;
+        _result = null;
+        _isCompressing = false;
       });
     } catch (e) {
       setState(() {
         _errorMessage = context.translate('food_image_upload_error');
+        _isCompressing = false;
       });
     }
   }
@@ -110,15 +128,29 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
       }
 
       final bytes = await image.readAsBytes();
+
       setState(() {
-        _imageBytes = bytes;
-        _filename = image.name;
-        _result = null;
+        _isCompressing = true;
         _errorMessage = null;
+      });
+
+      final compressedBytes = await _compressService.compress(
+        bytes: bytes,
+        filename: image.name,
+      );
+
+      setState(() {
+        _imageBytes = compressedBytes;
+        _filename = image.name;
+        _originalSize = bytes.length;
+        _compressedSize = compressedBytes.length;
+        _result = null;
+        _isCompressing = false;
       });
     } catch (e) {
       setState(() {
         _errorMessage = context.translate('food_camera_error');
+        _isCompressing = false;
       });
     }
   }
@@ -215,7 +247,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: _isAnalyzing ? null : _pickImageFile,
+                onPressed: (_isAnalyzing || _isCompressing) ? null : _pickImageFile,
                 icon: const Icon(Icons.upload_file),
                 label: Text(context.translate('upload_photo')),
               ),
@@ -223,14 +255,36 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
             const SizedBox(width: 12),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: _isAnalyzing || kIsWeb ? null : _captureImage,
+                onPressed: (_isAnalyzing || _isCompressing || kIsWeb) ? null : _captureImage,
                 icon: const Icon(Icons.photo_camera),
                 label: Text(context.translate('capture_photo')),
               ),
             ),
           ],
         ),
-        if (_imageBytes != null) ...[
+        if (_isCompressing) ...[
+          const SizedBox(height: 20),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  context.translate('optimizing_image'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (_imageBytes != null && !_isCompressing) ...[
           const SizedBox(height: 16),
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
@@ -239,6 +293,43 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
               child: Image.memory(_imageBytes!, fit: BoxFit.cover),
             ),
           ),
+          if (_originalSize != null && _compressedSize != null && _compressedSize! < _originalSize!) ...[
+            const SizedBox(height: 8),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: colorScheme.primary.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.offline_bolt,
+                      color: colorScheme.primary,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      context.translate('image_optimized_size', [
+                        _formatBytes(_originalSize!),
+                        _formatBytes(_compressedSize!),
+                        ((1 - _compressedSize! / _originalSize!) * 100).toStringAsFixed(0)
+                      ]),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           GradientButton(
             onPressed: _isAnalyzing ? null : _analyzeImage,
@@ -453,5 +544,15 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
       return context.translate('required_field');
     }
     return null;
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    if (bytes >= 1024) {
+      return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    }
+    return '$bytes B';
   }
 }
