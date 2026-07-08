@@ -411,10 +411,11 @@ class _AICoachPageState extends State<AICoachPage> {
       try {
         final rows = await supabase
             .from('activities')
-            .select('distance_km, duration_min, avg_hr');
+            .select('distance_km, duration_min, avg_hr, avg_cadence');
         final list = rows as List;
         double dist = 0, dur = 0;
         int hrSum = 0, hrCount = 0;
+        int cadSum = 0, cadCount = 0;
         for (final a in list) {
           dist += (a['distance_km'] as num).toDouble();
           dur += (a['duration_min'] as num).toDouble();
@@ -422,12 +423,17 @@ class _AICoachPageState extends State<AICoachPage> {
             hrSum += (a['avg_hr'] as num).toInt();
             hrCount++;
           }
+          if (a['avg_cadence'] != null) {
+            cadSum += (a['avg_cadence'] as num).toInt();
+            cadCount++;
+          }
         }
         final pace = dist > 0 ? dur / dist : 0.0;
         buffer.writeln(
           '• Chỉ số tổng: ${list.length} buổi, ${dist.toStringAsFixed(1)} km, '
           'pace TB ${_fmtPace(pace)}/km'
-          '${hrCount > 0 ? ', HR TB ${(hrSum / hrCount).round()} bpm' : ''}.',
+          '${hrCount > 0 ? ', HR TB ${(hrSum / hrCount).round()} bpm' : ''}'
+          '${cadCount > 0 ? ', Cadence TB ${(cadSum / cadCount).round()} spm' : ''}.',
         );
       } catch (e) {
         debugPrint('Attach metrics error: $e');

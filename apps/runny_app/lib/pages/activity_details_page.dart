@@ -679,15 +679,30 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               ),
             ],
           ),
-          if (_activity.avgHr != null) ...[
+          if (_activity.avgHr != null || _activity.avgCadence != null) ...[
             Divider(
               color: colorScheme.outline.withValues(alpha: 0.1),
               height: 32,
             ),
-            _buildStatItem(
-              context,
-              context.translate('avg_hr'),
-              '${_activity.avgHr} bpm',
+            Row(
+              children: [
+                if (_activity.avgHr != null)
+                  Expanded(
+                    child: _buildStatItem(
+                      context,
+                      context.translate('avg_hr'),
+                      '${_activity.avgHr} bpm',
+                    ),
+                  ),
+                if (_activity.avgCadence != null)
+                  Expanded(
+                    child: _buildStatItem(
+                      context,
+                      context.translate('avg_cadence'),
+                      '${_activity.avgCadence} spm',
+                    ),
+                  ),
+              ],
             ),
           ],
         ],

@@ -41,6 +41,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   final _distanceController = TextEditingController();
   final _durationController = TextEditingController();
   final _avgHrController = TextEditingController();
+  final _avgCadenceController = TextEditingController();
   final _elevationController = TextEditingController();
   final _nameController = TextEditingController();
   final _notesController = TextEditingController();
@@ -49,6 +50,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   final _screenshotDistanceController = TextEditingController();
   final _screenshotDurationController = TextEditingController();
   final _screenshotAvgHrController = TextEditingController();
+  final _screenshotAvgCadenceController = TextEditingController();
   final _screenshotElevationController = TextEditingController();
   final _screenshotNotesController = TextEditingController();
   DateTime _screenshotStartedAt = DateTime.now();
@@ -65,6 +67,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     _distanceController.dispose();
     _durationController.dispose();
     _avgHrController.dispose();
+    _avgCadenceController.dispose();
     _elevationController.dispose();
     _nameController.dispose();
     _notesController.dispose();
@@ -72,6 +75,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     _screenshotDistanceController.dispose();
     _screenshotDurationController.dispose();
     _screenshotAvgHrController.dispose();
+    _screenshotAvgCadenceController.dispose();
     _screenshotElevationController.dispose();
     _screenshotNotesController.dispose();
     super.dispose();
@@ -951,6 +955,17 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           ),
           const SizedBox(height: 16),
           TextFormField(
+            controller: _screenshotAvgCadenceController,
+            keyboardType: TextInputType.number,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('avg_cadence_optional'),
+              icon: Icons.directions_run_outlined,
+              suffixText: context.translate('spm'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
             controller: _screenshotElevationController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: themedInputDecoration(
@@ -1072,6 +1087,17 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               context.translate('avg_hr_optional'),
               icon: Icons.favorite_outline,
               suffixText: context.translate('bpm'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _avgCadenceController,
+            keyboardType: TextInputType.number,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('avg_cadence_optional'),
+              icon: Icons.directions_run_outlined,
+              suffixText: context.translate('spm'),
             ),
           ),
           const SizedBox(height: 16),

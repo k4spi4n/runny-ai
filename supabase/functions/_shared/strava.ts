@@ -164,6 +164,7 @@ export function mapActivity(userId: string, act: any): Record<string, unknown> {
     distance_km: (act.distance ?? 0) / 1000,
     duration_min: (act.moving_time ?? 0) / 60,
     avg_hr: act.average_heartrate != null ? Math.round(act.average_heartrate) : null,
+    avg_cadence: act.average_cadence != null ? Math.round(act.average_cadence * 2) : null,
     elevation_gain_m: act.total_elevation_gain ?? null,
     name: act.name ?? 'Strava activity',
     notes: null,

@@ -199,6 +199,10 @@ class ActivityScreenshotImportService {
     final avgHr = avgHrRaw != null && avgHrRaw >= 30 && avgHrRaw <= 240
         ? avgHrRaw.round()
         : null;
+    final avgCadenceRaw = _number(parsed['avg_cadence']);
+    final avgCadence = avgCadenceRaw != null && avgCadenceRaw >= 30 && avgCadenceRaw <= 300
+        ? avgCadenceRaw.round()
+        : null;
     final elevationRaw = _number(parsed['elevation_gain_m']);
     final elevationGainM =
         elevationRaw != null && elevationRaw >= 0 && elevationRaw <= 10000
@@ -211,6 +215,7 @@ class ActivityScreenshotImportService {
         distanceKm: distanceKm,
         durationMin: durationMin,
         avgHr: avgHr,
+        avgCadence: avgCadence,
         elevationGainM: elevationGainM,
       ),
       confidence: (_number(parsed['confidence']) ?? 0).clamp(0, 1).toDouble(),
@@ -331,6 +336,7 @@ class ActivityScreenshotImportService {
       '{"is_activity": boolean, "activity_type": "run|walk|cardio|other", '
       '"started_at": string ISO-8601, "distance_km": number, '
       '"duration_min": number, "avg_hr": number|null, '
+      '"avg_cadence": number|null, '
       '"elevation_gain_m": number|null, "confidence": number, '
       '"source_app": string|null, "notes": string|null}. '
       'Quy đổi mile sang km, giờ:phút:giây sang phút, pace không dùng làm duration. '
