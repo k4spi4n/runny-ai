@@ -68,6 +68,12 @@ class _AICoachPageState extends State<AICoachPage> {
     _ChatAttachment.nutrition,
   };
 
+  final List<String> _suggestedQuestionKeys = List.generate(
+    16,
+    (index) => 'chat_suggestion_${index + 1}',
+  );
+  List<String> _selectedSuggestions = [];
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +84,14 @@ class _AICoachPageState extends State<AICoachPage> {
     }
     _loadGreeting();
     _loadHistory();
+    _randomizeSuggestions();
+  }
+
+  void _randomizeSuggestions() {
+    final random = Random();
+    final keysCopy = List<String>.from(_suggestedQuestionKeys);
+    keysCopy.shuffle(random);
+    _selectedSuggestions = keysCopy.take(4).toList();
   }
 
   void _handlePromptChanged() {
@@ -1005,15 +1019,7 @@ class _AICoachPageState extends State<AICoachPage> {
         !_isRecording &&
         !_isLoading &&
         !_isStreaming;
-    if (!shouldShow) return const SizedBox.shrink();
-
-    final suggestions = [
-      'Hôm nay tôi nên chạy bài gì?',
-      'Phân tích tiến bộ gần đây của tôi',
-      'Tôi nên cải thiện pace hay nhịp tim trước?',
-      'Gợi ý lịch tập 7 ngày tới',
-      'Tôi cần lưu ý gì để tránh chấn thương?',
-    ];
+    if (!shouldShow || _selectedSuggestions.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
       height: 44,
@@ -1021,7 +1027,8 @@ class _AICoachPageState extends State<AICoachPage> {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
         scrollDirection: Axis.horizontal,
         itemBuilder: (context, index) {
-          final question = suggestions[index];
+          final key = _selectedSuggestions[index];
+          final question = context.translate(key);
           return ActionChip(
             avatar: Icon(
               Icons.auto_awesome_rounded,
@@ -1049,7 +1056,7 @@ class _AICoachPageState extends State<AICoachPage> {
           );
         },
         separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemCount: suggestions.length,
+        itemCount: _selectedSuggestions.length,
       ),
     );
   }

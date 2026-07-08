@@ -31,8 +31,7 @@ class ScreenshotActivityResult {
 
 class ActivityScreenshotImportService {
   static const int maxImageBytes = 2900000;
-  static const String groqVisionModel =
-      'meta-llama/llama-4-scout-17b-16e-instruct';
+  static const String groqVisionModel = 'qwen/qwen3.6-27b';
 
   final SupabaseClient _supabase;
 
