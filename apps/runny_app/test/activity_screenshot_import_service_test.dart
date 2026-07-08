@@ -13,6 +13,7 @@ void main() {
   "distance_km": 5.02,
   "duration_min": 31.5,
   "avg_hr": 152,
+  "avg_cadence": 180,
   "elevation_gain_m": 36,
   "confidence": 0.91,
   "source_app": "Strava",
@@ -26,6 +27,7 @@ void main() {
       expect(result.activity.distanceKm, 5.02);
       expect(result.activity.durationMin, 31.5);
       expect(result.activity.avgHr, 152);
+      expect(result.activity.avgCadence, 180);
       expect(result.activity.elevationGainM, 36);
       expect(result.confidence, 0.91);
       expect(result.sourceApp, 'Strava');

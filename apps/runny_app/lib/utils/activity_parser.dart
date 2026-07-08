@@ -10,6 +10,7 @@ class ParsedActivity {
   final double distanceKm;
   final double durationMin;
   final int? avgHr;
+  final int? avgCadence;
   final double? elevationGainM;
   final Map<String, dynamic>? dataPoints;
   final double? startLat;
@@ -20,6 +21,7 @@ class ParsedActivity {
     required this.distanceKm,
     required this.durationMin,
     this.avgHr,
+    this.avgCadence,
     this.elevationGainM,
     this.dataPoints,
     this.startLat,
@@ -69,12 +71,15 @@ class ActivityParser {
     final elevations = <double>[];
     final paces = <double>[];
     final hrs = <double>[];
+    final cadences = <double>[];
 
     double cumKm = 0.0;
     double? prevLat;
     double? prevLon;
     double hrSum = 0;
     int hrCount = 0;
+    double cadenceSum = 0;
+    int cadenceCount = 0;
 
     for (final tp in trackpoints) {
       final timeStr = childText(tp, 'Time');
@@ -125,6 +130,24 @@ class ActivityParser {
         hrs.add(hr);
         hrSum += hr;
         hrCount++;
+      }
+
+      var cadenceStr = childText(tp, 'Cadence');
+      if (cadenceStr == null) {
+        for (final ext in tp.findElements('Extensions')) {
+          for (final tpx in ext.findElements('TPX')) {
+            final runCad = childText(tpx, 'RunCadence');
+            if (runCad != null) {
+              cadenceStr = runCad;
+            }
+          }
+        }
+      }
+      final cadence = cadenceStr != null ? double.tryParse(cadenceStr) : null;
+      if (cadence != null && cadence > 0) {
+        cadences.add(cadence);
+        cadenceSum += cadence;
+        cadenceCount++;
       }
 
       if (times.isNotEmpty) {
@@ -182,11 +205,17 @@ class ActivityParser {
       if (lapHrCount > 0) avgHr = (lapHrSum / lapHrCount).round();
     }
 
+    int? avgCadence;
+    if (cadenceCount > 0) {
+      avgCadence = (cadenceSum / cadenceCount).round();
+    }
+
     return ParsedActivity(
       startedAt: startedAt,
       distanceKm: distances.isNotEmpty ? distances.last : 0.0,
       durationMin: durationMin,
       avgHr: avgHr,
+      avgCadence: avgCadence,
       elevationGainM: elevationGain,
       startLat: startLat,
       startLon: startLon,
@@ -196,6 +225,7 @@ class ActivityParser {
         'elevations': elevations,
         'paces': paces,
         'hrs': hrs,
+        'cadences': cadences,
       },
     );
   }
@@ -299,6 +329,7 @@ class ActivityParser {
     double totalDistanceKm = 0.0;
     double durationMin = 0.0;
     int? avgHr;
+    int? avgCadence;
     double elevationGain = 0.0;
     double minEle = double.infinity;
     double maxEle = double.negativeInfinity;
@@ -308,6 +339,7 @@ class ActivityParser {
     List<double> elevations = [];
     List<double> paces = [];
     List<double> hrs = [];
+    List<double> recordCadences = [];
     double? startLat;
     double? startLon;
 
@@ -334,6 +366,10 @@ class ActivityParser {
         if (hrValue != null) {
           avgHr = hrValue.toInt();
         }
+        final cadenceValue = message.avgRunningCadence ?? message.avgCadence;
+        if (cadenceValue != null) {
+          avgCadence = cadenceValue.toInt();
+        }
       } else if (message is RecordMessage) {
         final timestampValue = message.timestamp;
         if (timestampValue == null) continue;
@@ -350,6 +386,7 @@ class ActivityParser {
         final dist = (message.distance ?? 0.0) / 1000.0;
         final ele = message.altitude ?? 0.0;
         final hr = (message.heartRate ?? 0).toDouble();
+        final cad = (message.cadence ?? 0).toDouble();
         final recordLat = message.positionLat;
         final recordLon = message.positionLong;
         if (startLat == null && recordLat != null && recordLon != null) {
@@ -374,6 +411,7 @@ class ActivityParser {
         distances.add(dist);
         elevations.add(ele);
         if (hr > 0) hrs.add(hr);
+        if (cad > 0) recordCadences.add(cad);
 
         if (message.altitude != null) {
           if (message.altitude! < minEle) minEle = message.altitude!;
@@ -387,11 +425,16 @@ class ActivityParser {
       elevationGain = maxEle - minEle;
     }
 
+    if (avgCadence == null && recordCadences.isNotEmpty) {
+      avgCadence = (recordCadences.reduce((a, b) => a + b) / recordCadences.length).round();
+    }
+
     return ParsedActivity(
       startedAt: startedAt,
       distanceKm: totalDistanceKm,
       durationMin: durationMin,
       avgHr: avgHr,
+      avgCadence: avgCadence,
       elevationGainM: elevationGain,
       startLat: startLat,
       startLon: startLon,
@@ -401,6 +444,7 @@ class ActivityParser {
         'elevations': elevations,
         'paces': paces,
         'hrs': hrs,
+        'cadences': recordCadences,
       },
     );
   }

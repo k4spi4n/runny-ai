@@ -801,7 +801,7 @@ class _OverviewContentState extends State<OverviewContent> {
   Future<Map<String, dynamic>> _fetchStats() async {
     final response = await Supabase.instance.client
         .from('activities')
-        .select('distance_km, duration_min, avg_hr');
+        .select('distance_km, duration_min, avg_hr, avg_cadence');
 
     final activities = response as List;
     double totalDistance = 0;
@@ -1610,18 +1610,27 @@ class _OverviewContentState extends State<OverviewContent> {
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: colorScheme.onSurfaceVariant),
+                            Builder(
+                              builder: (context) {
+                                final extraMetrics = [
+                                  if (activity.avgHr != null) '${activity.avgHr} bpm',
+                                  if (activity.avgCadence != null) '${activity.avgCadence} spm',
+                                ];
+                                final extraStr = extraMetrics.isNotEmpty ? ' • ${extraMetrics.join(" • ")}' : '';
+                                return Text(
+                                  '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr$extraStr',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                                );
+                              }
                             ),
                             const SizedBox(height: 4),
                             Text(
                               DateFormat('HH:mm dd/MM/yyyy').format(activity.startedAt),
                               style: TextStyle(
                                 fontSize: 11,
-                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+                                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
                               ),
                             ),
                           ],

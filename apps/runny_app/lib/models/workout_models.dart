@@ -6,6 +6,7 @@ class Activity {
   final double distanceKm;
   final double durationMin;
   final int? avgHr;
+  final int? avgCadence;
   final double? elevationGainM;
   final String? name;
   final String? notes;
@@ -27,6 +28,7 @@ class Activity {
     required this.distanceKm,
     required this.durationMin,
     this.avgHr,
+    this.avgCadence,
     this.elevationGainM,
     this.name,
     this.notes,
@@ -52,6 +54,7 @@ class Activity {
       distanceKm: (json['distance_km'] as num).toDouble(),
       durationMin: (json['duration_min'] as num).toDouble(),
       avgHr: json['avg_hr'],
+      avgCadence: json['avg_cadence'],
       elevationGainM: json['elevation_gain_m'] != null
           ? (json['elevation_gain_m'] as num).toDouble()
           : null,
@@ -80,6 +83,7 @@ class Activity {
       'distance_km': distanceKm,
       'duration_min': durationMin,
       'avg_hr': avgHr,
+      'avg_cadence': avgCadence,
       'elevation_gain_m': elevationGainM,
       'name': name,
       'notes': notes,

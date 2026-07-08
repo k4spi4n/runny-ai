@@ -1532,12 +1532,21 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr',
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                      fontSize: 13,
-                    ),
+                  Builder(
+                    builder: (context) {
+                      final extraMetrics = [
+                        if (activity.avgHr != null) '${activity.avgHr} bpm',
+                        if (activity.avgCadence != null) '${activity.avgCadence} spm',
+                      ];
+                      final extraStr = extraMetrics.isNotEmpty ? ' • ${extraMetrics.join(" • ")}' : '';
+                      return Text(
+                        '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr$extraStr',
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 13,
+                        ),
+                      );
+                    }
                   ),
                   const SizedBox(height: 4),
                   Text(
