@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -1130,7 +1131,7 @@ class _OverviewContentState extends State<OverviewContent> {
                 PerformanceStatCard(
                   title: context.translate('sessions'),
                   value: '${stats['totalSessions']}',
-                  icon: Icons.directions_run,
+                  icon: LucideIcons.sport_shoe,
                   gradient: secondaryPulseGradient,
                 ),
                 PerformanceStatCard(
@@ -1593,7 +1594,7 @@ class _OverviewContentState extends State<OverviewContent> {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Icon(
-                            Icons.run_circle,
+                            LucideIcons.sport_shoe,
                             color: Colors.white,
                             size: 28,
                           ),

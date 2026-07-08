@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../models/workout_models.dart';
@@ -590,7 +591,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                 title: context.translate('sessions'),
                 value:
                     '${filtered.length} ${context.translate('run_count').toLowerCase()}',
-                icon: Icons.directions_run,
+                icon: LucideIcons.sport_shoe,
                 gradient: secondaryPulseGradient,
               ),
               _buildMiniStatCard(
@@ -1515,7 +1516,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
-                  Icons.run_circle,
+                  LucideIcons.sport_shoe,
                   color: Colors.white,
                   size: 24,
                 ),

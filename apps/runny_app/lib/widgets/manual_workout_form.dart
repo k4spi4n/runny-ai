@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import '../models/workout_models.dart';
@@ -303,7 +304,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
             decoration: themedInputDecoration(
               context,
               context.translate('manual_workout_type_label'),
-              icon: Icons.directions_run,
+              icon: LucideIcons.sport_shoe,
             ),
             dropdownColor: colorScheme.surface,
             items: workoutTypeOptions

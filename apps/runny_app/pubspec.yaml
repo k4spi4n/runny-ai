@@ -58,6 +58,7 @@ dependencies:
   web: ^1.1.1
   xml: ^6.6.1
   hugeicons: ^1.1.7
+  flutter_lucide: ^1.11.0
 
 dev_dependencies:
   flutter_test:
