@@ -517,9 +517,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 980),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
           // Range Filter Chip Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -672,7 +675,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
           const SizedBox(height: 12),
           _buildActivitiesList(context),
           const SizedBox(height: 24),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

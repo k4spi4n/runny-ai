@@ -10,6 +10,8 @@ import 'l10n/language_provider.dart';
 import 'services/nutrition_service.dart';
 import 'services/strava_redirect.dart';
 import 'services/entitlement_service.dart';
+import 'services/notification_navigation_service.dart';
+import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +31,9 @@ Future<void> main() async {
   }
 
   await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  await NotificationService.instance.initialize(
+    onRunReminderTap: handleRunReminderPayload,
+  );
   
   runApp(
     MultiProvider(
