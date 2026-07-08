@@ -55,6 +55,33 @@ class TrainingService {
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T')[0];
 
+  String _weekdayVi(DateTime date) {
+    switch (date.weekday) {
+      case DateTime.monday:
+        return 'Thứ Hai';
+      case DateTime.tuesday:
+        return 'Thứ Ba';
+      case DateTime.wednesday:
+        return 'Thứ Tư';
+      case DateTime.thursday:
+        return 'Thứ Năm';
+      case DateTime.friday:
+        return 'Thứ Sáu';
+      case DateTime.saturday:
+        return 'Thứ Bảy';
+      case DateTime.sunday:
+        return 'Chủ Nhật';
+      default:
+        return '';
+    }
+  }
+
+  String _dateTimeFullStr(DateTime dt) {
+    final dateStr = _dateOnly(dt);
+    final timeStr = dt.toIso8601String().split('T')[1].substring(0, 5);
+    return '$dateStr $timeStr (${_weekdayVi(dt)})';
+  }
+
   /// Ép giá trị số do AI sinh về khoảng an toàn để không làm tràn cột numeric
   /// của DB (numeric(5,2) tối đa 999.99; numeric(7,2) tối đa 99999.99). AI đôi
   /// khi trả pace theo giây hoặc quãng đường theo mét -> nếu không kẹp lại sẽ
@@ -213,13 +240,14 @@ Phản hồi của bạn PHẢI là một đối tượng JSON có cấu trúc n
 ''';
 
     final durationConstraint = endDate != null
-        ? 'Ngày kết thúc mong muốn: ${_dateOnly(endDate)} (khoảng ${endDate.difference(startDate).inDays} ngày kể từ ngày bắt đầu). Hãy phân bổ buổi tập trong khoảng này.'
+        ? 'Ngày kết thúc mong muốn: ${_dateOnly(endDate)} (${_weekdayVi(endDate)}) (khoảng ${endDate.difference(startDate).inDays} ngày kể từ ngày bắt đầu). Hãy phân bổ buổi tập trong khoảng này.'
         : 'Người dùng không chỉ định ngày kết thúc — hãy tự chọn số tuần ("weeks") hợp lý cho mục tiêu.';
 
     final userContext =
         '''
+Thời gian hiện tại: ${_dateTimeFullStr(DateTime.now())}
 Mục tiêu người dùng: $goal
-Ngày bắt đầu: ${_dateOnly(startDate)}
+Ngày bắt đầu: ${_dateOnly(startDate)} (${_weekdayVi(startDate)})
 $durationConstraint
 Thông tin thể trạng: Giới tính ${_genderLabel(profile['gender'])}, Cân nặng ${profile['weight_kg']}kg, Chiều cao ${profile['height_cm']}cm, BMI ${profile['bmi']}, Nhịp tim tối đa ${profile['max_hr'] ?? 'chưa rõ'} bpm.
 Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseActivities(recentActivities)}
@@ -424,6 +452,7 @@ Phản hồi của bạn PHẢI là một đối tượng JSON:
 
     final context =
         '''
+Thời gian hiện tại: ${_dateTimeFullStr(DateTime.now())}
 Lịch tập hiện tại: ${activeSchedule['title']}
 Các buổi đã hoàn thành (kế hoạch vs thực tế):
 $completedSummary
@@ -528,8 +557,11 @@ $upcomingSummary
     final name = activity['name'] ?? activity['notes'] ?? 'Buổi tập';
     final rawNotes = activity['notes'];
     final notes = rawNotes != null && rawNotes != name ? rawNotes : 'Không có';
+    final startedAtRaw = activity['started_at'];
+    final startedAtStr = startedAtRaw != null ? _dateTimeFullStr(DateTime.parse(startedAtRaw)) : 'chưa rõ';
     final userPrompt =
-        'Buổi tập "$name": ${activity['distance_km']}km, thời gian ${activity['duration_min']} phút, nhịp tim ${activity['avg_hr']} bpm. Ghi chú: $notes';
+        'Thời gian hiện tại: ${_dateTimeFullStr(DateTime.now())}\n'
+        'Buổi tập "$name" diễn ra lúc $startedAtStr: ${activity['distance_km']}km, thời gian ${activity['duration_min']} phút, nhịp tim ${activity['avg_hr']} bpm. Ghi chú: $notes';
 
     final insight = await _gemini.generateResponse(
       userPrompt,

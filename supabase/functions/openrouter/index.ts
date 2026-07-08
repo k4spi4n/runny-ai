@@ -138,12 +138,32 @@ function validateMessageContent(content: unknown): { textChars: number; error: s
   return { textChars, error: null };
 }
 
+function getTopicGuardrail(): string {
+  let timeStr = '';
+  try {
+    const formatter = new Intl.DateTimeFormat('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      weekday: 'long',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    timeStr = `\nThời gian hiện tại ở Việt Nam: ${formatter.format(new Date())}. Hãy dùng thông tin này để nhận biết chính xác khi người dùng hỏi về hôm nay, hôm qua, ngày mai, hoặc các mốc thời gian liên quan.`;
+  } catch (e) {
+    console.error('Error formatting time:', e);
+  }
+  return TOPIC_GUARDRAIL + timeStr;
+}
+
 // Chen guardrail chu de vao dau danh sach messages cho cac yeu cau chat tu do.
 // Bo qua khi co response_format (cac yeu cau JSON noi bo nhu tao lich tap — da dung chu de).
 function injectGuardrail(rawBody: Record<string, unknown>): Record<string, unknown> {
   if (rawBody.response_format) return rawBody;
   const messages = Array.isArray(rawBody.messages) ? [...(rawBody.messages as ChatMessage[])] : [];
-  const guardrail: ChatMessage = { role: 'system', content: TOPIC_GUARDRAIL };
+  const guardrail: ChatMessage = { role: 'system', content: getTopicGuardrail() };
   return { ...rawBody, messages: [guardrail, ...messages] };
 }
 
