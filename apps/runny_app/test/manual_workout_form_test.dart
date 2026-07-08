@@ -33,14 +33,16 @@ void main() {
 
   testWidgets('validates required manual workout fields', (tester) async {
     var submitted = false;
-    await tester.pumpWidget(
-      buildSubject(
-        onSubmit: (_) async {
-          submitted = true;
-        },
-      ),
-    );
-    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        buildSubject(
+          onSubmit: (_) async {
+            submitted = true;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+    });
 
     final submitButton = find.text('Save workout');
     await tester.ensureVisible(submitButton);
@@ -57,14 +59,16 @@ void main() {
 
   testWidgets('submits a valid manual workout', (tester) async {
     ManualWorkoutFormValue? submitted;
-    await tester.pumpWidget(
-      buildSubject(
-        onSubmit: (value) async {
-          submitted = value;
-        },
-      ),
-    );
-    await tester.pumpAndSettle();
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        buildSubject(
+          onSubmit: (value) async {
+            submitted = value;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+    });
 
     final titleField = find.byKey(
       const ValueKey('manual_workout_title_field'),
