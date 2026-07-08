@@ -588,6 +588,19 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _showAQIDialog(context, snapshot!.locationName),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            child: Icon(
+                              Icons.error_outline,
+                              size: 14,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -912,5 +925,60 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
     } else {
       return '${DateFormat('HH:mm dd/MM/yyyy').format(start)} - ${DateFormat('HH:mm dd/MM/yyyy').format(end)}';
     }
+  }
+
+  void _showAQIDialog(BuildContext context, String? locationName) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.info_outline, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                context.translate('aqi_info_title'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (locationName != null && locationName.isNotEmpty) ...[
+              Text(
+                context.translate('aqi_monitoring_station'),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                locationName,
+                style: TextStyle(color: colorScheme.onSurface, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+            ],
+            Text(
+              '${context.translate('aqi_warning_title')}:',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              context.translate('aqi_warning_content'),
+              style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.translate('close')),
+          ),
+        ],
+      ),
+    );
   }
 }

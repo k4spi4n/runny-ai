@@ -1368,30 +1368,47 @@ class _OverviewContentState extends State<OverviewContent> {
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: weather.aqiColor.withValues(
-                                    alpha: 0.2,
-                                  ),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(
-                                    color: weather.aqiColor.withValues(
-                                      alpha: 0.5,
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
                                     ),
-                                    width: 1,
+                                    decoration: BoxDecoration(
+                                      color: weather.aqiColor.withValues(
+                                        alpha: 0.2,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: weather.aqiColor.withValues(
+                                          alpha: 0.5,
+                                        ),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'AQI ${weather.aqi ?? '--'} - ${weather.aqiLabel}',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: weather.aqiColor,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                child: Text(
-                                  'AQI ${weather.aqi ?? '--'} - ${weather.aqiLabel}',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: weather.aqiColor,
-                                    fontWeight: FontWeight.bold,
+                                  const SizedBox(width: 4),
+                                  GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () => _showAQIDialog(context, weather.locationName),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      child: Icon(
+                                        Icons.error_outline,
+                                        size: 14,
+                                        color: weather.aqiColor,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
                             ],
                           );
@@ -1695,6 +1712,61 @@ class _OverviewContentState extends State<OverviewContent> {
     int minutes = paceDecimal.floor();
     int seconds = ((paceDecimal - minutes) * 60).round();
     return "$minutes:${seconds.toString().padLeft(2, '0')}";
+  }
+
+  void _showAQIDialog(BuildContext context, String? locationName) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.info_outline, color: colorScheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                context.translate('aqi_info_title'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (locationName != null && locationName.isNotEmpty) ...[
+              Text(
+                context.translate('aqi_monitoring_station'),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                locationName,
+                style: TextStyle(color: colorScheme.onSurface, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+            ],
+            Text(
+              '${context.translate('aqi_warning_title')}:',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              context.translate('aqi_warning_content'),
+              style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.translate('close')),
+          ),
+        ],
+      ),
+    );
   }
 }
 
