@@ -34,12 +34,35 @@ class ActivityChart extends StatelessWidget {
     // Subsample if there are too many points for performance
     const maxPoints = 200;
     List<FlSpot> spots = [];
-    int step = (xValues.length / maxPoints).ceil();
+    final pointCount = xValues.length < yValues.length
+        ? xValues.length
+        : yValues.length;
+    int step = (pointCount / maxPoints).ceil();
     if (step < 1) step = 1;
 
-    for (int i = 0; i < xValues.length; i += step) {
-      spots.add(FlSpot(xValues[i], yValues[i]));
+    for (int i = 0; i < pointCount; i += step) {
+      final x = xValues[i];
+      final y = yValues[i];
+      if (x.isFinite && y.isFinite) {
+        spots.add(FlSpot(x, y));
+      }
     }
+
+    if (spots.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final xBounds = _chartBounds(
+      spots.map((spot) => spot.x).toList(),
+      zeroBaseline: true,
+    );
+    final yBounds = _chartBounds(
+      spots.map((spot) => spot.y).toList(),
+      minPaddingRatio: 0.08,
+      maxPaddingRatio: 0.18,
+      zeroBaseline: !isPace,
+    );
+    final leftTitleWidth = _leftTitleReservedSize(yBounds.min, yBounds.max);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,6 +85,10 @@ class ActivityChart extends StatelessWidget {
             height: 200,
             child: LineChart(
               LineChartData(
+                minX: xBounds.min,
+                maxX: xBounds.max,
+                minY: yBounds.min,
+                maxY: yBounds.max,
                 extraLinesData: ExtraLinesData(
                   verticalLines: [
                     if (activeX != null)
@@ -95,13 +122,16 @@ class ActivityChart extends StatelessWidget {
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 30,
-                      interval: xValues.last / 5,
+                      interval: _calculateIntervalFromRange(
+                        xBounds.min,
+                        xBounds.max,
+                        divisions: 5,
+                      ),
                       getTitlesWidget: (value, meta) {
-                        final minutes = (value / 60).floor();
                         return SideTitleWidget(
                           axisSide: meta.axisSide,
                           child: Text(
-                            '$minutes ${context.translate('minute_short')}',
+                            _formatTimeAxis(context, value, xBounds.max),
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.5),
                               fontSize: 10,
@@ -114,12 +144,18 @@ class ActivityChart extends StatelessWidget {
                   leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
-                      interval: _calculateInterval(yValues),
+                      interval: _calculateIntervalFromRange(
+                        yBounds.min,
+                        yBounds.max,
+                        divisions: 4,
+                      ),
                       getTitlesWidget: (value, meta) {
                         return SideTitleWidget(
                           axisSide: meta.axisSide,
                           child: Text(
-                            isPace ? _formatPace(value) : value.toStringAsFixed(0),
+                            isPace
+                                ? _formatPace(value)
+                                : _formatAxisValue(value),
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.5),
                               fontSize: 10,
@@ -127,7 +163,7 @@ class ActivityChart extends StatelessWidget {
                           ),
                         );
                       },
-                      reservedSize: 42,
+                      reservedSize: leftTitleWidth,
                     ),
                   ),
                 ),
@@ -156,25 +192,38 @@ class ActivityChart extends StatelessWidget {
                   ),
                 ],
                 lineTouchData: LineTouchData(
-                  touchCallback: (FlTouchEvent event, LineTouchResponse? response) {
-                    if (onXSelected == null) return;
-                    if (response == null || response.lineBarSpots == null || response.lineBarSpots!.isEmpty) {
-                      onXSelected!(null);
-                    } else {
-                      onXSelected!(response.lineBarSpots!.first.x);
-                    }
-                  },
+                  touchCallback:
+                      (FlTouchEvent event, LineTouchResponse? response) {
+                        if (onXSelected == null) return;
+                        if (response == null ||
+                            response.lineBarSpots == null ||
+                            response.lineBarSpots!.isEmpty) {
+                          onXSelected!(null);
+                        } else {
+                          onXSelected!(response.lineBarSpots!.first.x);
+                        }
+                      },
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipColor: (touchedSpot) => const Color(0xFF262F57),
+                    fitInsideHorizontally: true,
+                    fitInsideVertically: true,
+                    tooltipMargin: 10,
+                    maxContentWidth: 120,
                     getTooltipItems: (List<LineBarSpot> touchedBarSpots) {
                       return touchedBarSpots.map((barSpot) {
                         final minutes = (barSpot.x / 60).floor();
                         final seconds = (barSpot.x % 60).floor();
-                        final timeStr = '$minutes:${seconds.toString().padLeft(2, '0')}';
-                        final valStr = isPace ? _formatPace(barSpot.y) : barSpot.y.toStringAsFixed(1);
+                        final timeStr =
+                            '$minutes:${seconds.toString().padLeft(2, '0')}';
+                        final valStr = isPace
+                            ? _formatPace(barSpot.y)
+                            : barSpot.y.toStringAsFixed(1);
                         return LineTooltipItem(
                           '$timeStr\n$valStr $yAxisLabel',
-                          const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         );
                       }).toList();
                     },
@@ -188,13 +237,69 @@ class ActivityChart extends StatelessWidget {
     );
   }
 
-  double _calculateInterval(List<double> values) {
-    if (values.isEmpty) return 1.0;
+  _ChartBounds _chartBounds(
+    List<double> values, {
+    double minPaddingRatio = 0,
+    double maxPaddingRatio = 0,
+    bool zeroBaseline = false,
+  }) {
     double min = values.reduce((a, b) => a < b ? a : b);
     double max = values.reduce((a, b) => a > b ? a : b);
+    final originalMin = min;
     double range = max - min;
-    if (range == 0) return 1.0;
-    return range / 3;
+    if (range == 0) {
+      final fallback = max.abs() > 0 ? max.abs() * 0.1 : 1.0;
+      range = fallback;
+      min -= fallback;
+      max += fallback;
+    } else {
+      min -= range * minPaddingRatio;
+      max += range * maxPaddingRatio;
+    }
+
+    if (zeroBaseline && originalMin >= 0) min = 0;
+    return _ChartBounds(min, max);
+  }
+
+  double _calculateIntervalFromRange(
+    double min,
+    double max, {
+    required int divisions,
+  }) {
+    final range = (max - min).abs();
+    if (range == 0 || !range.isFinite) return 1.0;
+    return range / divisions;
+  }
+
+  double _leftTitleReservedSize(double min, double max) {
+    final samples = [min, max, (min + max) / 2];
+    final longest = samples
+        .map((value) => isPace ? _formatPace(value) : _formatAxisValue(value))
+        .fold<int>(
+          0,
+          (length, label) => label.length > length ? label.length : length,
+        );
+    return (longest * 7.0 + 14).clamp(42.0, 68.0);
+  }
+
+  String _formatAxisValue(double value) {
+    final abs = value.abs();
+    if (abs >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+    if (abs >= 1000) return '${(value / 1000).toStringAsFixed(1)}k';
+    return value.toStringAsFixed(0);
+  }
+
+  String _formatTimeAxis(BuildContext context, double seconds, double maxX) {
+    final safeSeconds = seconds < 0 ? 0 : seconds.round();
+    if (maxX < 60) {
+      return '$safeSeconds ${context.translate('second_short')}';
+    }
+    if (maxX < 600) {
+      final minutes = safeSeconds ~/ 60;
+      final remainingSeconds = safeSeconds % 60;
+      return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+    }
+    return '${safeSeconds ~/ 60} ${context.translate('minute_short')}';
   }
 
   String _formatPace(double paceDecimal) {
@@ -203,4 +308,11 @@ class ActivityChart extends StatelessWidget {
     int seconds = ((paceDecimal - minutes) * 60).round();
     return "$minutes:${seconds.toString().padLeft(2, '0')}";
   }
+}
+
+class _ChartBounds {
+  final double min;
+  final double max;
+
+  const _ChartBounds(this.min, this.max);
 }

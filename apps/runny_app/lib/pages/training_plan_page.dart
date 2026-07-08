@@ -4,7 +4,6 @@ import '../models/run_reminder_model.dart';
 import '../services/run_reminder_service.dart';
 import '../services/training_service.dart';
 import '../services/paywall_exception.dart';
-import '../widgets/run_timer_panel.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/paywall.dart';
 import 'create_training_plan_page.dart';
@@ -425,13 +424,12 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                       reminder: _runReminders[nextWorkout['id']],
                       onReminderChanged: (workoutAt, leadMinutes, enabled) =>
                           _saveReminder(
-                        workout: nextWorkout,
-                        workoutAt: workoutAt,
-                        leadMinutes: leadMinutes,
-                        enabled: enabled,
-                      ),
+                            workout: nextWorkout,
+                            workoutAt: workoutAt,
+                            leadMinutes: leadMinutes,
+                            enabled: enabled,
+                          ),
                       initiallyExpanded: true,
-                      showTimer: true,
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -474,13 +472,14 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                                   ? () => _deleteManualWorkout(workout)
                                   : null,
                           reminder: _runReminders[workout['id']],
-                          onReminderChanged: (workoutAt, leadMinutes, enabled) =>
-                              _saveReminder(
-                            workout: workout,
-                            workoutAt: workoutAt,
-                            leadMinutes: leadMinutes,
-                            enabled: enabled,
-                          ),
+                          onReminderChanged:
+                              (workoutAt, leadMinutes, enabled) =>
+                                  _saveReminder(
+                                    workout: workout,
+                                    workoutAt: workoutAt,
+                                    leadMinutes: leadMinutes,
+                                    enabled: enabled,
+                                  ),
                         ),
                       );
                     }),
@@ -520,10 +519,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       );
       if (!mounted) return;
       setState(() {
-        _runReminders = {
-          ..._runReminders,
-          reminder.workoutId: reminder,
-        };
+        _runReminders = {..._runReminders, reminder.workoutId: reminder};
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.translate('reminder_saved'))),
@@ -931,52 +927,27 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     }
   }
 
-  /// Đổi lịch (ngày) cho một buổi tập theo ý người dùng.
-  Future<void> _rescheduleWorkout(Map<String, dynamic> workout) async {
-    final firstDate = DateTime.now().subtract(const Duration(days: 365));
-    final lastDate = DateTime.now().add(const Duration(days: 365));
-    final current =
-        DateTime.tryParse(workout['date'] as String? ?? '') ?? DateTime.now();
-    // Kẹp ngày khởi tạo trong [firstDate, lastDate] để tránh assertion.
-    final initial = current.isBefore(firstDate)
-        ? firstDate
-        : (current.isAfter(lastDate) ? lastDate : current);
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: firstDate,
-      lastDate: lastDate,
-    );
-    if (picked == null) return;
-
-    final newDate = DateFormat('yyyy-MM-dd').format(picked);
+  /// Đổi ngày buổi tập và giờ nhắc trong cùng một thao tác.
+  Future<void> _rescheduleWorkoutAt({
+    required Map<String, dynamic> workout,
+    required DateTime workoutAt,
+    required int leadMinutes,
+    required bool enabled,
+  }) async {
+    final newDate = DateFormat('yyyy-MM-dd').format(workoutAt);
     setState(() => _isLoading = true);
     try {
       await _supabase
           .from('scheduled_workouts')
           .update({'date': newDate})
           .eq('id', workout['id']);
-      final reminder = _runReminders[workout['id']];
-      if (reminder != null) {
-        try {
-          await _reminderService.saveReminder(
-            workoutId: workout['id'] as String,
-            workoutTitle: workout['title']?.toString() ?? '',
-            workoutAt: _workoutAtForDate(workout, picked),
-            leadMinutes: reminder.leadMinutes,
-            enabled: reminder.enabled,
-          );
-        } catch (e) {
-          debugPrint('Error rescheduling reminder: $e');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${context.translate('reminder_error')}: $e'),
-              ),
-            );
-          }
-        }
-      }
+      await _reminderService.saveReminder(
+        workoutId: workout['id'] as String,
+        workoutTitle: workout['title']?.toString() ?? '',
+        workoutAt: workoutAt,
+        leadMinutes: leadMinutes,
+        enabled: enabled,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.translate('reschedule_success'))),
@@ -1330,15 +1301,13 @@ class _WorkoutScheduleCard extends StatefulWidget {
   final VoidCallback? onEditManual;
   final VoidCallback? onDeleteManual;
   final RunReminder? reminder;
-  final Future<void> Function(
-    DateTime workoutAt,
-    int leadMinutes,
-    bool enabled,
-  ) onReminderChanged;
+  final Future<void> Function(DateTime workoutAt, int leadMinutes, bool enabled)
+  onReminderChanged;
+  final Future<void> Function(DateTime workoutAt, int leadMinutes, bool enabled)
+  onScheduleChanged;
   // Chỉ buổi tập sắp tới mới có nút "Khởi động" (null -> ẩn).
   final VoidCallback? onWarmUp;
   final bool initiallyExpanded;
-  final bool showTimer;
 
   const _WorkoutScheduleCard({
     required this.workout,
@@ -1349,10 +1318,10 @@ class _WorkoutScheduleCard extends StatefulWidget {
     this.onEditManual,
     this.onDeleteManual,
     required this.onReminderChanged,
+    required this.onScheduleChanged,
     this.reminder,
     this.onWarmUp,
     this.initiallyExpanded = false,
-    this.showTimer = false,
   });
 
   @override
@@ -1459,10 +1428,6 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                   if (workout['status'] == 'planned') ...[
                     const SizedBox(height: 14),
                     _buildReminderSettings(context, date),
-                  ],
-                  if (widget.showTimer && workout['status'] == 'planned') ...[
-                    const SizedBox(height: 14),
-                    const RunTimerPanel(),
                   ],
                   const SizedBox(height: 14),
                   Wrap(
@@ -1637,9 +1602,7 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
       decoration: BoxDecoration(
         color: colorScheme.secondary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.secondary.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: colorScheme.secondary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1650,7 +1613,9 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                 enabled
                     ? Icons.notifications_active_outlined
                     : Icons.notifications_none_outlined,
-                color: enabled ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                color: enabled
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -1689,26 +1654,33 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                 onPressed: _savingReminder
                     ? null
                     : () async {
-                        final picked = await showTimePicker(
+                        final pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: _datePickerInitial(workoutAt),
+                          firstDate: _datePickerFirstDate,
+                          lastDate: _datePickerLastDate,
+                        );
+                        if (pickedDate == null || !context.mounted) return;
+                        final pickedTime = await showTimePicker(
                           context: context,
                           initialTime: TimeOfDay.fromDateTime(workoutAt),
                         );
-                        if (picked == null) return;
+                        if (pickedTime == null) return;
                         final updated = DateTime(
-                          workoutDate.year,
-                          workoutDate.month,
-                          workoutDate.day,
-                          picked.hour,
-                          picked.minute,
+                          pickedDate.year,
+                          pickedDate.month,
+                          pickedDate.day,
+                          pickedTime.hour,
+                          pickedTime.minute,
                         );
-                        await _changeReminder(
+                        await _changeSchedule(
                           workoutAt: updated,
                           leadMinutes: leadMinutes,
                           enabled: true,
                         );
                       },
-                icon: const Icon(Icons.schedule, size: 18),
-                label: Text(DateFormat('HH:mm').format(workoutAt)),
+                icon: const Icon(Icons.event_repeat, size: 18),
+                label: Text(DateFormat('dd/MM HH:mm').format(workoutAt)),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1787,6 +1759,33 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
     } finally {
       if (mounted) setState(() => _savingReminder = false);
     }
+  }
+
+  Future<void> _changeSchedule({
+    required DateTime workoutAt,
+    required int leadMinutes,
+    required bool enabled,
+  }) async {
+    setState(() => _savingReminder = true);
+    try {
+      await widget.onScheduleChanged(workoutAt, leadMinutes, enabled);
+    } finally {
+      if (mounted) setState(() => _savingReminder = false);
+    }
+  }
+
+  DateTime get _datePickerFirstDate =>
+      DateTime.now().subtract(const Duration(days: 365));
+
+  DateTime get _datePickerLastDate =>
+      DateTime.now().add(const Duration(days: 365));
+
+  DateTime _datePickerInitial(DateTime current) {
+    final firstDate = _datePickerFirstDate;
+    final lastDate = _datePickerLastDate;
+    if (current.isBefore(firstDate)) return firstDate;
+    if (current.isAfter(lastDate)) return lastDate;
+    return current;
   }
 
   String _leadLabel(BuildContext context, int minutes) {
