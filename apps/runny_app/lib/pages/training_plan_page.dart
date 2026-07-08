@@ -7,6 +7,7 @@ import '../services/paywall_exception.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/paywall.dart';
 import 'create_training_plan_page.dart';
+import 'manual_workout_page.dart';
 import 'ai_coach_page.dart';
 import 'training_history_page.dart';
 import 'package:intl/intl.dart';
@@ -69,7 +70,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
               .select()
               .eq('schedule_id', schedule['id'])
               .order('date', ascending: true),
-        );
+        )
+            .map(TrainingService.normalizeScheduledWorkout)
+            .toList();
 
         // Tự động chuyển sang 'completed' khi mọi buổi tập đã hoàn thành — để lịch
         // được lưu vào Lịch sử. Bao phủ cả luồng liên kết lẫn tải hoạt động.
@@ -217,6 +220,11 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: Icon(Icons.add_task, color: colorScheme.onSurface),
+            onPressed: () => _openManualWorkout(),
+            tooltip: context.translate('manual_workout_add_tooltip'),
+          ),
           if (!allCompleted)
             IconButton(
               icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface),
@@ -403,13 +411,15 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                             nextWorkout['id'] == _workouts.last['id'],
                       ),
                       onAddActivity: () => _showAddActivityOptions(nextWorkout),
-                      onScheduleChanged: (workoutAt, leadMinutes, enabled) =>
-                          _rescheduleWorkoutAt(
-                            workout: nextWorkout,
-                            workoutAt: workoutAt,
-                            leadMinutes: leadMinutes,
-                            enabled: enabled,
-                          ),
+                      onReschedule: () => _rescheduleWorkout(nextWorkout),
+                      onEditManual:
+                          nextWorkout['source'] == 'manual'
+                              ? () => _openManualWorkout(workout: nextWorkout)
+                              : null,
+                      onDeleteManual:
+                          nextWorkout['source'] == 'manual'
+                              ? () => _deleteManualWorkout(nextWorkout)
+                              : null,
                       onWarmUp: () => _askWarmUp(nextWorkout),
                       reminder: _runReminders[nextWorkout['id']],
                       onReminderChanged: (workoutAt, leadMinutes, enabled) =>
@@ -452,14 +462,15 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                             isLast: isLast,
                           ),
                           onAddActivity: () => _showAddActivityOptions(workout),
-                          onScheduleChanged:
-                              (workoutAt, leadMinutes, enabled) =>
-                                  _rescheduleWorkoutAt(
-                                    workout: workout,
-                                    workoutAt: workoutAt,
-                                    leadMinutes: leadMinutes,
-                                    enabled: enabled,
-                                  ),
+                          onReschedule: () => _rescheduleWorkout(workout),
+                          onEditManual:
+                              workout['source'] == 'manual'
+                                  ? () => _openManualWorkout(workout: workout)
+                                  : null,
+                          onDeleteManual:
+                              workout['source'] == 'manual'
+                                  ? () => _deleteManualWorkout(workout)
+                                  : null,
                           reminder: _runReminders[workout['id']],
                           onReminderChanged:
                               (workoutAt, leadMinutes, enabled) =>
@@ -521,6 +532,28 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     }
   }
 
+  DateTime _workoutAtForDate(Map<String, dynamic> workout, DateTime date) {
+    final reminder = _runReminders[workout['id']];
+    final current = reminder?.workoutAt;
+    final startTime = _timeParts(workout['start_time']?.toString());
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      current?.hour ?? startTime.$1,
+      current?.minute ?? startTime.$2,
+    );
+  }
+
+  (int, int) _timeParts(String? raw) {
+    if (raw == null || raw.isEmpty) return (6, 0);
+    final parts = raw.split(':');
+    if (parts.length < 2) return (6, 0);
+    final hour = int.tryParse(parts[0]) ?? 6;
+    final minute = int.tryParse(parts[1]) ?? 0;
+    return (hour.clamp(0, 23).toInt(), minute.clamp(0, 59).toInt());
+  }
+
   Widget _buildCompletionBanner(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -563,6 +596,69 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     );
     if (created == true) {
       _fetchData();
+    }
+  }
+
+  Future<void> _openManualWorkout({Map<String, dynamic>? workout}) async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => ManualWorkoutPage(workout: workout)),
+    );
+    if (saved == true) {
+      _fetchData();
+    }
+  }
+
+  Future<void> _deleteManualWorkout(Map<String, dynamic> workout) async {
+    final theme = Theme.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        title: Text(
+          context.translate('manual_workout_delete_title'),
+          style: TextStyle(color: theme.colorScheme.onSurface),
+        ),
+        content: Text(
+          context.translate('manual_workout_delete_confirm'),
+          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.translate('cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              context.translate('delete'),
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _trainingService.deleteManualWorkout(workout['id'] as String);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.translate('manual_workout_deleted'))),
+        );
+      }
+      await _fetchData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -667,6 +763,12 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
               style: primaryActionButton(context),
               child: Text(context.translate('create_plan_ai')),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _openManualWorkout(),
+              icon: const Icon(Icons.add_task),
+              label: Text(context.translate('manual_workout_create_title')),
+            ),
             const SizedBox(height: 8),
             TextButton.icon(
               onPressed: _openHistory,
@@ -746,6 +848,12 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
               onPressed: _openCreatePlan,
               style: primaryActionButton(context),
               child: Text(context.translate('retry')),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _openManualWorkout(),
+              icon: const Icon(Icons.add_task),
+              label: Text(context.translate('manual_workout_create_title')),
             ),
             const SizedBox(height: 12),
             TextButton(
@@ -1189,6 +1297,9 @@ class _WorkoutScheduleCard extends StatefulWidget {
   final Color statusColor;
   final IconData statusIcon;
   final VoidCallback onAddActivity;
+  final VoidCallback onReschedule;
+  final VoidCallback? onEditManual;
+  final VoidCallback? onDeleteManual;
   final RunReminder? reminder;
   final Future<void> Function(DateTime workoutAt, int leadMinutes, bool enabled)
   onReminderChanged;
@@ -1203,6 +1314,9 @@ class _WorkoutScheduleCard extends StatefulWidget {
     required this.statusColor,
     required this.statusIcon,
     required this.onAddActivity,
+    required this.onReschedule,
+    this.onEditManual,
+    this.onDeleteManual,
     required this.onReminderChanged,
     required this.onScheduleChanged,
     this.reminder,
@@ -1256,6 +1370,10 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                     ),
                   ),
                   const SizedBox(width: 8),
+                  if (workout['source'] == 'manual') ...[
+                    _buildSourceChip(context, compact: true),
+                    const SizedBox(width: 8),
+                  ],
                   AnimatedRotation(
                     turns: _expanded ? 0.5 : 0,
                     duration: const Duration(milliseconds: 200),
@@ -1276,8 +1394,24 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${DateFormat('EEEE, dd/MM').format(date)} • ${workout['target_distance_km']} km',
+                    _workoutMeta(context, date, workout),
                     style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildSourceChip(context),
+                      if (workout['workout_type'] != null)
+                        _buildInfoChip(
+                          context,
+                          Icons.category_outlined,
+                          context.translate(
+                            'workout_type_${workout['workout_type']}',
+                          ),
+                        ),
+                    ],
                   ),
                   if (description != null) ...[
                     const SizedBox(height: 4),
@@ -1334,6 +1468,28 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                             ),
                           ],
                         ),
+                      // Nút "Đặt lịch" có cho mọi buổi tập để đổi ngày theo ý muốn.
+                      OutlinedButton.icon(
+                        onPressed: widget.onReschedule,
+                        icon: const Icon(Icons.event_repeat, size: 18),
+                        label: Text(context.translate('reschedule')),
+                      ),
+                      if (widget.onEditManual != null)
+                        OutlinedButton.icon(
+                          onPressed: widget.onEditManual,
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: Text(context.translate('edit')),
+                        ),
+                      if (widget.onDeleteManual != null)
+                        OutlinedButton.icon(
+                          onPressed: widget.onDeleteManual,
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: Colors.redAccent,
+                          ),
+                          label: Text(context.translate('delete')),
+                        ),
                     ],
                   ),
                 ],
@@ -1344,6 +1500,89 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                 : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 200),
           ),
+        ],
+      ),
+    );
+  }
+
+  String _workoutMeta(
+    BuildContext context,
+    DateTime date,
+    Map<String, dynamic> workout,
+  ) {
+    final parts = <String>[DateFormat('EEEE, dd/MM').format(date)];
+    final startTime = _formatStartTime(workout['start_time']?.toString());
+    if (startTime != null) parts.add(startTime);
+    final distance = (workout['target_distance_km'] as num?)?.toDouble();
+    if (distance != null) parts.add('${_formatNumber(distance)} km');
+    final duration = (workout['target_duration_min'] as num?)?.toDouble();
+    if (duration != null) {
+      parts.add(
+        '${_formatNumber(duration)} ${context.translate('minutes_short')}',
+      );
+    }
+    return parts.join(' • ');
+  }
+
+  String? _formatStartTime(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final parts = raw.split(':');
+    if (parts.length < 2) return raw;
+    return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
+  }
+
+  String _formatNumber(double value) {
+    if (value == value.roundToDouble()) return value.toStringAsFixed(0);
+    return value.toStringAsFixed(1);
+  }
+
+  Widget _buildSourceChip(BuildContext context, {bool compact = false}) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isManual = widget.workout['source'] == 'manual';
+    final color = isManual ? colorScheme.secondary : colorScheme.primary;
+    return _buildInfoChip(
+      context,
+      isManual ? Icons.edit_calendar_outlined : Icons.auto_awesome,
+      context.translate(isManual ? 'source_manual' : 'source_ai'),
+      compact: compact,
+      color: color,
+    );
+  }
+
+  Widget _buildInfoChip(
+    BuildContext context,
+    IconData icon,
+    String label, {
+    bool compact = false,
+    Color? color,
+  }) {
+    final theme = Theme.of(context);
+    final effectiveColor = color ?? theme.colorScheme.primary;
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 4 : 6,
+      ),
+      decoration: BoxDecoration(
+        color: effectiveColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: effectiveColor.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: compact ? 13 : 15, color: effectiveColor),
+          if (!compact) ...[
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: effectiveColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1490,13 +1729,23 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
 
   DateTime _workoutAt(DateTime workoutDate) {
     final current = widget.reminder?.workoutAt;
+    final startTime = _timeParts(widget.workout['start_time']?.toString());
     return DateTime(
       workoutDate.year,
       workoutDate.month,
       workoutDate.day,
-      current?.hour ?? 6,
-      current?.minute ?? 0,
+      current?.hour ?? startTime.$1,
+      current?.minute ?? startTime.$2,
     );
+  }
+
+  (int, int) _timeParts(String? raw) {
+    if (raw == null || raw.isEmpty) return (6, 0);
+    final parts = raw.split(':');
+    if (parts.length < 2) return (6, 0);
+    final hour = int.tryParse(parts[0]) ?? 6;
+    final minute = int.tryParse(parts[1]) ?? 0;
+    return (hour.clamp(0, 23).toInt(), minute.clamp(0, 59).toInt());
   }
 
   Future<void> _changeReminder({

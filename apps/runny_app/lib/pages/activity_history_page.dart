@@ -1520,7 +1520,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                   size: 24,
                 ),
               ),
-              title: Text(
+              title: MarqueeText(
                 activity.name ??
                     activity.notes ??
                     context.translate('run_activity'),
@@ -1529,46 +1529,38 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                   color: colorScheme.onSurface,
                 ),
               ),
-              subtitle: Text(
-                '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr',
-                style: TextStyle(
-                  color: colorScheme.onSurfaceVariant,
-                  fontSize: 13,
-                ),
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        DateFormat('HH:mm dd/MM/yyyy').format(activity.startedAt),
+                  Builder(
+                    builder: (context) {
+                      final extraMetrics = [
+                        if (activity.avgHr != null) '${activity.avgHr} bpm',
+                        if (activity.avgCadence != null) '${activity.avgCadence} spm',
+                      ];
+                      final extraStr = extraMetrics.isNotEmpty ? ' • ${extraMetrics.join(" • ")}' : '';
+                      return Text(
+                        '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr$extraStr',
                         style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
+                          color: colorScheme.onSurfaceVariant,
+                          fontSize: 13,
                         ),
-                      ),
-                      if (activity.createdAt != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          '${context.translate('imported_time')}: ${DateFormat('HH:mm dd/MM').format(activity.createdAt!)}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ],
+                      );
+                    }
                   ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.chevron_right,
-                    color: colorScheme.onSurfaceVariant,
+                  const SizedBox(height: 4),
+                  Text(
+                    DateFormat('HH:mm dd/MM/yyyy').format(activity.startedAt),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+                    ),
                   ),
                 ],
+              ),
+              trailing: Icon(
+                Icons.chevron_right,
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
           ),

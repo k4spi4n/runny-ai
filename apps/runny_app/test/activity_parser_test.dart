@@ -28,7 +28,7 @@ const _validGpx = '''
 </gpx>
 ''';
 
-/// TCX hợp lệ: 3 trackpoint, có DistanceMeters tích luỹ, nhịp tim, độ cao.
+/// TCX hợp lệ: 3 trackpoint, có DistanceMeters tích luỹ, nhịp tim, độ cao, cadence.
 const _validTcx = '''
 <?xml version="1.0" encoding="UTF-8"?>
 <TrainingCenterDatabase>
@@ -45,6 +45,7 @@ const _validTcx = '''
             <AltitudeMeters>5</AltitudeMeters>
             <DistanceMeters>0</DistanceMeters>
             <HeartRateBpm><Value>140</Value></HeartRateBpm>
+            <Cadence>80</Cadence>
           </Trackpoint>
           <Trackpoint>
             <Time>2026-06-19T00:05:00Z</Time>
@@ -52,6 +53,7 @@ const _validTcx = '''
             <AltitudeMeters>12</AltitudeMeters>
             <DistanceMeters>1000</DistanceMeters>
             <HeartRateBpm><Value>150</Value></HeartRateBpm>
+            <Cadence>90</Cadence>
           </Trackpoint>
           <Trackpoint>
             <Time>2026-06-19T00:10:00Z</Time>
@@ -59,6 +61,7 @@ const _validTcx = '''
             <AltitudeMeters>8</AltitudeMeters>
             <DistanceMeters>2000</DistanceMeters>
             <HeartRateBpm><Value>160</Value></HeartRateBpm>
+            <Cadence>100</Cadence>
           </Trackpoint>
         </Track>
       </Lap>
@@ -123,6 +126,11 @@ void main() {
       expect(activity.avgHr, 150); // (140 + 150 + 160) / 3
     });
 
+    test('avg cadence là trung bình các trackpoint', () async {
+      final activity = await ActivityParser.parse(_bytes(_validTcx), 'tcx');
+      expect(activity.avgCadence, 90); // (80 + 90 + 100) / 3
+    });
+
     test('elevation gain = max - min', () async {
       final activity = await ActivityParser.parse(_bytes(_validTcx), 'tcx');
       expect(activity.elevationGainM, closeTo(7.0, 1e-6)); // 12 - 5
@@ -135,6 +143,7 @@ void main() {
       final dp = activity.dataPoints!;
       expect((dp['times'] as List).length, 3);
       expect((dp['hrs'] as List).length, 3);
+      expect((dp['cadences'] as List).length, 3);
     });
   });
 

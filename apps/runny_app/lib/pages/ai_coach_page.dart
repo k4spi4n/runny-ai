@@ -68,6 +68,12 @@ class _AICoachPageState extends State<AICoachPage> {
     _ChatAttachment.nutrition,
   };
 
+  final List<String> _suggestedQuestionKeys = List.generate(
+    16,
+    (index) => 'chat_suggestion_${index + 1}',
+  );
+  List<String> _selectedSuggestions = [];
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +84,14 @@ class _AICoachPageState extends State<AICoachPage> {
     }
     _loadGreeting();
     _loadHistory();
+    _randomizeSuggestions();
+  }
+
+  void _randomizeSuggestions() {
+    final random = Random();
+    final keysCopy = List<String>.from(_suggestedQuestionKeys);
+    keysCopy.shuffle(random);
+    _selectedSuggestions = keysCopy.take(4).toList();
   }
 
   void _handlePromptChanged() {
@@ -411,10 +425,11 @@ class _AICoachPageState extends State<AICoachPage> {
       try {
         final rows = await supabase
             .from('activities')
-            .select('distance_km, duration_min, avg_hr');
+            .select('distance_km, duration_min, avg_hr, avg_cadence');
         final list = rows as List;
         double dist = 0, dur = 0;
         int hrSum = 0, hrCount = 0;
+        int cadSum = 0, cadCount = 0;
         for (final a in list) {
           dist += (a['distance_km'] as num).toDouble();
           dur += (a['duration_min'] as num).toDouble();
@@ -422,12 +437,17 @@ class _AICoachPageState extends State<AICoachPage> {
             hrSum += (a['avg_hr'] as num).toInt();
             hrCount++;
           }
+          if (a['avg_cadence'] != null) {
+            cadSum += (a['avg_cadence'] as num).toInt();
+            cadCount++;
+          }
         }
         final pace = dist > 0 ? dur / dist : 0.0;
         buffer.writeln(
           '• Chỉ số tổng: ${list.length} buổi, ${dist.toStringAsFixed(1)} km, '
           'pace TB ${_fmtPace(pace)}/km'
-          '${hrCount > 0 ? ', HR TB ${(hrSum / hrCount).round()} bpm' : ''}.',
+          '${hrCount > 0 ? ', HR TB ${(hrSum / hrCount).round()} bpm' : ''}'
+          '${cadCount > 0 ? ', Cadence TB ${(cadSum / cadCount).round()} spm' : ''}.',
         );
       } catch (e) {
         debugPrint('Attach metrics error: $e');
@@ -999,15 +1019,7 @@ class _AICoachPageState extends State<AICoachPage> {
         !_isRecording &&
         !_isLoading &&
         !_isStreaming;
-    if (!shouldShow) return const SizedBox.shrink();
-
-    final suggestions = [
-      'Hôm nay tôi nên chạy bài gì?',
-      'Phân tích tiến bộ gần đây của tôi',
-      'Tôi nên cải thiện pace hay nhịp tim trước?',
-      'Gợi ý lịch tập 7 ngày tới',
-      'Tôi cần lưu ý gì để tránh chấn thương?',
-    ];
+    if (!shouldShow || _selectedSuggestions.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
       height: 44,
@@ -1015,7 +1027,8 @@ class _AICoachPageState extends State<AICoachPage> {
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
         scrollDirection: Axis.horizontal,
         itemBuilder: (context, index) {
-          final question = suggestions[index];
+          final key = _selectedSuggestions[index];
+          final question = context.translate(key);
           return ActionChip(
             avatar: Icon(
               Icons.auto_awesome_rounded,
@@ -1043,7 +1056,7 @@ class _AICoachPageState extends State<AICoachPage> {
           );
         },
         separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemCount: suggestions.length,
+        itemCount: _selectedSuggestions.length,
       ),
     );
   }
