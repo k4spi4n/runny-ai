@@ -767,6 +767,19 @@ class _OverviewContentState extends State<OverviewContent> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return [];
 
+    // Tìm lịch tập hiện tại (active hoặc completed gần nhất) của người dùng
+    final scheduleRes = await Supabase.instance.client
+        .from('training_schedules')
+        .select('id')
+        .eq('user_id', user.id)
+        .inFilter('status', ['active', 'completed'])
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    if (scheduleRes == null) return [];
+    final scheduleId = scheduleRes['id'];
+
     final now = DateTime.now();
     final today =
         '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -774,7 +787,7 @@ class _OverviewContentState extends State<OverviewContent> {
     final response = await Supabase.instance.client
         .from('scheduled_workouts')
         .select()
-        .eq('user_id', user.id)
+        .eq('schedule_id', scheduleId)
         .eq('date', today)
         .order('date', ascending: true);
 

@@ -447,6 +447,8 @@ class _AICoachPageState extends State<AICoachPage> {
             .select()
             .eq('user_id', user.id)
             .eq('status', 'active')
+            .order('created_at', ascending: false)
+            .limit(1)
             .maybeSingle();
         if (schedule != null) {
           buffer.writeln('• Kế hoạch tập: "${schedule['title']}".');

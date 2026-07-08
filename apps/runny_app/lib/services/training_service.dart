@@ -313,12 +313,12 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
       'status': 'active',
     };
 
-    // Lưu trữ (archive) các lịch active cũ để chỉ còn 1 lịch hiện hành.
+    // Lưu trữ (archive) các lịch cũ (active/completed) để chỉ còn 1 lịch hiện hành.
     await _supabase
         .from('training_schedules')
         .update({'status': 'archived'})
         .eq('user_id', userId)
-        .eq('status', 'active');
+        .inFilter('status', ['active', 'completed']);
 
     final Map<String, dynamic> schedule;
     if (scheduleId != null) {
@@ -381,6 +381,8 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
         .select()
         .eq('user_id', user.id)
         .eq('status', 'active')
+        .order('created_at', ascending: false)
+        .limit(1)
         .maybeSingle();
 
     if (activeSchedule == null) {
