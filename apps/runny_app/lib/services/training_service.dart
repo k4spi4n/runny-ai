@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/workout_models.dart';
 import 'gemini_service.dart';
 
 /// Ném ra khi chưa có buổi tập nào hoàn thành (gắn hoạt động thực tế) — HLV AI
@@ -43,9 +45,22 @@ class PlanAdjustmentProposal {
   bool get isEmpty => adjustments.isEmpty;
 }
 
+class _LegacyManualMetadata {
+  final String? startTime;
+  final String? workoutType;
+  final String? notes;
+
+  const _LegacyManualMetadata({
+    this.startTime,
+    this.workoutType,
+    this.notes,
+  });
+}
+
 class TrainingService {
   final SupabaseClient _supabase = Supabase.instance.client;
   final GeminiService _gemini = GeminiService();
+  static const String _manualMetadataPrefix = 'RUNNY_MANUAL_WORKOUT_V1:';
 
   void _ensureGeminiReady() {
     if (!_gemini.isConfigured) {
@@ -54,6 +69,53 @@ class TrainingService {
   }
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T')[0];
+
+  String _cleanText(String value) => value.trim();
+
+  static Map<String, dynamic> normalizeScheduledWorkout(
+    Map<String, dynamic> workout,
+  ) {
+    final normalized = Map<String, dynamic>.from(workout);
+    final metadata = _readLegacyManualMetadata(
+      normalized['description']?.toString(),
+    );
+    if (metadata != null) {
+      normalized['source'] = normalized['source'] ?? 'manual';
+      normalized['start_time'] = normalized['start_time'] ?? metadata.startTime;
+      normalized['workout_type'] =
+          normalized['workout_type'] ?? metadata.workoutType;
+      normalized['description'] = metadata.notes?.isEmpty == true
+          ? null
+          : metadata.notes;
+    } else {
+      normalized['source'] = normalized['source'] ?? 'ai';
+    }
+    return normalized;
+  }
+
+  static _LegacyManualMetadata? _readLegacyManualMetadata(
+    String? description,
+  ) {
+    if (description == null || !description.startsWith(_manualMetadataPrefix)) {
+      return null;
+    }
+    final lineBreak = description.indexOf('\n');
+    final encoded = lineBreak == -1
+        ? description.substring(_manualMetadataPrefix.length)
+        : description.substring(_manualMetadataPrefix.length, lineBreak);
+    try {
+      final jsonText = utf8.decode(base64Url.decode(encoded));
+      final data = jsonDecode(jsonText) as Map<String, dynamic>;
+      final notes = lineBreak == -1 ? '' : description.substring(lineBreak + 1);
+      return _LegacyManualMetadata(
+        startTime: data['start_time']?.toString(),
+        workoutType: data['workout_type']?.toString(),
+        notes: notes.trim().isEmpty ? null : notes,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
   String _weekdayVi(DateTime date) {
     switch (date.weekday) {
@@ -91,6 +153,249 @@ class TrainingService {
     final d = value is num ? value.toDouble() : double.tryParse('$value');
     if (d == null || d.isNaN || d.isInfinite) return null;
     return d.clamp(min, max);
+  }
+
+  double _safeRequiredNumber(double value, {required double max}) {
+    if (value.isNaN || value.isInfinite || value < 0) {
+      throw ArgumentError('Invalid workout number');
+    }
+    return value.clamp(0, max).toDouble();
+  }
+
+  Map<String, dynamic> _manualWorkoutValues(
+    ManualWorkoutInput input, {
+    String? scheduleId,
+    String? userId,
+    bool includeStatus = true,
+    bool includeExtendedColumns = true,
+  }) {
+    final notes = input.notes?.trim();
+    return {
+      if (scheduleId != null) 'schedule_id': scheduleId,
+      if (userId != null) 'user_id': userId,
+      'date': _dateOnly(input.date),
+      if (includeExtendedColumns) 'start_time': input.startTime,
+      'title': _cleanText(input.title),
+      'description': includeExtendedColumns
+          ? (notes?.isEmpty == true ? null : notes)
+          : _legacyManualDescription(input),
+      'target_distance_km': _safeRequiredNumber(
+        input.targetDistanceKm,
+        max: 99999.99,
+      ),
+      'target_duration_min': _safeRequiredNumber(
+        input.targetDurationMin,
+        max: 99999.99,
+      ),
+      if (includeExtendedColumns) 'workout_type': input.workoutType,
+      if (includeExtendedColumns) 'source': 'manual',
+      if (includeStatus) 'status': 'planned',
+    };
+  }
+
+  Future<Map<String, dynamic>> _ensureEditableSchedule({
+    required String userId,
+    required ManualWorkoutInput input,
+    bool includeSourceColumn = true,
+  }) async {
+    final activeSchedule = await _supabase
+        .from('training_schedules')
+        .select()
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    if (activeSchedule != null) return activeSchedule;
+
+    return await _supabase
+        .from('training_schedules')
+        .insert({
+          'user_id': userId,
+          'title': 'Lịch tập thủ công',
+          'goal_description': 'Các buổi tập do bạn tự tạo',
+          'start_date': _dateOnly(input.date),
+          'end_date': _dateOnly(input.date),
+          'status': 'active',
+          if (includeSourceColumn) 'source': 'manual',
+        })
+        .select()
+        .single();
+  }
+
+  String _legacyManualDescription(ManualWorkoutInput input) {
+    final metadata = jsonEncode({
+      'source': 'manual',
+      'start_time': input.startTime,
+      'workout_type': input.workoutType,
+    });
+    final encoded = base64Url.encode(utf8.encode(metadata));
+    final notes = input.notes?.trim() ?? '';
+    return '$_manualMetadataPrefix$encoded\n$notes';
+  }
+
+  bool _isManualWorkoutSchemaMiss(Object error) {
+    if (error is! PostgrestException || error.code != 'PGRST204') {
+      return false;
+    }
+    return error.message.contains("'source'") ||
+        error.message.contains("'start_time'") ||
+        error.message.contains("'workout_type'");
+  }
+
+  Future<void> _expandScheduleRangeIfNeeded({
+    required Map<String, dynamic> schedule,
+    required DateTime workoutDate,
+  }) async {
+    final currentStart = schedule['start_date'] == null
+        ? null
+        : DateTime.tryParse(schedule['start_date'] as String);
+    final currentEnd = schedule['end_date'] == null
+        ? null
+        : DateTime.tryParse(schedule['end_date'] as String);
+
+    final updates = <String, dynamic>{};
+    if (currentStart == null || workoutDate.isBefore(currentStart)) {
+      updates['start_date'] = _dateOnly(workoutDate);
+    }
+    if (currentEnd == null || workoutDate.isAfter(currentEnd)) {
+      updates['end_date'] = _dateOnly(workoutDate);
+    }
+    if (updates.isNotEmpty) {
+      await _supabase
+          .from('training_schedules')
+          .update(updates)
+          .eq('id', schedule['id']);
+    }
+  }
+
+  Future<void> createManualWorkout(ManualWorkoutInput input) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
+    try {
+      await _createManualWorkout(
+        userId: user.id,
+        input: input,
+        includeExtendedColumns: true,
+      );
+    } catch (e) {
+      if (!_isManualWorkoutSchemaMiss(e)) rethrow;
+      await _createManualWorkout(
+        userId: user.id,
+        input: input,
+        includeExtendedColumns: false,
+      );
+    }
+  }
+
+  Future<void> _createManualWorkout({
+    required String userId,
+    required ManualWorkoutInput input,
+    required bool includeExtendedColumns,
+  }) async {
+    final schedule = await _ensureEditableSchedule(
+      userId: userId,
+      input: input,
+      includeSourceColumn: includeExtendedColumns,
+    );
+
+    await _supabase.from('scheduled_workouts').insert(
+          _manualWorkoutValues(
+            input,
+            scheduleId: schedule['id'] as String,
+            userId: userId,
+            includeExtendedColumns: includeExtendedColumns,
+          ),
+        );
+
+    await _expandScheduleRangeIfNeeded(
+      schedule: schedule,
+      workoutDate: input.date,
+    );
+  }
+
+  Future<void> updateManualWorkout({
+    required String workoutId,
+    required ManualWorkoutInput input,
+  }) async {
+    final workout = await _supabase
+        .from('scheduled_workouts')
+        .select()
+        .eq('id', workoutId)
+        .maybeSingle();
+    if (workout == null) throw Exception('Workout not found');
+    final normalizedWorkout = normalizeScheduledWorkout(workout);
+    if (normalizedWorkout['source'] != 'manual') {
+      throw Exception('Only manual workouts can be edited');
+    }
+
+    try {
+      await _supabase
+          .from('scheduled_workouts')
+          .update(_manualWorkoutValues(input, includeStatus: false))
+          .eq('id', workoutId);
+    } catch (e) {
+      if (!_isManualWorkoutSchemaMiss(e)) rethrow;
+      await _supabase
+          .from('scheduled_workouts')
+          .update(
+            _manualWorkoutValues(
+              input,
+              includeStatus: false,
+              includeExtendedColumns: false,
+            ),
+          )
+          .eq('id', workoutId);
+    }
+
+    final schedule = await _supabase
+        .from('training_schedules')
+        .select()
+        .eq('id', normalizedWorkout['schedule_id'])
+        .single();
+    await _expandScheduleRangeIfNeeded(
+      schedule: schedule,
+      workoutDate: input.date,
+    );
+  }
+
+  Future<void> deleteManualWorkout(String workoutId) async {
+    final workout = await _supabase
+        .from('scheduled_workouts')
+        .select()
+        .eq('id', workoutId)
+        .maybeSingle();
+    if (workout == null) return;
+    final normalizedWorkout = normalizeScheduledWorkout(workout);
+    if (normalizedWorkout['source'] != 'manual') {
+      throw Exception('Only manual workouts can be deleted');
+    }
+
+    final scheduleId = normalizedWorkout['schedule_id'] as String;
+    await _supabase
+        .from('scheduled_workouts')
+        .delete()
+        .eq('id', workoutId);
+
+    final remaining = await _supabase
+        .from('scheduled_workouts')
+        .select('id')
+        .eq('schedule_id', scheduleId)
+        .limit(1);
+    final schedule = await _supabase
+        .from('training_schedules')
+        .select()
+        .eq('id', scheduleId)
+        .maybeSingle();
+
+    final isManualOnlySchedule =
+        schedule?['source'] == 'manual' ||
+        schedule?['goal_description'] == 'Các buổi tập do bạn tự tạo';
+    if ((remaining as List).isEmpty && isManualOnlySchedule) {
+      await _supabase.from('training_schedules').delete().eq('id', scheduleId);
+    }
   }
 
   /// Bắt đầu tạo lịch tập ở CHẾ ĐỘ NỀN.
