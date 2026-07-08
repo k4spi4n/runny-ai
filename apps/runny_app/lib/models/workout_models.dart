@@ -43,7 +43,7 @@ class Activity {
     return Activity(
       id: json['id'],
       userId: json['user_id'],
-      startedAt: DateTime.parse(json['started_at']),
+      startedAt: DateTime.parse(json['started_at']).toLocal(),
       distanceKm: (json['distance_km'] as num).toDouble(),
       durationMin: (json['duration_min'] as num).toDouble(),
       avgHr: json['avg_hr'],
@@ -59,7 +59,7 @@ class Activity {
       temperatureC: (json['temperature_c'] as num?)?.toDouble(),
       aqi: json['aqi'],
       weatherFetchedAt: json['weather_fetched_at'] != null
-          ? DateTime.parse(json['weather_fetched_at'])
+          ? DateTime.parse(json['weather_fetched_at']).toLocal()
           : null,
       weatherJson: json['weather_json'],
       shoeId: json['shoe_id'],
@@ -70,7 +70,7 @@ class Activity {
     return {
       if (id != null) 'id': id,
       'user_id': userId,
-      'started_at': startedAt.toIso8601String(),
+      'started_at': startedAt.toUtc().toIso8601String(),
       'distance_km': distanceKm,
       'duration_min': durationMin,
       'avg_hr': avgHr,
@@ -83,7 +83,7 @@ class Activity {
       'weather_summary': weatherSummary,
       'temperature_c': temperatureC,
       'aqi': aqi,
-      'weather_fetched_at': weatherFetchedAt?.toIso8601String(),
+      'weather_fetched_at': weatherFetchedAt?.toUtc().toIso8601String(),
       'weather_json': weatherJson,
       if (shoeId != null) 'shoe_id': shoeId,
     };

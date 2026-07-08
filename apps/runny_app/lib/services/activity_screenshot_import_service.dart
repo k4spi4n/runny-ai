@@ -158,10 +158,42 @@ class ActivityScreenshotImportService {
     }
 
     final defaultStartedAt = _defaultStartedAtToday();
-    final startedAtRaw = parsed['started_at']?.toString().trim();
-    final startedAt = startedAtRaw == null || startedAtRaw.isEmpty
+    var startedAtRaw = parsed['started_at']?.toString().trim();
+    if (startedAtRaw != null && startedAtRaw.isNotEmpty) {
+      if (startedAtRaw.endsWith('Z')) {
+        startedAtRaw = startedAtRaw.substring(0, startedAtRaw.length - 1);
+      } else if (startedAtRaw.endsWith('+00:00') || startedAtRaw.endsWith('-00:00')) {
+        startedAtRaw = startedAtRaw.substring(0, startedAtRaw.length - 6);
+      } else if (startedAtRaw.endsWith('+00') || startedAtRaw.endsWith('-00')) {
+        startedAtRaw = startedAtRaw.substring(0, startedAtRaw.length - 3);
+      }
+    }
+    var startedAt = startedAtRaw == null || startedAtRaw.isEmpty
         ? defaultStartedAt
         : DateTime.tryParse(startedAtRaw) ?? defaultStartedAt;
+
+    final now = DateTime.now();
+    if (startedAt.year < 2020 || startedAt.year > now.year + 1) {
+      if (startedAt.isUtc) {
+        startedAt = DateTime.utc(
+          now.year,
+          startedAt.month,
+          startedAt.day,
+          startedAt.hour,
+          startedAt.minute,
+          startedAt.second,
+        );
+      } else {
+        startedAt = DateTime(
+          now.year,
+          startedAt.month,
+          startedAt.day,
+          startedAt.hour,
+          startedAt.minute,
+          startedAt.second,
+        );
+      }
+    }
 
     final avgHrRaw = _number(parsed['avg_hr']);
     final avgHr = avgHrRaw != null && avgHrRaw >= 30 && avgHrRaw <= 240

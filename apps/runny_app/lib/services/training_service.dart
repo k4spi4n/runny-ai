@@ -560,7 +560,7 @@ $upcomingSummary
     final rawNotes = activity['notes'];
     final notes = rawNotes != null && rawNotes != name ? rawNotes : 'Không có';
     final startedAtRaw = activity['started_at'];
-    final startedAtStr = startedAtRaw != null ? _dateTimeFullStr(DateTime.parse(startedAtRaw)) : 'chưa rõ';
+    final startedAtStr = startedAtRaw != null ? _dateTimeFullStr(DateTime.parse(startedAtRaw).toLocal()) : 'chưa rõ';
     final userPrompt =
         'Thời gian hiện tại: ${_dateTimeFullStr(DateTime.now())}\n'
         'Buổi tập "$name" diễn ra lúc $startedAtStr: ${activity['distance_km']}km, thời gian ${activity['duration_min']} phút, nhịp tim ${activity['avg_hr']} bpm. Ghi chú: $notes';

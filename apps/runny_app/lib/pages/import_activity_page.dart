@@ -383,7 +383,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     String? notes,
   }) async {
     final uid = Supabase.instance.client.auth.currentUser!.id;
-    final startedIso = parsed.startedAt.toIso8601String();
+    final startedIso = parsed.startedAt.toUtc().toIso8601String();
 
     // Chống trùng: đã có hoạt động cùng thời điểm bắt đầu cho user này.
     final existing = await Supabase.instance.client
@@ -469,7 +469,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       setState(() => _isLoading = true);
 
       final uid = Supabase.instance.client.auth.currentUser!.id;
-      final startedIso = _startedAt.toIso8601String();
+      final startedIso = _startedAt.toUtc().toIso8601String();
 
       // Chống trùng: đã có hoạt động cùng thời điểm bắt đầu cho user này.
       final existing = await Supabase.instance.client
@@ -766,8 +766,9 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   }
 
   String _formatDateTime(DateTime dt) {
+    final localDt = dt.toLocal();
     String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}';
+    return '${two(localDt.day)}/${two(localDt.month)}/${localDt.year} ${two(localDt.hour)}:${two(localDt.minute)}';
   }
 
   /// Phần mô tả cho chế độ tải file.

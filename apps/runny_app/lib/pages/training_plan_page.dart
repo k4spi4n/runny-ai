@@ -1025,7 +1025,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                                   Text(
                                     DateFormat(
                                       'EEEE, dd/MM/yyyy HH:mm',
-                                    ).format(date),
+                                    ).format(date.toLocal()),
                                     style: TextStyle(
                                       color: colorScheme.onSurfaceVariant,
                                       fontSize: 13,
