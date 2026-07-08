@@ -5,6 +5,14 @@ import 'package:runny_app/l10n/app_localizations.dart';
 import 'package:runny_app/widgets/manual_workout_form.dart';
 
 void main() {
+  Finder fieldWithLabel(String label) {
+    return find.byWidgetPredicate(
+      (widget) =>
+          widget is TextFormField && widget.decoration?.labelText == label,
+      description: 'TextFormField with label "$label"',
+    );
+  }
+
   Widget buildSubject({
     required Future<void> Function(ManualWorkoutFormValue value) onSubmit,
   }) {
@@ -66,10 +74,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final fields = find.byType(TextFormField);
-    await tester.enterText(fields.at(0), 'Morning easy run');
-    await tester.enterText(fields.at(1), '45');
-    await tester.enterText(fields.at(2), '7.5');
+    final titleField = fieldWithLabel('Workout name');
+    final durationField = fieldWithLabel('Expected duration');
+    final distanceField = fieldWithLabel('Target distance');
+    expect(titleField, findsOneWidget);
+    expect(durationField, findsOneWidget);
+    expect(distanceField, findsOneWidget);
+
+    await tester.enterText(titleField, 'Morning easy run');
+    await tester.enterText(durationField, '45');
+    await tester.enterText(distanceField, '7.5');
 
     final submitButton = find.text('Save workout');
     await tester.ensureVisible(submitButton);
