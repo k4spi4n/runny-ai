@@ -19,8 +19,8 @@ Hệ thống sử dụng chuẩn xác thực JWT thông qua dịch vụ Supabase
 Chuyển tiếp và bảo mật các yêu cầu xử lý trí tuệ nhân tạo.
 
 - **Đường dẫn**: `POST /functions/v1/openrouter`
-- **Chức năng**: Bảo mật khóa API và điều phối yêu cầu tới các mô hình ngôn ngữ lớn (LLM). Provider chính là **Groq** (suy luận nhanh nhờ LPU); khi Groq lỗi hoặc bị rate-limit (429), proxy tự **fallback sang OpenRouter**.
-- **Định dạng dữ liệu**: Tuân theo chuẩn OpenAI Chat Completions (cả Groq lẫn OpenRouter đều tương thích). Header `X-AI-Provider` cho biết provider đã phục vụ request.
+- **Chức năng**: Bảo mật khóa API và điều phối yêu cầu tới các mô hình ngôn ngữ lớn (LLM). Provider chính là **Groq** (suy luận nhanh nhờ LPU); khi Groq lỗi hoặc bị rate-limit (429), proxy tự **fallback sang Cerebras**, rồi mới sang **OpenRouter**.
+- **Định dạng dữ liệu**: Tuân theo chuẩn OpenAI Chat Completions (Groq, Cerebras và OpenRouter đều tương thích). Header `X-AI-Provider` cho biết provider đã phục vụ request.
 - **Guardrails (bảo vệ phía server, không thể bỏ qua từ client)**:
   - **Yêu cầu đăng nhập**: request phải kèm JWT của người dùng (`role = authenticated`). Thiếu → `401`.
   - **Giới hạn chủ đề**: tự chèn system prompt giới hạn trợ lý CHỈ trả lời về chạy bộ & thể chất liên quan; câu hỏi ngoài phạm vi sẽ bị từ chối lịch sự. (Bỏ qua với các yêu cầu `response_format` nội bộ như sinh lịch tập — vốn đã đúng chủ đề.)

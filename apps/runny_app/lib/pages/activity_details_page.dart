@@ -7,6 +7,7 @@ import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
 import '../services/weather_service.dart';
 import '../l10n/app_localizations.dart';
+import 'package:intl/intl.dart';
 import 'ai_coach_page.dart';
 
 class ActivityDetailsPage extends StatefulWidget {
@@ -33,13 +34,19 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
     _fetchShoeInfo();
   }
 
-  Future<void> _updateActivityNotes(String notes) async {
+  Future<void> _updateActivityInfo({
+    required String name,
+    required String notes,
+  }) async {
     if (_activity.id == null) return;
     setState(() => _isSaving = true);
     try {
       await Supabase.instance.client
           .from('activities')
-          .update({'notes': notes.isEmpty ? null : notes})
+          .update({
+            'name': name.isEmpty ? null : name,
+            'notes': notes.isEmpty ? null : notes,
+          })
           .eq('id', _activity.id!);
 
       setState(() {
@@ -51,6 +58,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
           durationMin: _activity.durationMin,
           avgHr: _activity.avgHr,
           elevationGainM: _activity.elevationGainM,
+          name: name.isEmpty ? null : name,
           notes: notes.isEmpty ? null : notes,
           dataPoints: _activity.dataPoints,
           startLat: _activity.startLat,
@@ -60,6 +68,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
           aqi: _activity.aqi,
           weatherFetchedAt: _activity.weatherFetchedAt,
           weatherJson: _activity.weatherJson,
+          shoeId: _activity.shoeId,
         );
         _hasChanged = true;
         _isSaving = false;
@@ -119,7 +128,12 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
 
   void _showEditNotesDialog() {
     final theme = Theme.of(context);
-    final controller = TextEditingController(text: _activity.notes ?? '');
+    final nameController = TextEditingController(text: _activity.name ?? '');
+    final notesController = TextEditingController(
+      text: _activity.notes != null && _activity.notes != _activity.name
+          ? _activity.notes!
+          : '',
+    );
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -128,24 +142,54 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
           context.translate('edit_info'),
           style: TextStyle(color: theme.colorScheme.onSurface),
         ),
-        content: TextField(
-          controller: controller,
-          maxLines: 3,
-          style: TextStyle(color: theme.colorScheme.onSurface),
-          decoration: InputDecoration(
-            hintText: context.translate('enter_notes_hint'),
-            hintStyle: TextStyle(
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-            ),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(
-                color: theme.colorScheme.outline.withValues(alpha: 0.5),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              style: TextStyle(color: theme.colorScheme.onSurface),
+              decoration: InputDecoration(
+                labelText: context.translate('activity_name'),
+                hintText: context.translate('activity_name_hint'),
+                hintStyle: TextStyle(
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.5,
+                  ),
+                ),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.5),
+                  ),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: theme.colorScheme.primary),
+                ),
               ),
             ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: theme.colorScheme.primary),
+            const SizedBox(height: 16),
+            TextField(
+              controller: notesController,
+              maxLines: 3,
+              style: TextStyle(color: theme.colorScheme.onSurface),
+              decoration: InputDecoration(
+                labelText: context.translate('notes'),
+                hintText: context.translate('enter_notes_hint'),
+                hintStyle: TextStyle(
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.5,
+                  ),
+                ),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.5),
+                  ),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: theme.colorScheme.primary),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
         actions: [
           TextButton(
@@ -157,9 +201,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
           ),
           TextButton(
             onPressed: () async {
-              final newNotes = controller.text.trim();
+              final newName = nameController.text.trim();
+              final newNotes = notesController.text.trim();
               Navigator.pop(context);
-              await _updateActivityNotes(newNotes);
+              await _updateActivityInfo(name: newName, notes: newNotes);
             },
             child: Text(
               context.translate('save'),
@@ -238,7 +283,9 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             onPressed: () => Navigator.pop(context, _hasChanged),
           ),
           title: Text(
-            _activity.notes ?? context.translate('activity_details'),
+            _activity.name ??
+                _activity.notes ??
+                context.translate('activity_details'),
             style: TextStyle(color: colorScheme.onSurface),
           ),
           backgroundColor: Colors.transparent,
@@ -312,86 +359,136 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             SafeArea(
               child: ResponsiveContent(
                 child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_isSaving) ...[
-                      const Center(child: CircularProgressIndicator()),
-                      const SizedBox(height: 24),
-                    ],
-                    _buildSummaryHeader(context),
-                    const SizedBox(height: 24),
-                    if (_activity.weatherSummary != null ||
-                        _activity.temperatureC != null ||
-                        _activity.aqi != null) ...[
-                      _buildWeatherCard(context),
-                      const SizedBox(height: 24),
-                    ],
-                    _buildShoeCard(context),
-                    const SizedBox(height: 24),
-                    if (paces.isNotEmpty) ...[
-                      ActivityChart(
-                        title: context.translate('pace_title'),
-                        xValues: times,
-                        yValues: paces,
-                        color: const Color(0xFFFA6B27),
-                        yAxisLabel: context.translate('min_km'),
-                        isPace: true,
-                        activeX: _activeTime,
-                        onXSelected: (val) => setState(() => _activeTime = val),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                    if (hrs.isNotEmpty) ...[
-                      ActivityChart(
-                        title: context.translate('heart_rate'),
-                        xValues: times,
-                        yValues: hrs,
-                        color: Colors.redAccent,
-                        yAxisLabel: context.translate('bpm'),
-                        activeX: _activeTime,
-                        onXSelected: (val) => setState(() => _activeTime = val),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                    if (elevations.isNotEmpty) ...[
-                      ActivityChart(
-                        title: context.translate('elevation'),
-                        xValues: times,
-                        yValues: elevations,
-                        color: const Color(0xFF3CABFF),
-                        yAxisLabel: context.translate('m'),
-                        activeX: _activeTime,
-                        onXSelected: (val) => setState(() => _activeTime = val),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                    if (_activity.notes != null &&
-                        _activity.notes!.isNotEmpty) ...[
-                      Text(
-                        context.translate('notes'),
-                        style: TextStyle(
-                          color: colorScheme.onSurface,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_isSaving) ...[
+                        const Center(child: CircularProgressIndicator()),
+                        const SizedBox(height: 24),
+                      ],
+                      // Thời gian bắt đầu & thời gian nhập
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.play_circle_outline,
+                                  size: 16,
+                                  color: colorScheme.primary,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${context.translate('start_time')}: ${DateFormat('HH:mm dd/MM/yyyy').format(_activity.startedAt)}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_activity.createdAt != null)
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.download_done,
+                                    size: 16,
+                                    color: colorScheme.secondary,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${context.translate('imported_time')}: ${DateFormat('HH:mm dd/MM/yyyy').format(_activity.createdAt!)}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      glassCard(
-                        context: context,
-                        child: Text(
-                          _activity.notes!,
+                      _buildSummaryHeader(context),
+                      const SizedBox(height: 24),
+                      if (_activity.weatherSummary != null ||
+                          _activity.temperatureC != null ||
+                          _activity.aqi != null) ...[
+                        _buildWeatherCard(context),
+                        const SizedBox(height: 24),
+                      ],
+                      _buildShoeCard(context),
+                      const SizedBox(height: 24),
+                      if (paces.isNotEmpty) ...[
+                        ActivityChart(
+                          title: context.translate('pace_title'),
+                          xValues: times,
+                          yValues: paces,
+                          color: const Color(0xFFFA6B27),
+                          yAxisLabel: context.translate('min_km'),
+                          isPace: true,
+                          activeX: _activeTime,
+                          onXSelected: (val) =>
+                              setState(() => _activeTime = val),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                      if (hrs.isNotEmpty) ...[
+                        ActivityChart(
+                          title: context.translate('heart_rate'),
+                          xValues: times,
+                          yValues: hrs,
+                          color: Colors.redAccent,
+                          yAxisLabel: context.translate('bpm'),
+                          activeX: _activeTime,
+                          onXSelected: (val) =>
+                              setState(() => _activeTime = val),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                      if (elevations.isNotEmpty) ...[
+                        ActivityChart(
+                          title: context.translate('elevation'),
+                          xValues: times,
+                          yValues: elevations,
+                          color: const Color(0xFF3CABFF),
+                          yAxisLabel: context.translate('m'),
+                          activeX: _activeTime,
+                          onXSelected: (val) =>
+                              setState(() => _activeTime = val),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                      if (_activity.notes != null &&
+                          _activity.notes!.isNotEmpty &&
+                          _activity.notes != _activity.name) ...[
+                        Text(
+                          context.translate('notes'),
                           style: TextStyle(
-                            color: colorScheme.onSurfaceVariant,
-                            fontSize: 16,
+                            color: colorScheme.onSurface,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        glassCard(
+                          context: context,
+                          child: Text(
+                            _activity.notes!,
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
               ),
             ),
           ],
@@ -680,6 +777,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         durationMin: _activity.durationMin,
         avgHr: _activity.avgHr,
         elevationGainM: _activity.elevationGainM,
+        name: _activity.name,
         notes: _activity.notes,
         dataPoints: _activity.dataPoints,
         startLat: _activity.startLat,
@@ -771,7 +869,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                 items: [
                   DropdownMenuItem<String>(
                     value: null,
-                    child: Text(context.translate('no_shoe'), style: const TextStyle(fontSize: 13)),
+                    child: Text(
+                      context.translate('no_shoe'),
+                      style: const TextStyle(fontSize: 13),
+                    ),
                   ),
                   ...activeShoes.map((shoe) {
                     return DropdownMenuItem<String>(

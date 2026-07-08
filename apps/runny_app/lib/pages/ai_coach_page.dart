@@ -194,12 +194,23 @@ class _AICoachPageState extends State<AICoachPage> {
     final contextActivity = _contextActivity;
     if (contextActivity != null) {
       final hasEnglishL10n = context.translate('english') == 'English';
+      final activityContextParts = <String>[
+        if (contextActivity.name != null && contextActivity.name!.isNotEmpty)
+          '${hasEnglishL10n ? 'Name' : 'Tên'}: ${contextActivity.name}',
+        if (contextActivity.notes != null &&
+            contextActivity.notes!.isNotEmpty &&
+            contextActivity.notes != contextActivity.name)
+          '${hasEnglishL10n ? 'Notes' : 'Ghi chú'}: ${contextActivity.notes}',
+      ];
+      final activityContextText = activityContextParts.isEmpty
+          ? (hasEnglishL10n ? 'None' : 'Không có')
+          : activityContextParts.join('; ');
       prompt = context.translate('ai_prompt_context', [
         contextActivity.distanceKm.toStringAsFixed(2),
         contextActivity.durationMin.toStringAsFixed(1),
         contextActivity.avgHr?.toString() ?? 'N/A',
         contextActivity.elevationGainM?.toString() ?? '0',
-        contextActivity.notes ?? (hasEnglishL10n ? 'None' : 'Không có'),
+        activityContextText,
         text,
       ]);
       setState(
@@ -436,6 +447,8 @@ class _AICoachPageState extends State<AICoachPage> {
             .select()
             .eq('user_id', user.id)
             .eq('status', 'active')
+            .order('created_at', ascending: false)
+            .limit(1)
             .maybeSingle();
         if (schedule != null) {
           buffer.writeln('• Kế hoạch tập: "${schedule['title']}".');

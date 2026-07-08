@@ -3,14 +3,17 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/activity_parser.dart';
+import '../services/activity_screenshot_import_service.dart';
+import '../services/paywall_exception.dart';
 import '../services/weather_service.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/paywall.dart';
 import '../widgets/ui_components.dart';
 import '../models/shoe_models.dart';
 
 enum _ImportOutcome { imported, duplicate, failed }
 
-enum _InputMode { file, manual }
+enum _InputMode { file, screenshot, manual }
 
 class ImportActivityPage extends StatefulWidget {
   final String? scheduledWorkoutId;
@@ -24,8 +27,12 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   bool _isLoading = false;
   String? _statusMessage;
   final WeatherService _weatherService = WeatherService();
+  final ActivityScreenshotImportService _screenshotImportService =
+      ActivityScreenshotImportService();
   List<Shoe> _activeShoes = [];
   String? _selectedShoeId;
+  ScreenshotActivityResult? _screenshotPreview;
+  String? _screenshotFilename;
 
   _InputMode _mode = _InputMode.file;
 
@@ -35,7 +42,16 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   final _durationController = TextEditingController();
   final _avgHrController = TextEditingController();
   final _elevationController = TextEditingController();
+  final _nameController = TextEditingController();
   final _notesController = TextEditingController();
+  final _screenshotFormKey = GlobalKey<FormState>();
+  final _screenshotNameController = TextEditingController();
+  final _screenshotDistanceController = TextEditingController();
+  final _screenshotDurationController = TextEditingController();
+  final _screenshotAvgHrController = TextEditingController();
+  final _screenshotElevationController = TextEditingController();
+  final _screenshotNotesController = TextEditingController();
+  DateTime _screenshotStartedAt = DateTime.now();
   DateTime _startedAt = DateTime.now();
 
   @override
@@ -50,7 +66,14 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     _durationController.dispose();
     _avgHrController.dispose();
     _elevationController.dispose();
+    _nameController.dispose();
     _notesController.dispose();
+    _screenshotNameController.dispose();
+    _screenshotDistanceController.dispose();
+    _screenshotDurationController.dispose();
+    _screenshotAvgHrController.dispose();
+    _screenshotElevationController.dispose();
+    _screenshotNotesController.dispose();
     super.dispose();
   }
 
@@ -104,7 +127,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       for (var i = 0; i < result.files.length; i++) {
         final file = result.files[i];
         setState(() {
-          _statusMessage = l?.translate('importing_progress', [
+          _statusMessage =
+              l?.translate('importing_progress', [
                 '${i + 1}',
                 '${result.files.length}',
               ]) ??
@@ -140,7 +164,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       }
 
       setState(() {
-        _statusMessage = l?.translate('imported_summary', [
+        _statusMessage =
+            l?.translate('imported_summary', [
               '$imported',
               '$duplicate',
               '$failed',
@@ -164,6 +189,175 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     }
   }
 
+  Future<void> _pickAndAnalyzeScreenshot() async {
+    final l = AppLocalizations.of(context);
+    try {
+      setState(() {
+        _isLoading = true;
+        _statusMessage =
+            l?.translate('selecting_screenshot') ?? 'selecting_screenshot';
+      });
+
+      final result = await FilePicker.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
+      );
+
+      final file = result?.files.single;
+      final bytes = file?.bytes;
+      if (file == null || bytes == null) {
+        setState(() {
+          _statusMessage =
+              l?.translate('import_cancelled') ?? 'import_cancelled';
+        });
+        return;
+      }
+
+      setState(() {
+        _statusMessage =
+            l?.translate('analyzing_screenshot') ?? 'analyzing_screenshot';
+      });
+
+      final resultFromAi = await _screenshotImportService.analyzeImage(
+        bytes: bytes,
+        filename: file.name,
+      );
+
+      setState(() {
+        _screenshotPreview = resultFromAi;
+        _screenshotFilename = file.name;
+        _screenshotStartedAt = resultFromAi.activity.startedAt;
+        _screenshotDistanceController.text = _formatNumber(
+          resultFromAi.activity.distanceKm,
+        );
+        _screenshotDurationController.text = _formatNumber(
+          resultFromAi.activity.durationMin,
+        );
+        _screenshotAvgHrController.text =
+            resultFromAi.activity.avgHr?.toString() ?? '';
+        _screenshotElevationController.text =
+            resultFromAi.activity.elevationGainM != null
+            ? _formatNumber(resultFromAi.activity.elevationGainM!)
+            : '';
+        _screenshotNameController.text = _defaultScreenshotName(file.name, l);
+        _screenshotNotesController.text = resultFromAi.notes ?? '';
+        _statusMessage =
+            l?.translate('screenshot_preview_ready') ??
+            'screenshot_preview_ready';
+      });
+    } on PaywallException catch (e) {
+      if (!mounted) return;
+      setState(() => _statusMessage = null);
+      await showUpgradeSheet(context, message: e.message);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _statusMessage =
+            '${l?.translate('import_error') ?? 'import_error'}: $e';
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _confirmScreenshotImport() async {
+    final l = AppLocalizations.of(context);
+    if (!(_screenshotFormKey.currentState?.validate() ?? false)) return;
+
+    final distance = double.tryParse(
+      _screenshotDistanceController.text.replaceAll(',', '.'),
+    );
+    final duration = double.tryParse(
+      _screenshotDurationController.text.replaceAll(',', '.'),
+    );
+    if (distance == null ||
+        distance <= 0 ||
+        duration == null ||
+        duration <= 0) {
+      setState(() {
+        _statusMessage =
+            l?.translate('manual_validation_error') ??
+            'manual_validation_error';
+      });
+      return;
+    }
+
+    final avgHr = int.tryParse(_screenshotAvgHrController.text.trim());
+    final elevation = double.tryParse(
+      _screenshotElevationController.text.trim().replaceAll(',', '.'),
+    );
+    final name = _screenshotNameController.text.trim().isNotEmpty
+        ? _screenshotNameController.text.trim()
+        : _defaultScreenshotName(_screenshotFilename ?? '', l);
+    final notes = _screenshotNotesController.text.trim();
+
+    try {
+      setState(() {
+        _isLoading = true;
+        _statusMessage = l?.translate('saving_to_db') ?? 'saving_to_db';
+      });
+
+      final parsed = ParsedActivity(
+        startedAt: _screenshotStartedAt,
+        distanceKm: distance,
+        durationMin: duration,
+        avgHr: avgHr != null && avgHr > 0 ? avgHr : null,
+        elevationGainM: elevation,
+      );
+      final outcome = await _saveParsedActivity(
+        parsed: parsed,
+        name: name,
+        notes: notes.isEmpty ? null : notes,
+      );
+
+      if (outcome.$1 == _ImportOutcome.duplicate) {
+        setState(() {
+          _statusMessage =
+              l?.translate('duplicate_activity_error') ??
+              'duplicate_activity_error';
+        });
+        return;
+      }
+
+      if (outcome.$1 != _ImportOutcome.imported || outcome.$2 == null) {
+        setState(() {
+          _statusMessage =
+              l?.translate('screenshot_import_failed') ??
+              'screenshot_import_failed';
+        });
+        return;
+      }
+
+      if (widget.scheduledWorkoutId != null) {
+        await Supabase.instance.client
+            .from('scheduled_workouts')
+            .update({'activity_id': outcome.$2, 'status': 'completed'})
+            .eq('id', widget.scheduledWorkoutId!);
+      }
+
+      setState(() {
+        _statusMessage =
+            l?.translate('screenshot_import_success') ??
+            'screenshot_import_success';
+      });
+
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 1000), () {
+          if (mounted) Navigator.pop(context, true);
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _statusMessage =
+            '${l?.translate('import_error') ?? 'import_error'}: $e';
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   /// Nhập một file. Trả về (kết quả, id hoạt động nếu có).
   Future<(_ImportOutcome, String?)> _importOne(
     PlatformFile file,
@@ -177,8 +371,19 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       file.extension?.toLowerCase() ?? '',
     );
 
+    return _saveParsedActivity(
+      parsed: parsed,
+      name: l?.translate('imported_from', [file.name]) ?? 'imported_from',
+    );
+  }
+
+  Future<(_ImportOutcome, String?)> _saveParsedActivity({
+    required ParsedActivity parsed,
+    required String name,
+    String? notes,
+  }) async {
     final uid = Supabase.instance.client.auth.currentUser!.id;
-    final startedIso = parsed.startedAt.toIso8601String();
+    final startedIso = parsed.startedAt.toUtc().toIso8601String();
 
     // Chống trùng: đã có hoạt động cùng thời điểm bắt đầu cho user này.
     final existing = await Supabase.instance.client
@@ -220,8 +425,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           'aqi': weather?.aqi,
           'weather_json': weather?.toJson(),
           'weather_fetched_at': weather?.fetchedAt.toIso8601String(),
-          'notes':
-              l?.translate('imported_from', [file.name]) ?? 'imported_from',
+          'name': name,
+          'notes': notes,
           if (_selectedShoeId != null) 'shoe_id': _selectedShoeId,
         })
         .select('id')
@@ -235,26 +440,36 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     final l = AppLocalizations.of(context);
     if (!(_manualFormKey.currentState?.validate() ?? false)) return;
 
-    final distance = double.tryParse(_distanceController.text.replaceAll(',', '.'));
-    final duration = double.tryParse(_durationController.text.replaceAll(',', '.'));
-    if (distance == null || distance <= 0 || duration == null || duration <= 0) {
+    final distance = double.tryParse(
+      _distanceController.text.replaceAll(',', '.'),
+    );
+    final duration = double.tryParse(
+      _durationController.text.replaceAll(',', '.'),
+    );
+    if (distance == null ||
+        distance <= 0 ||
+        duration == null ||
+        duration <= 0) {
       setState(() {
         _statusMessage =
-            l?.translate('manual_validation_error') ?? 'manual_validation_error';
+            l?.translate('manual_validation_error') ??
+            'manual_validation_error';
       });
       return;
     }
 
     final avgHr = int.tryParse(_avgHrController.text.trim());
-    final elevation =
-        double.tryParse(_elevationController.text.trim().replaceAll(',', '.'));
+    final elevation = double.tryParse(
+      _elevationController.text.trim().replaceAll(',', '.'),
+    );
+    final name = _nameController.text.trim();
     final notes = _notesController.text.trim();
 
     try {
       setState(() => _isLoading = true);
 
       final uid = Supabase.instance.client.auth.currentUser!.id;
-      final startedIso = _startedAt.toIso8601String();
+      final startedIso = _startedAt.toUtc().toIso8601String();
 
       // Chống trùng: đã có hoạt động cùng thời điểm bắt đầu cho user này.
       final existing = await Supabase.instance.client
@@ -265,7 +480,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           .maybeSingle();
       if (existing != null) {
         setState(() {
-          _statusMessage = l?.translate('duplicate_activity_error') ??
+          _statusMessage =
+              l?.translate('duplicate_activity_error') ??
               'duplicate_activity_error';
         });
         return;
@@ -280,9 +496,10 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
             'duration_min': duration,
             if (avgHr != null && avgHr > 0) 'avg_hr': avgHr,
             'elevation_gain_m': ?elevation,
-            'notes': notes.isNotEmpty
-                ? notes
+            'name': name.isNotEmpty
+                ? name
                 : (l?.translate('manual_logged_note') ?? 'manual_logged_note'),
+            'notes': notes.isEmpty ? null : notes,
             if (_selectedShoeId != null) 'shoe_id': _selectedShoeId,
           })
           .select('id')
@@ -339,6 +556,30 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     });
   }
 
+  Future<void> _pickScreenshotStartedAt() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _screenshotStartedAt,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_screenshotStartedAt),
+    );
+    if (!mounted) return;
+    setState(() {
+      _screenshotStartedAt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time?.hour ?? _screenshotStartedAt.hour,
+        time?.minute ?? _screenshotStartedAt.minute,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -348,108 +589,186 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       extendBodyBehindAppBar: true,
       appBar: AppBar(title: Text(context.translate('import_activity'))),
       body: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: glassCard(
-                    context: context,
-                    padding: const EdgeInsets.all(28),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            gradient: secondaryPulseGradient,
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          child: Icon(
-                            _mode == _InputMode.file
-                                ? Icons.cloud_upload_outlined
-                                : Icons.edit_outlined,
-                            size: 44,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        SegmentedButton<_InputMode>(
-                          segments: [
-                            ButtonSegment(
-                              value: _InputMode.file,
-                              icon: const Icon(Icons.file_upload, size: 18),
-                              label:
-                                  Text(context.translate('upload_file_tab')),
-                            ),
-                            ButtonSegment(
-                              value: _InputMode.manual,
-                              icon: const Icon(Icons.edit, size: 18),
-                              label:
-                                  Text(context.translate('manual_entry_tab')),
-                            ),
-                          ],
-                          selected: {_mode},
-                          onSelectionChanged: _isLoading
-                              ? null
-                              : (selected) {
-                                  setState(() {
-                                    _mode = selected.first;
-                                    _statusMessage = null;
-                                  });
-                                },
-                        ),
-                        const SizedBox(height: 24),
-                        if (_mode == _InputMode.file)
-                          _buildFileBody(context)
-                        else
-                          _buildManualBody(context),
-                        if (_activeShoes.isNotEmpty) ...[
-                          const SizedBox(height: 24),
-                          _buildShoeDropdown(context),
-                        ],
-                        const SizedBox(height: 24),
-                        if (_isLoading)
-                          const Center(child: CircularProgressIndicator())
-                        else if (_mode == _InputMode.file)
-                          GradientButton.icon(
-                            onPressed: _pickAndImportFiles,
-                            icon: const Icon(
-                              Icons.file_upload,
-                              color: Colors.white,
-                            ),
-                            label: Text(context.translate('select_file')),
-                          )
-                        else
-                          GradientButton.icon(
-                            onPressed: _saveManual,
-                            icon: const Icon(Icons.check, color: Colors.white),
-                            label: Text(context.translate('save_activity')),
-                          ),
-                        if (_statusMessage != null) ...[
-                          const SizedBox(height: 24),
-                          Text(
-                            _statusMessage!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                        if (_mode == _InputMode.file) ...[
-                          const SizedBox(height: 16),
-                          _buildExportHelp(context),
-                        ],
-                      ],
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: glassCard(
+                context: context,
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        gradient: secondaryPulseGradient,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Icon(
+                        _mode == _InputMode.file
+                            ? Icons.cloud_upload_outlined
+                            : _mode == _InputMode.screenshot
+                            ? Icons.add_photo_alternate_outlined
+                            : Icons.edit_outlined,
+                        size: 44,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 24),
+                    SegmentedButton<_InputMode>(
+                      segments: [
+                        ButtonSegment(
+                          value: _InputMode.file,
+                          icon: const Icon(Icons.file_upload, size: 18),
+                          label: Text(context.translate('upload_file_tab')),
+                        ),
+                        ButtonSegment(
+                          value: _InputMode.screenshot,
+                          icon: const Icon(Icons.image_search, size: 18),
+                          label: Text(
+                            context.translate('screenshot_entry_tab'),
+                          ),
+                        ),
+                        ButtonSegment(
+                          value: _InputMode.manual,
+                          icon: const Icon(Icons.edit, size: 18),
+                          label: Text(context.translate('manual_entry_tab')),
+                        ),
+                      ],
+                      selected: {_mode},
+                      onSelectionChanged: _isLoading
+                          ? null
+                          : (selected) {
+                              setState(() {
+                                _mode = selected.first;
+                                _statusMessage = null;
+                                if (_mode != _InputMode.screenshot) {
+                                  _clearScreenshotPreview();
+                                }
+                              });
+                            },
+                    ),
+                    const SizedBox(height: 24),
+                    if (_mode == _InputMode.file)
+                      _buildFileBody(context)
+                    else if (_mode == _InputMode.screenshot)
+                      _buildScreenshotBody(context)
+                    else
+                      _buildManualBody(context),
+                    if (_activeShoes.isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      _buildShoeDropdown(context),
+                    ],
+                    const SizedBox(height: 24),
+                    if (_isLoading)
+                      const Center(child: CircularProgressIndicator())
+                    else if (_mode == _InputMode.file)
+                      GradientButton.icon(
+                        onPressed: _pickAndImportFiles,
+                        icon: const Icon(
+                          Icons.file_upload,
+                          color: Colors.white,
+                        ),
+                        label: Text(context.translate('select_file')),
+                      )
+                    else if (_mode == _InputMode.screenshot)
+                      _screenshotPreview == null
+                          ? GradientButton.icon(
+                              onPressed: _pickAndAnalyzeScreenshot,
+                              icon: const Icon(
+                                Icons.image_search,
+                                color: Colors.white,
+                              ),
+                              label: Text(
+                                context.translate('select_screenshot'),
+                              ),
+                            )
+                          : Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _pickAndAnalyzeScreenshot,
+                                    icon: const Icon(Icons.image_search),
+                                    label: Text(
+                                      context.translate('choose_another_image'),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: GradientButton.icon(
+                                    onPressed: _confirmScreenshotImport,
+                                    icon: const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                    ),
+                                    label: Text(
+                                      context.translate('confirm_import'),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                    else
+                      GradientButton.icon(
+                        onPressed: _saveManual,
+                        icon: const Icon(Icons.check, color: Colors.white),
+                        label: Text(context.translate('save_activity')),
+                      ),
+                    if (_statusMessage != null) ...[
+                      const SizedBox(height: 24),
+                      Text(
+                        _statusMessage!,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                    if (_mode == _InputMode.file) ...[
+                      const SizedBox(height: 16),
+                      _buildExportHelp(context),
+                    ],
+                  ],
                 ),
               ),
             ),
           ),
+        ),
+      ),
     );
+  }
+
+  void _clearScreenshotPreview() {
+    _screenshotPreview = null;
+    _screenshotFilename = null;
+    _screenshotDistanceController.clear();
+    _screenshotDurationController.clear();
+    _screenshotAvgHrController.clear();
+    _screenshotElevationController.clear();
+    _screenshotNameController.clear();
+    _screenshotNotesController.clear();
+    _screenshotStartedAt = DateTime.now();
+  }
+
+  String _defaultScreenshotName(String filename, AppLocalizations? l) {
+    return l?.translate('default_screenshot_activity_name', [filename]) ??
+        'Buổi tập nhập từ ảnh $filename';
+  }
+
+  String _formatNumber(double value) {
+    final rounded = value.toStringAsFixed(2);
+    return rounded.replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final localDt = dt.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(localDt.day)}/${two(localDt.month)}/${localDt.year} ${two(localDt.hour)}:${two(localDt.minute)}';
   }
 
   /// Phần mô tả cho chế độ tải file.
@@ -485,6 +804,174 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           textAlign: TextAlign.center,
         ),
       ],
+    );
+  }
+
+  Widget _buildScreenshotBody(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.translate('import_from_screenshot'),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            color: colorScheme.onSurface,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          context.translate('screenshot_import_hint'),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        if (_screenshotPreview != null) ...[
+          const SizedBox(height: 24),
+          _buildScreenshotPreviewForm(context),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildScreenshotPreviewForm(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final preview = _screenshotPreview;
+    final confidence = preview == null ? 0 : (preview.confidence * 100).round();
+    final source = preview?.sourceApp;
+
+    return Form(
+      key: _screenshotFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.fact_check_outlined, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  context.translate('screenshot_preview_title'),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (source != null || confidence > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              [
+                if (source != null && source.isNotEmpty) source,
+                if (confidence > 0)
+                  context.translate('ai_confidence_note', ['$confidence']),
+              ].join(' • '),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          InkWell(
+            onTap: _isLoading ? null : _pickScreenshotStartedAt,
+            borderRadius: BorderRadius.circular(12),
+            child: InputDecorator(
+              decoration: themedInputDecoration(
+                context,
+                context.translate('activity_date_time'),
+                icon: Icons.calendar_today,
+              ),
+              child: Text(
+                _formatDateTime(_screenshotStartedAt),
+                style: theme.textTheme.bodyLarge,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _screenshotNameController,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('activity_name'),
+              icon: Icons.title,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _screenshotDistanceController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('distance_label'),
+              icon: Icons.straighten,
+              suffixText: context.translate('km'),
+            ),
+            validator: (v) {
+              final d = double.tryParse((v ?? '').replaceAll(',', '.'));
+              if (d == null || d <= 0) {
+                return context.translate('manual_validation_error');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _screenshotDurationController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('duration_label'),
+              icon: Icons.timer_outlined,
+              suffixText: context.translate('min'),
+            ),
+            validator: (v) {
+              final d = double.tryParse((v ?? '').replaceAll(',', '.'));
+              if (d == null || d <= 0) {
+                return context.translate('manual_validation_error');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _screenshotAvgHrController,
+            keyboardType: TextInputType.number,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('avg_hr_optional'),
+              icon: Icons.favorite_outline,
+              suffixText: context.translate('bpm'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _screenshotElevationController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('elevation_gain_optional'),
+              icon: Icons.terrain_outlined,
+              suffixText: context.translate('m'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _screenshotNotesController,
+            maxLines: 2,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('notes_optional'),
+              icon: Icons.notes,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -528,17 +1015,22 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                 context.translate('activity_date_time'),
                 icon: Icons.calendar_today,
               ),
-              child: Text(
-                dateLabel,
-                style: theme.textTheme.bodyLarge,
-              ),
+              child: Text(dateLabel, style: theme.textTheme.bodyLarge),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _nameController,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('activity_name'),
+              icon: Icons.title,
             ),
           ),
           const SizedBox(height: 16),
           TextFormField(
             controller: _distanceController,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: themedInputDecoration(
               context,
               context.translate('distance_label'),
@@ -556,8 +1048,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           const SizedBox(height: 16),
           TextFormField(
             controller: _durationController,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: themedInputDecoration(
               context,
               context.translate('duration_label'),
@@ -586,8 +1077,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           const SizedBox(height: 16),
           TextFormField(
             controller: _elevationController,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: themedInputDecoration(
               context,
               context.translate('elevation_gain_optional'),
@@ -651,23 +1141,23 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     Widget row(String key) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.chevron_right, size: 16, color: colorScheme.primary),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  context.translate(key),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.chevron_right, size: 16, color: colorScheme.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              context.translate(key),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
               ),
-            ],
+            ),
           ),
-        );
+        ],
+      ),
+    );
 
     return Theme(
       data: theme.copyWith(dividerColor: Colors.transparent),

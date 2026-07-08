@@ -53,6 +53,8 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 0;
   bool _isRailHovered = false;
+  final GlobalKey<_OverviewContentState> _overviewKey =
+      GlobalKey<_OverviewContentState>();
 
   late final List<Widget> _pages;
   late final List<HoverSync> _navSyncs;
@@ -68,6 +70,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _dashboardLayout.load();
     _pages = [
       OverviewContent(
+        key: _overviewKey,
         layout: _dashboardLayout,
         onViewAllActivities: () => setState(() => _selectedIndex = 4),
         onViewTrainingPlan: () => setState(() => _selectedIndex = 1),
@@ -103,6 +106,17 @@ class _DashboardPageState extends State<DashboardPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
     await _maybeShowTrialReminder();
+  }
+
+  Future<void> _openImportActivity() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ImportActivityPage()),
+    );
+    if (result == true && mounted) {
+      _overviewKey.currentState?.refreshActivityData();
+      await context.read<NutritionService>().refresh();
+    }
   }
 
   /// Nhắc nâng cấp mỗi 4 ngày kể từ ngày tạo tài khoản trong lúc còn trial
@@ -158,6 +172,10 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
       );
+      if (imported > 0) {
+        _overviewKey.currentState?.refreshActivityData();
+        await context.read<NutritionService>().refresh();
+      }
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('$errorText: $e')));
@@ -309,14 +327,7 @@ class _DashboardPageState extends State<DashboardPage> {
           IconButton(
             icon: Icon(Icons.add_circle_outline, color: colorScheme.onSurface),
             tooltip: context.translate('import_activity'),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ImportActivityPage(),
-                ),
-              );
-            },
+            onPressed: _openImportActivity,
           ),
           const PwaInstallButton(),
         ],
@@ -567,7 +578,11 @@ class _OverviewContentState extends State<OverviewContent> {
           '(quãng đường, nhịp độ, nhịp tim), kèm đúng 1 gợi ý cải thiện cụ thể. '
           'Trả lời bằng $langName, văn phong thân thiện, không dùng markdown hay tiêu đề.';
 
-      final insight = await GeminiService().generateResponse(prompt);
+      final insight = await GeminiService().generateResponse(
+        prompt,
+        preferredProvider: 'groq',
+        preferredModel: 'llama-3.1-8b-instant',
+      );
       final trimmed = insight.trim();
       if (trimmed.isEmpty) return null;
 
@@ -620,6 +635,26 @@ class _OverviewContentState extends State<OverviewContent> {
     setState(() {
       _weatherFuture = _fetchLatestWeather(forceRequest: forceRequest);
     });
+  }
+
+  void refreshActivityData() {
+    if (!mounted) return;
+    setState(() {
+      _weatherFuture = _fetchLatestWeather();
+      _insightFuture = null;
+      _insightLang = null;
+    });
+  }
+
+  Future<void> _openImportActivity() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ImportActivityPage()),
+    );
+    if (result == true && mounted) {
+      refreshActivityData();
+      await context.read<NutritionService>().refresh();
+    }
   }
 
   Future<Position?> _getCurrentPosition({bool forceRequest = false}) async {
@@ -734,6 +769,19 @@ class _OverviewContentState extends State<OverviewContent> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return [];
 
+    // Tìm lịch tập hiện tại (active hoặc completed gần nhất) của người dùng
+    final scheduleRes = await Supabase.instance.client
+        .from('training_schedules')
+        .select('id')
+        .eq('user_id', user.id)
+        .inFilter('status', ['active', 'completed'])
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    if (scheduleRes == null) return [];
+    final scheduleId = scheduleRes['id'];
+
     final now = DateTime.now();
     final today =
         '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -741,7 +789,7 @@ class _OverviewContentState extends State<OverviewContent> {
     final response = await Supabase.instance.client
         .from('scheduled_workouts')
         .select()
-        .eq('user_id', user.id)
+        .eq('schedule_id', scheduleId)
         .eq('date', today)
         .order('date', ascending: true);
 
@@ -1534,7 +1582,9 @@ class _OverviewContentState extends State<OverviewContent> {
                           ),
                         ),
                         title: Text(
-                          activity.notes ?? context.translate('run_activity'),
+                          activity.name ??
+                              activity.notes ??
+                              context.translate('run_activity'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -1551,14 +1601,29 @@ class _OverviewContentState extends State<OverviewContent> {
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              DateFormat(
-                                'dd/MM/yyyy',
-                              ).format(activity.startedAt.toLocal()),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
+                            Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  DateFormat('HH:mm dd/MM/yyyy').format(activity.startedAt),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                                if (activity.createdAt != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${context.translate('imported_time')}: ${DateFormat('HH:mm dd/MM').format(activity.createdAt!)}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                             const SizedBox(width: 4),
                             Icon(
@@ -1599,14 +1664,7 @@ class _OverviewContentState extends State<OverviewContent> {
                     color: Colors.white,
                     size: 18,
                   ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ImportActivityPage(),
-                      ),
-                    );
-                  },
+                  onTap: _openImportActivity,
                 ),
                 _ActionChip(
                   text: context.translate('training_plan'),

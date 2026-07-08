@@ -2,10 +2,12 @@ class Activity {
   final String? id;
   final String userId;
   final DateTime startedAt;
+  final DateTime? createdAt;
   final double distanceKm;
   final double durationMin;
   final int? avgHr;
   final double? elevationGainM;
+  final String? name;
   final String? notes;
   final Map<String, dynamic>? dataPoints;
   final double? startLat;
@@ -21,10 +23,12 @@ class Activity {
     this.id,
     required this.userId,
     required this.startedAt,
+    this.createdAt,
     required this.distanceKm,
     required this.durationMin,
     this.avgHr,
     this.elevationGainM,
+    this.name,
     this.notes,
     this.dataPoints,
     this.startLat,
@@ -41,13 +45,17 @@ class Activity {
     return Activity(
       id: json['id'],
       userId: json['user_id'],
-      startedAt: DateTime.parse(json['started_at']),
+      startedAt: DateTime.parse(json['started_at']).toLocal(),
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at']).toLocal()
+          : null,
       distanceKm: (json['distance_km'] as num).toDouble(),
       durationMin: (json['duration_min'] as num).toDouble(),
       avgHr: json['avg_hr'],
       elevationGainM: json['elevation_gain_m'] != null
           ? (json['elevation_gain_m'] as num).toDouble()
           : null,
+      name: json['name'] ?? json['notes'],
       notes: json['notes'],
       dataPoints: json['data_points'],
       startLat: (json['start_lat'] as num?)?.toDouble(),
@@ -56,7 +64,7 @@ class Activity {
       temperatureC: (json['temperature_c'] as num?)?.toDouble(),
       aqi: json['aqi'],
       weatherFetchedAt: json['weather_fetched_at'] != null
-          ? DateTime.parse(json['weather_fetched_at'])
+          ? DateTime.parse(json['weather_fetched_at']).toLocal()
           : null,
       weatherJson: json['weather_json'],
       shoeId: json['shoe_id'],
@@ -67,11 +75,13 @@ class Activity {
     return {
       if (id != null) 'id': id,
       'user_id': userId,
-      'started_at': startedAt.toIso8601String(),
+      'started_at': startedAt.toUtc().toIso8601String(),
+      if (createdAt != null) 'created_at': createdAt!.toUtc().toIso8601String(),
       'distance_km': distanceKm,
       'duration_min': durationMin,
       'avg_hr': avgHr,
       'elevation_gain_m': elevationGainM,
+      'name': name,
       'notes': notes,
       'data_points': dataPoints,
       'start_lat': startLat,
@@ -79,7 +89,7 @@ class Activity {
       'weather_summary': weatherSummary,
       'temperature_c': temperatureC,
       'aqi': aqi,
-      'weather_fetched_at': weatherFetchedAt?.toIso8601String(),
+      'weather_fetched_at': weatherFetchedAt?.toUtc().toIso8601String(),
       'weather_json': weatherJson,
       if (shoeId != null) 'shoe_id': shoeId,
     };

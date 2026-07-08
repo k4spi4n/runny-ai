@@ -61,15 +61,15 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           .maybeSingle();
 
       List<Map<String, dynamic>> workouts = [];
-      Map<String, RunReminder> reminders = {};
-      if (schedule != null && (schedule['status'] == 'active' || schedule['status'] == 'completed')) {
-        workouts = List<Map<String, dynamic>>.from(await _supabase
-            .from('scheduled_workouts')
-            .select()
-            .eq('schedule_id', schedule['id'])
-            .order('date', ascending: true));
-        reminders = await _reminderService.remindersForWorkouts(
-          workouts.map((w) => w['id'] as String).toList(),
+      if (schedule != null &&
+          (schedule['status'] == 'active' ||
+              schedule['status'] == 'completed')) {
+        workouts = List<Map<String, dynamic>>.from(
+          await _supabase
+              .from('scheduled_workouts')
+              .select()
+              .eq('schedule_id', schedule['id'])
+              .order('date', ascending: true),
         );
 
         // Tự động chuyển sang 'completed' khi mọi buổi tập đã hoàn thành — để lịch
@@ -192,8 +192,12 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       return _buildEmptyState(context);
     }
 
-    final completedWorkouts = _workouts.where((w) => w['status'] == 'completed').length;
-    final completionRate = _workouts.isEmpty ? 0 : ((completedWorkouts / _workouts.length) * 100).round();
+    final completedWorkouts = _workouts
+        .where((w) => w['status'] == 'completed')
+        .length;
+    final completionRate = _workouts.isEmpty
+        ? 0
+        : ((completedWorkouts / _workouts.length) * 100).round();
     final allCompleted = _workouts.every((w) => w['status'] == 'completed');
     // Buổi tập tiếp theo = buổi 'planned' gần nhất; nếu đã hoàn thành hết thì không dùng tới.
     final Map<String, dynamic> nextWorkout = _workouts.firstWhere(
@@ -207,13 +211,19 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       appBar: AppBar(
         title: MarqueeText(
           _activeSchedule!['title'] ?? context.translate('your_training_plan'),
-          style: theme.textTheme.titleLarge?.copyWith(color: colorScheme.onSurface),
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: colorScheme.onSurface,
+          ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
           if (!allCompleted)
-            IconButton(icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface), onPressed: _adjustPlan, tooltip: context.translate('optimize_plan_tooltip')),
+            IconButton(
+              icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface),
+              onPressed: _adjustPlan,
+              tooltip: context.translate('optimize_plan_tooltip'),
+            ),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: colorScheme.onSurface),
             onSelected: (v) {
@@ -252,7 +262,11 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                 value: 'abandon',
                 child: Row(
                   children: [
-                    const Icon(Icons.cancel_outlined, color: Colors.redAccent, size: 20),
+                    const Icon(
+                      Icons.cancel_outlined,
+                      color: Colors.redAccent,
+                      size: 20,
+                    ),
                     const SizedBox(width: 10),
                     Text(context.translate('abandon_plan')),
                   ],
@@ -265,11 +279,29 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       body: Stack(
         children: [
           if (!widget.embedded)
-            SizedBox.expand(child: DecoratedBox(decoration: BoxDecoration(gradient: sportPlatformGradient(context)))),
+            SizedBox.expand(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: sportPlatformGradient(context),
+                ),
+              ),
+            ),
           Positioned(
             top: 24,
             right: -100,
-            child: Container(width: 220, height: 220, decoration: BoxDecoration(shape: BoxShape.circle, gradient: RadialGradient(colors: [colorScheme.primary.withValues(alpha: 0.08), Colors.transparent]))),
+            child: Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    colorScheme.primary.withValues(alpha: 0.08),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
           ),
           SafeArea(
             child: SingleChildScrollView(
@@ -282,9 +314,20 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(context.translate('plan_details'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900, color: colorScheme.onSurface)),
+                        Text(
+                          context.translate('plan_details'),
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
                         const SizedBox(height: 12),
-                        Text(context.translate('ai_keeping_pace'), style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
+                        Text(
+                          context.translate('ai_keeping_pace'),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                         const SizedBox(height: 20),
                         // Row 3 cột co giãn -> luôn nằm cùng hàng và nén lại trên
                         // mobile thay vì xuống dòng tốn không gian.
@@ -299,15 +342,30 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Expanded(
-                                child: _PlanMetricCard(label: context.translate('workout'), value: '${_workouts.length}', icon: Icons.fitness_center),
+                                child: _PlanMetricCard(
+                                  label: context.translate('workout'),
+                                  value: '${_workouts.length}',
+                                  icon: Icons.fitness_center,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: _PlanMetricCard(label: context.translate('completed'), value: '$completionRate%', icon: Icons.check_circle),
+                                child: _PlanMetricCard(
+                                  label: context.translate('completed'),
+                                  value: '$completionRate%',
+                                  icon: Icons.check_circle,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: _PlanMetricCard(label: context.translate('goal'), value: nextWorkout['target_distance_km']?.toString() ?? '---', icon: Icons.track_changes),
+                                child: _PlanMetricCard(
+                                  label: context.translate('goal'),
+                                  value:
+                                      nextWorkout['target_distance_km']
+                                          ?.toString() ??
+                                      '---',
+                                  icon: Icons.track_changes,
+                                ),
                               ),
                             ],
                           ),
@@ -319,7 +377,13 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                   if (allCompleted)
                     _buildCompletionBanner(context)
                   else ...[
-                    Text(context.translate('next_workout'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                    Text(
+                      context.translate('next_workout'),
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     // Dùng cùng thẻ gập (mũi tên) như lịch chi tiết, mở sẵn và có
                     // thêm nút "Khởi động" cho buổi tập sắp tới.
@@ -328,13 +392,15 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                       statusColor: _statusColorFor(
                         nextWorkout,
                         isNext: true,
-                        isLast: _workouts.isNotEmpty &&
+                        isLast:
+                            _workouts.isNotEmpty &&
                             nextWorkout['id'] == _workouts.last['id'],
                       ),
                       statusIcon: _statusIconFor(
                         nextWorkout,
                         isNext: true,
-                        isLast: _workouts.isNotEmpty &&
+                        isLast:
+                            _workouts.isNotEmpty &&
                             nextWorkout['id'] == _workouts.last['id'],
                       ),
                       onAddActivity: () => _showAddActivityOptions(nextWorkout),
@@ -353,39 +419,39 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     ),
                   ],
                   const SizedBox(height: 24),
-                  Text(context.translate('detailed_schedule'), style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
+                  Text(
+                    context.translate('detailed_schedule'),
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
                   const SizedBox(height: 14),
                   Column(
-                    children: List.generate(
-                      _workouts.length,
-                      (index) {
-                        final workout = _workouts[index];
-                        final isLast = index == _workouts.length - 1;
-                        final isNext = !allCompleted &&
-                            workout['id'] == nextWorkout['id'];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: _WorkoutScheduleCard(
-                            workout: workout,
-                            statusColor: _statusColorFor(workout,
-                                isNext: isNext, isLast: isLast),
-                            statusIcon: _statusIconFor(workout,
-                                isNext: isNext, isLast: isLast),
-                            onAddActivity: () => _showAddActivityOptions(workout),
-                            onReschedule: () => _rescheduleWorkout(workout),
-                            reminder: _runReminders[workout['id']],
-                            onReminderChanged:
-                                (workoutAt, leadMinutes, enabled) =>
-                                    _saveReminder(
-                              workout: workout,
-                              workoutAt: workoutAt,
-                              leadMinutes: leadMinutes,
-                              enabled: enabled,
-                            ),
+                    children: List.generate(_workouts.length, (index) {
+                      final workout = _workouts[index];
+                      final isLast = index == _workouts.length - 1;
+                      final isNext =
+                          !allCompleted && workout['id'] == nextWorkout['id'];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _WorkoutScheduleCard(
+                          workout: workout,
+                          statusColor: _statusColorFor(
+                            workout,
+                            isNext: isNext,
+                            isLast: isLast,
                           ),
-                        );
-                      },
-                    ),
+                          statusIcon: _statusIconFor(
+                            workout,
+                            isNext: isNext,
+                            isLast: isLast,
+                          ),
+                          onAddActivity: () => _showAddActivityOptions(workout),
+                          onReschedule: () => _rescheduleWorkout(workout),
+                        ),
+                      );
+                    }),
                   ),
                 ],
               ),
@@ -462,7 +528,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           const SizedBox(height: 12),
           Text(
             context.translate('plan_completed_title'),
-            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
@@ -509,23 +578,41 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: theme.colorScheme.surface,
-        title: Text(context.translate('abandon_plan'), style: TextStyle(color: theme.colorScheme.onSurface)),
-        content: Text(context.translate('abandon_plan_confirm'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+        title: Text(
+          context.translate('abandon_plan'),
+          style: TextStyle(color: theme.colorScheme.onSurface),
+        ),
+        content: Text(
+          context.translate('abandon_plan_confirm'),
+          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(context.translate('cancel'), style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+            child: Text(
+              context.translate('cancel'),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(context.translate('abandon_plan'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: Text(
+              context.translate('abandon_plan'),
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
     try {
-      await _supabase.from('training_schedules').update({'status': 'abandoned'}).eq('id', id);
+      await _supabase
+          .from('training_schedules')
+          .update({'status': 'abandoned'})
+          .eq('id', id);
     } catch (e) {
       debugPrint('Error abandoning plan: $e');
     }
@@ -555,9 +642,20 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           children: [
             Icon(Icons.event_note, size: 56, color: colorScheme.primary),
             const SizedBox(height: 16),
-            Text(context.translate('no_plan_yet'), style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              context.translate('no_plan_yet'),
+              style: TextStyle(
+                color: colorScheme.onSurface,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 16),
-            Text(context.translate('no_plan_desc'), style: TextStyle(color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+            Text(
+              context.translate('no_plan_desc'),
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _openCreatePlan,
@@ -586,9 +684,21 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           children: [
             CircularProgressIndicator(color: colorScheme.primary),
             const SizedBox(height: 24),
-            Text(context.translate('plan_generating_title'), style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            Text(
+              context.translate('plan_generating_title'),
+              style: TextStyle(
+                color: colorScheme.onSurface,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 12),
-            Text(context.translate('plan_generating_desc'), style: TextStyle(color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+            Text(
+              context.translate('plan_generating_desc'),
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
               onPressed: _fetchData,
@@ -611,9 +721,21 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           children: [
             const Icon(Icons.error_outline, size: 56, color: Colors.redAccent),
             const SizedBox(height: 16),
-            Text(context.translate('plan_failed_title'), style: TextStyle(color: colorScheme.onSurface, fontSize: 18, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            Text(
+              context.translate('plan_failed_title'),
+              style: TextStyle(
+                color: colorScheme.onSurface,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 12),
-            Text(context.translate('plan_failed_desc'), style: TextStyle(color: colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+            Text(
+              context.translate('plan_failed_desc'),
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _openCreatePlan,
@@ -623,7 +745,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             const SizedBox(height: 12),
             TextButton(
               onPressed: _dismissFailedPlan,
-              child: Text(context.translate('dismiss'), style: TextStyle(color: colorScheme.onSurfaceVariant)),
+              child: Text(
+                context.translate('dismiss'),
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              ),
             ),
           ],
         ),
@@ -781,7 +906,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
                   context.translate('add_activity'),
-                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -790,8 +918,17 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                   backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
                   child: Icon(Icons.cloud_upload, color: colorScheme.primary),
                 ),
-                title: Text(context.translate('add_activity_option_upload'), style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold)),
-                subtitle: Text(context.translate('supported_formats'), style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                title: Text(
+                  context.translate('add_activity_option_upload'),
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  context.translate('supported_formats'),
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _uploadNewActivity(workout);
@@ -803,8 +940,17 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                   backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
                   child: Icon(Icons.link, color: colorScheme.primary),
                 ),
-                title: Text(context.translate('add_activity_option_link'), style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold)),
-                subtitle: Text(context.translate('select_activity_to_link'), style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                title: Text(
+                  context.translate('add_activity_option_link'),
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  context.translate('select_activity_to_link'),
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _showLinkActivityDialog(workout);
@@ -847,7 +993,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             return Container(
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
               ),
               child: Column(
                 children: [
@@ -856,7 +1004,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.4,
+                      ),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -865,7 +1015,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
                       context.translate('select_activity_to_link'),
-                      style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -873,11 +1026,19 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     child: FutureBuilder<List<Map<String, dynamic>>>(
                       future: _fetchUnlinkedActivities(),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
                         }
                         if (snapshot.hasError) {
-                          return Center(child: Text('${context.translate('error')}: ${snapshot.error}', style: TextStyle(color: colorScheme.onSurface)));
+                          return Center(
+                            child: Text(
+                              '${context.translate('error')}: ${snapshot.error}',
+                              style: TextStyle(color: colorScheme.onSurface),
+                            ),
+                          );
                         }
                         final activities = snapshot.data ?? [];
                         if (activities.isEmpty) {
@@ -886,7 +1047,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                               padding: const EdgeInsets.all(24.0),
                               child: Text(
                                 context.translate('no_activities_to_link'),
-                                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 16),
+                                style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant,
+                                  fontSize: 16,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                             ),
@@ -896,41 +1060,74 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                         return ListView.separated(
                           controller: scrollController,
                           itemCount: activities.length,
-                          separatorBuilder: (context, index) => const Divider(height: 1),
+                          separatorBuilder: (context, index) =>
+                              const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final activity = activities[index];
-                            final date = DateTime.parse(activity['started_at'] as String);
-                            final distance = (activity['distance_km'] as num).toDouble();
-                            final duration = (activity['duration_min'] as num).toDouble();
+                            final date = DateTime.parse(
+                              activity['started_at'] as String,
+                            );
+                            final distance = (activity['distance_km'] as num)
+                                .toDouble();
+                            final duration = (activity['duration_min'] as num)
+                                .toDouble();
+                            final name =
+                                (activity['name'] ?? activity['notes'])
+                                    as String?;
                             final notes = activity['notes'] as String?;
 
                             return ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 8,
+                              ),
                               leading: CircleAvatar(
-                                backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
-                                child: Icon(Icons.directions_run, color: colorScheme.primary),
+                                backgroundColor: colorScheme.primary.withValues(
+                                  alpha: 0.1,
+                                ),
+                                child: Icon(
+                                  Icons.directions_run,
+                                  color: colorScheme.primary,
+                                ),
                               ),
                               title: Text(
-                                '${distance.toStringAsFixed(2)} km • ${duration.toStringAsFixed(0)} mins',
-                                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                                name?.isNotEmpty == true
+                                    ? name!
+                                    : '${distance.toStringAsFixed(2)} km • ${duration.toStringAsFixed(0)} mins',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onSurface,
+                                ),
                               ),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    DateFormat('EEEE, dd/MM/yyyy HH:mm').format(date),
-                                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+                                    DateFormat(
+                                      'EEEE, dd/MM/yyyy HH:mm',
+                                    ).format(date.toLocal()),
+                                    style: TextStyle(
+                                      color: colorScheme.onSurfaceVariant,
+                                      fontSize: 13,
+                                    ),
                                   ),
-                                  if (notes != null && notes.isNotEmpty)
+                                  if (notes != null &&
+                                      notes.isNotEmpty &&
+                                      notes != name)
                                     Text(
                                       notes,
-                                      style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7), fontSize: 12),
+                                      style: TextStyle(
+                                        color: colorScheme.onSurfaceVariant
+                                            .withValues(alpha: 0.7),
+                                        fontSize: 12,
+                                      ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                 ],
                               ),
-                              onTap: () => _linkActivity(workout, activity['id']),
+                              onTap: () =>
+                                  _linkActivity(workout, activity['id']),
                             );
                           },
                         );
@@ -954,7 +1151,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         .from('scheduled_workouts')
         .select('activity_id')
         .eq('user_id', user.id);
-    
+
     final List<String> linkedActivityIds = (workoutsRes as List)
         .map((w) => w['activity_id'] as String?)
         .whereType<String>()
@@ -966,24 +1163,25 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         .eq('user_id', user.id)
         .order('started_at', ascending: false);
 
-    final List<Map<String, dynamic>> allActivities = List<Map<String, dynamic>>.from(activitiesRes as List);
-    
+    final List<Map<String, dynamic>> allActivities =
+        List<Map<String, dynamic>>.from(activitiesRes as List);
+
     return allActivities
         .where((activity) => !linkedActivityIds.contains(activity['id']))
         .toList();
   }
 
-  Future<void> _linkActivity(Map<String, dynamic> workout, String activityId) async {
+  Future<void> _linkActivity(
+    Map<String, dynamic> workout,
+    String activityId,
+  ) async {
     Navigator.pop(context);
 
     setState(() => _isLoading = true);
     try {
       await _supabase
           .from('scheduled_workouts')
-          .update({
-            'activity_id': activityId,
-            'status': 'completed',
-          })
+          .update({'activity_id': activityId, 'status': 'completed'})
           .eq('id', workout['id']);
 
       if (mounted) {
@@ -1066,20 +1264,29 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                 children: [
                   CircleAvatar(
                     backgroundColor: widget.statusColor,
-                    child: const Icon(Icons.directions_run, color: Colors.white),
+                    child: const Icon(
+                      Icons.directions_run,
+                      color: Colors.white,
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Text(
                       workout['title'] ?? '',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   AnimatedRotation(
                     turns: _expanded ? 0.5 : 0,
                     duration: const Duration(milliseconds: 200),
-                    child: Icon(Icons.keyboard_arrow_down, color: colorScheme.onSurfaceVariant),
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -1100,7 +1307,12 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                     const SizedBox(height: 4),
                     Text(
                       description,
-                      style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7), fontSize: 13),
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.7,
+                        ),
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                   if (workout['status'] == 'planned') ...[
@@ -1122,12 +1334,18 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                           ElevatedButton.icon(
                             onPressed: widget.onWarmUp,
                             style: primaryActionButton(context),
-                            icon: const Icon(Icons.local_fire_department, size: 18),
+                            icon: const Icon(
+                              Icons.local_fire_department,
+                              size: 18,
+                            ),
                             label: Text(context.translate('warm_up')),
                           ),
                         OutlinedButton.icon(
                           onPressed: widget.onAddActivity,
-                          icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                          icon: const Icon(
+                            Icons.add_location_alt_outlined,
+                            size: 18,
+                          ),
                           label: Text(context.translate('attach_activity')),
                         ),
                       ] else
@@ -1138,7 +1356,9 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                             const SizedBox(width: 8),
                             Text(
                               context.translate('status_${workout['status']}'),
-                              style: TextStyle(color: colorScheme.onSurfaceVariant),
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ],
                         ),
@@ -1153,7 +1373,9 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                 ],
               ),
             ),
-            crossFadeState: _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 200),
           ),
         ],
@@ -1334,7 +1556,11 @@ class _PlanMetricCard extends StatelessWidget {
   final String value;
   final IconData icon;
 
-  const _PlanMetricCard({required this.label, required this.value, required this.icon});
+  const _PlanMetricCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1345,9 +1571,15 @@ class _PlanMetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.14) : Colors.black.withValues(alpha: 0.05)),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.14)
+              : Colors.black.withValues(alpha: 0.05),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1357,7 +1589,14 @@ class _PlanMetricCard extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(value, style: TextStyle(color: colorScheme.onSurface, fontSize: 20, fontWeight: FontWeight.w900)),
+            child: Text(
+              value,
+              style: TextStyle(
+                color: colorScheme.onSurface,
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
           ),
           const SizedBox(height: 6),
           Text(
@@ -1407,7 +1646,8 @@ class _AdjustmentPreviewDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (proposal.summary != null && proposal.summary!.trim().isNotEmpty) ...[
+              if (proposal.summary != null &&
+                  proposal.summary!.trim().isNotEmpty) ...[
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
@@ -1417,19 +1657,23 @@ class _AdjustmentPreviewDialog extends StatelessWidget {
                   ),
                   child: Text(
                     proposal.summary!.trim(),
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(color: colorScheme.onSurface),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
               ],
               Text(
                 context.translate('adjust_preview_changes'),
-                style: theme.textTheme.labelLarge
-                    ?.copyWith(color: colorScheme.onSurfaceVariant),
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 8),
-              ...proposal.adjustments.map((adj) => _buildChangeTile(context, adj)),
+              ...proposal.adjustments.map(
+                (adj) => _buildChangeTile(context, adj),
+              ),
             ],
           ),
         ),
@@ -1455,12 +1699,23 @@ class _AdjustmentPreviewDialog extends StatelessWidget {
     final rows = <Widget>[];
     // Chỉ hiện dòng nào thực sự thay đổi.
     if (adj.newDate != null && adj.newDate != adj.currentDate) {
-      rows.add(_changeRow(context, Icons.event,
-          '${_fmtDate(adj.currentDate)}  →  ${_fmtDate(adj.newDate)}'));
+      rows.add(
+        _changeRow(
+          context,
+          Icons.event,
+          '${_fmtDate(adj.currentDate)}  →  ${_fmtDate(adj.newDate)}',
+        ),
+      );
     }
-    if (adj.newDistanceKm != null && adj.newDistanceKm != adj.currentDistanceKm) {
-      rows.add(_changeRow(context, Icons.straighten,
-          '${_fmtDist(adj.currentDistanceKm)}  →  ${_fmtDist(adj.newDistanceKm)}'));
+    if (adj.newDistanceKm != null &&
+        adj.newDistanceKm != adj.currentDistanceKm) {
+      rows.add(
+        _changeRow(
+          context,
+          Icons.straighten,
+          '${_fmtDist(adj.currentDistanceKm)}  →  ${_fmtDist(adj.newDistanceKm)}',
+        ),
+      );
     }
 
     return Container(
@@ -1482,8 +1737,10 @@ class _AdjustmentPreviewDialog extends StatelessWidget {
         children: [
           Text(
             adj.title,
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.w700, color: colorScheme.onSurface),
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 8),
           ...rows,
@@ -1491,8 +1748,9 @@ class _AdjustmentPreviewDialog extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               adj.reason,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ],

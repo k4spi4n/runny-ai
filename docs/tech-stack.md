@@ -20,7 +20,8 @@ Runny AI được xây dựng trên nền tảng công nghệ hiện đại, ưu
 ## Dịch vụ & Tích hợp bên thứ ba
 - **Động cơ Trí tuệ nhân tạo (AI Engine)**: 
   - [Groq](https://groq.com/) (chính): Suy luận tốc độ cao nhờ LPU (Llama 3.3 70B / 3.1 8B).
-  - [OpenRouter](https://openrouter.ai/) (fallback): Truy cập đa mô hình khi Groq lỗi/rate-limit.
+  - [Cerebras](https://www.cerebras.ai/) (fallback 1): Dự phòng inference tốc độ cao khi Groq lỗi/rate-limit.
+  - [OpenRouter](https://openrouter.ai/) (fallback 2): Truy cập đa mô hình khi Groq/Cerebras lỗi hoặc hết quota.
 - **Dữ liệu Thể thao**: [Strava API](https://developers.strava.com/) (OAuth2 & Webhooks)
 - **Thời tiết**: [OpenWeatherMap API](https://openweathermap.org/api)
 - **Chất lượng không khí**: [WAQI API](https://aqicn.org/api/)

@@ -1,0 +1,23 @@
+{
+  "name": "runny-ai-content-factory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "node scripts/render-all.mjs",
+    "preview": "remotion preview src/index.ts",
+    "still": "remotion still src/index.ts RunnyMarketing out/preview.png"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.320",
+    "@remotion/renderer": "^4.0.320",
+    "remotion": "^4.0.320",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "typescript": "^5.8.3"
+  }
+}
