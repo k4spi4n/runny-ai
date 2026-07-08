@@ -31,6 +31,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       ActivityScreenshotImportService();
   List<Shoe> _activeShoes = [];
   String? _selectedShoeId;
+  ScreenshotActivityResult? _screenshotPreview;
+  String? _screenshotFilename;
 
   _InputMode _mode = _InputMode.file;
 
@@ -41,6 +43,13 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   final _avgHrController = TextEditingController();
   final _elevationController = TextEditingController();
   final _notesController = TextEditingController();
+  final _screenshotFormKey = GlobalKey<FormState>();
+  final _screenshotDistanceController = TextEditingController();
+  final _screenshotDurationController = TextEditingController();
+  final _screenshotAvgHrController = TextEditingController();
+  final _screenshotElevationController = TextEditingController();
+  final _screenshotNotesController = TextEditingController();
+  DateTime _screenshotStartedAt = DateTime.now();
   DateTime _startedAt = DateTime.now();
 
   @override
@@ -56,6 +65,11 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     _avgHrController.dispose();
     _elevationController.dispose();
     _notesController.dispose();
+    _screenshotDistanceController.dispose();
+    _screenshotDurationController.dispose();
+    _screenshotAvgHrController.dispose();
+    _screenshotElevationController.dispose();
+    _screenshotNotesController.dispose();
     super.dispose();
   }
 
@@ -171,7 +185,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     }
   }
 
-  Future<void> _pickAndImportScreenshot() async {
+  Future<void> _pickAndAnalyzeScreenshot() async {
     final l = AppLocalizations.of(context);
     try {
       setState(() {
@@ -205,11 +219,87 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         bytes: bytes,
         filename: file.name,
       );
-      final notes = _screenshotNotes(resultFromAi, file.name, l);
-      final outcome = await _saveParsedActivity(
-        parsed: resultFromAi.activity,
-        notes: notes,
+
+      setState(() {
+        _screenshotPreview = resultFromAi;
+        _screenshotFilename = file.name;
+        _screenshotStartedAt = resultFromAi.activity.startedAt;
+        _screenshotDistanceController.text = _formatNumber(
+          resultFromAi.activity.distanceKm,
+        );
+        _screenshotDurationController.text = _formatNumber(
+          resultFromAi.activity.durationMin,
+        );
+        _screenshotAvgHrController.text =
+            resultFromAi.activity.avgHr?.toString() ?? '';
+        _screenshotElevationController.text =
+            resultFromAi.activity.elevationGainM != null
+            ? _formatNumber(resultFromAi.activity.elevationGainM!)
+            : '';
+        _screenshotNotesController.text = _defaultScreenshotName(file.name, l);
+        _statusMessage =
+            l?.translate('screenshot_preview_ready') ??
+            'screenshot_preview_ready';
+      });
+    } on PaywallException catch (e) {
+      if (!mounted) return;
+      setState(() => _statusMessage = null);
+      await showUpgradeSheet(context, message: e.message);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _statusMessage =
+            '${l?.translate('import_error') ?? 'import_error'}: $e';
+      });
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _confirmScreenshotImport() async {
+    final l = AppLocalizations.of(context);
+    if (!(_screenshotFormKey.currentState?.validate() ?? false)) return;
+
+    final distance = double.tryParse(
+      _screenshotDistanceController.text.replaceAll(',', '.'),
+    );
+    final duration = double.tryParse(
+      _screenshotDurationController.text.replaceAll(',', '.'),
+    );
+    if (distance == null ||
+        distance <= 0 ||
+        duration == null ||
+        duration <= 0) {
+      setState(() {
+        _statusMessage =
+            l?.translate('manual_validation_error') ??
+            'manual_validation_error';
+      });
+      return;
+    }
+
+    final avgHr = int.tryParse(_screenshotAvgHrController.text.trim());
+    final elevation = double.tryParse(
+      _screenshotElevationController.text.trim().replaceAll(',', '.'),
+    );
+    final notes = _screenshotNotesController.text.trim().isNotEmpty
+        ? _screenshotNotesController.text.trim()
+        : _defaultScreenshotName(_screenshotFilename ?? '', l);
+
+    try {
+      setState(() {
+        _isLoading = true;
+        _statusMessage = l?.translate('saving_to_db') ?? 'saving_to_db';
+      });
+
+      final parsed = ParsedActivity(
+        startedAt: _screenshotStartedAt,
+        distanceKm: distance,
+        durationMin: duration,
+        avgHr: avgHr != null && avgHr > 0 ? avgHr : null,
+        elevationGainM: elevation,
       );
+      final outcome = await _saveParsedActivity(parsed: parsed, notes: notes);
 
       if (outcome.$1 == _ImportOutcome.duplicate) {
         setState(() {
@@ -247,10 +337,6 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           if (mounted) Navigator.pop(context, true);
         });
       }
-    } on PaywallException catch (e) {
-      if (!mounted) return;
-      setState(() => _statusMessage = null);
-      await showUpgradeSheet(context, message: e.message);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -456,6 +542,30 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     });
   }
 
+  Future<void> _pickScreenshotStartedAt() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _screenshotStartedAt,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_screenshotStartedAt),
+    );
+    if (!mounted) return;
+    setState(() {
+      _screenshotStartedAt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time?.hour ?? _screenshotStartedAt.hour,
+        time?.minute ?? _screenshotStartedAt.minute,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -522,6 +632,9 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                               setState(() {
                                 _mode = selected.first;
                                 _statusMessage = null;
+                                if (_mode != _InputMode.screenshot) {
+                                  _clearScreenshotPreview();
+                                }
                               });
                             },
                     ),
@@ -549,14 +662,43 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                         label: Text(context.translate('select_file')),
                       )
                     else if (_mode == _InputMode.screenshot)
-                      GradientButton.icon(
-                        onPressed: _pickAndImportScreenshot,
-                        icon: const Icon(
-                          Icons.image_search,
-                          color: Colors.white,
-                        ),
-                        label: Text(context.translate('select_screenshot')),
-                      )
+                      _screenshotPreview == null
+                          ? GradientButton.icon(
+                              onPressed: _pickAndAnalyzeScreenshot,
+                              icon: const Icon(
+                                Icons.image_search,
+                                color: Colors.white,
+                              ),
+                              label: Text(
+                                context.translate('select_screenshot'),
+                              ),
+                            )
+                          : Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _pickAndAnalyzeScreenshot,
+                                    icon: const Icon(Icons.image_search),
+                                    label: Text(
+                                      context.translate('choose_another_image'),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: GradientButton.icon(
+                                    onPressed: _confirmScreenshotImport,
+                                    icon: const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                    ),
+                                    label: Text(
+                                      context.translate('confirm_import'),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
                     else
                       GradientButton.icon(
                         onPressed: _saveManual,
@@ -587,22 +729,30 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     );
   }
 
-  String _screenshotNotes(
-    ScreenshotActivityResult result,
-    String filename,
-    AppLocalizations? l,
-  ) {
-    final source = result.sourceApp;
-    final confidence = (result.confidence * 100).round();
-    final parts = <String>[
-      l?.translate('imported_from_screenshot', [filename]) ??
-          'Imported from screenshot $filename',
-      if (source != null && source.isNotEmpty) source,
-      if (result.notes != null && result.notes!.isNotEmpty) result.notes!,
-      l?.translate('ai_confidence_note', ['$confidence']) ??
-          'AI confidence: $confidence%',
-    ];
-    return parts.join(' • ');
+  void _clearScreenshotPreview() {
+    _screenshotPreview = null;
+    _screenshotFilename = null;
+    _screenshotDistanceController.clear();
+    _screenshotDurationController.clear();
+    _screenshotAvgHrController.clear();
+    _screenshotElevationController.clear();
+    _screenshotNotesController.clear();
+    _screenshotStartedAt = DateTime.now();
+  }
+
+  String _defaultScreenshotName(String filename, AppLocalizations? l) {
+    return l?.translate('default_screenshot_activity_name', [filename]) ??
+        'Buổi tập nhập từ ảnh $filename';
+  }
+
+  String _formatNumber(double value) {
+    final rounded = value.toStringAsFixed(2);
+    return rounded.replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  String _formatDateTime(DateTime dt) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}';
   }
 
   /// Phần mô tả cho chế độ tải file.
@@ -663,16 +813,140 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 6),
-        Text(
-          context.translate('screenshot_import_model_hint'),
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: colorScheme.primary,
-            fontWeight: FontWeight.w600,
-          ),
-          textAlign: TextAlign.center,
-        ),
+        if (_screenshotPreview != null) ...[
+          const SizedBox(height: 24),
+          _buildScreenshotPreviewForm(context),
+        ],
       ],
+    );
+  }
+
+  Widget _buildScreenshotPreviewForm(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final preview = _screenshotPreview;
+    final confidence = preview == null ? 0 : (preview.confidence * 100).round();
+    final source = preview?.sourceApp;
+
+    return Form(
+      key: _screenshotFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.fact_check_outlined, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  context.translate('screenshot_preview_title'),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (source != null || confidence > 0) ...[
+            const SizedBox(height: 6),
+            Text(
+              [
+                if (source != null && source.isNotEmpty) source,
+                if (confidence > 0)
+                  context.translate('ai_confidence_note', ['$confidence']),
+              ].join(' • '),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          InkWell(
+            onTap: _isLoading ? null : _pickScreenshotStartedAt,
+            borderRadius: BorderRadius.circular(12),
+            child: InputDecorator(
+              decoration: themedInputDecoration(
+                context,
+                context.translate('activity_date_time'),
+                icon: Icons.calendar_today,
+              ),
+              child: Text(
+                _formatDateTime(_screenshotStartedAt),
+                style: theme.textTheme.bodyLarge,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _screenshotDistanceController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('distance_label'),
+              icon: Icons.straighten,
+              suffixText: context.translate('km'),
+            ),
+            validator: (v) {
+              final d = double.tryParse((v ?? '').replaceAll(',', '.'));
+              if (d == null || d <= 0) {
+                return context.translate('manual_validation_error');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _screenshotDurationController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('duration_label'),
+              icon: Icons.timer_outlined,
+              suffixText: context.translate('min'),
+            ),
+            validator: (v) {
+              final d = double.tryParse((v ?? '').replaceAll(',', '.'));
+              if (d == null || d <= 0) {
+                return context.translate('manual_validation_error');
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _screenshotAvgHrController,
+            keyboardType: TextInputType.number,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('avg_hr_optional'),
+              icon: Icons.favorite_outline,
+              suffixText: context.translate('bpm'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _screenshotElevationController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: themedInputDecoration(
+              context,
+              context.translate('elevation_gain_optional'),
+              icon: Icons.terrain_outlined,
+              suffixText: context.translate('m'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _screenshotNotesController,
+            maxLines: 2,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('activity_name_or_notes'),
+              icon: Icons.notes,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

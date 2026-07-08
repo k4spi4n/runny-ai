@@ -157,10 +157,11 @@ class ActivityScreenshotImportService {
       );
     }
 
+    final defaultStartedAt = _defaultStartedAtToday();
     final startedAtRaw = parsed['started_at']?.toString().trim();
     final startedAt = startedAtRaw == null || startedAtRaw.isEmpty
-        ? DateTime.now()
-        : DateTime.tryParse(startedAtRaw) ?? DateTime.now();
+        ? defaultStartedAt
+        : DateTime.tryParse(startedAtRaw) ?? defaultStartedAt;
 
     final avgHrRaw = _number(parsed['avg_hr']);
     final avgHr = avgHrRaw != null && avgHrRaw >= 30 && avgHrRaw <= 240
@@ -269,6 +270,11 @@ class ActivityScreenshotImportService {
     return trimmed.isEmpty ? null : trimmed;
   }
 
+  static DateTime _defaultStartedAtToday() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, 12);
+  }
+
   String _errorFromData(dynamic data) {
     try {
       final decoded = data is String ? jsonDecode(data) : data;
@@ -297,7 +303,7 @@ class ActivityScreenshotImportService {
       '"source_app": string|null, "notes": string|null}. '
       'Quy đổi mile sang km, giờ:phút:giây sang phút, pace không dùng làm duration. '
       'Nếu ảnh ghi Today/Yesterday, quy đổi tương đối theo thời điểm hiện tại $todayIso. '
-      'Nếu thiếu ngày chính xác nhưng các chỉ số tập hợp lệ, dùng ngày hiện tại lúc 12:00 và ghi chú trong notes. '
+      'Nếu thiếu ngày chính xác nhưng các chỉ số tập hợp lệ, để started_at là chuỗi rỗng. '
       'distance_km và duration_min là bắt buộc khi is_activity=true.';
 }
 

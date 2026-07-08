@@ -49,5 +49,19 @@ void main() {
         throwsA(isA<ActivityScreenshotImportException>()),
       );
     });
+
+    test('defaults missing date to today at noon', () {
+      final now = DateTime.now();
+
+      final result = ActivityScreenshotImportService.parseModelContent(
+        '{"is_activity": true, "distance_km": 5, "duration_min": 30, "started_at": ""}',
+      );
+
+      expect(result.activity.startedAt.year, now.year);
+      expect(result.activity.startedAt.month, now.month);
+      expect(result.activity.startedAt.day, now.day);
+      expect(result.activity.startedAt.hour, 12);
+      expect(result.activity.startedAt.minute, 0);
+    });
   });
 }
