@@ -567,7 +567,8 @@ class _OverviewContentState extends State<OverviewContent> {
 
       final insight = await GeminiService().generateResponse(
         prompt,
-        preferredProvider: 'cerebras',
+        preferredProvider: 'groq',
+        preferredModel: 'llama-3.1-8b-instant',
       );
       final trimmed = insight.trim();
       if (trimmed.isEmpty) return null;

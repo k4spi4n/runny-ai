@@ -45,7 +45,7 @@ Nếu người dùng hỏi ngoài phạm vi trên (ví dụ: lập trình, chín
 Luôn trả lời bằng tiếng Việt, ngắn gọn, thân thiện.`;
 
 type ChatMessage = { role?: string; content?: unknown };
-type ProviderPreference = 'cerebras' | null;
+type ProviderPreference = 'groq' | 'cerebras' | null;
 
 // Lay user id tu JWT (platform da verify_jwt). Tra null neu khong phai user that.
 function getUserId(req: Request): string | null {
@@ -101,7 +101,13 @@ function injectGuardrail(rawBody: Record<string, unknown>): Record<string, unkno
 
 function getProviderPreference(rawBody: Record<string, unknown>): ProviderPreference {
   const preference = rawBody.provider_preference ?? rawBody.preferred_provider;
+  if (preference === 'groq') return 'groq';
   return preference === 'cerebras' ? 'cerebras' : null;
+}
+
+function getPreferredModel(rawBody: Record<string, unknown>): string | null {
+  const model = rawBody.preferred_model ?? rawBody.provider_model;
+  return typeof model === 'string' && model.trim().length > 0 ? model.trim() : null;
 }
 
 // Goi RPC check_ai_access bang service role: xac dinh tier (trial|paid|free), ap
@@ -211,6 +217,13 @@ function getFallbackModels(): string[] {
   return custom.length > 0 ? custom : DEFAULT_FALLBACK_MODELS;
 }
 
+function getPreferredGroqModels(rawBody: Record<string, unknown>): string[] {
+  const models = getGroqModels();
+  const preferred = getPreferredModel(rawBody);
+  if (!preferred || !models.includes(preferred)) return models;
+  return [preferred, ...models.filter((model) => model !== preferred)];
+}
+
 // Body gui sang Groq: bo `model`/`models` cua client (id kieu OpenRouter khong hop
 // le tren Groq) va dat `model` rieng cho Groq. Giu nguyen messages/response_format/...
 function buildGroqBody(rawBody: Record<string, unknown>, model: string): Record<string, unknown> {
@@ -219,6 +232,8 @@ function buildGroqBody(rawBody: Record<string, unknown>, model: string): Record<
     models: _ms,
     provider_preference: _pp,
     preferred_provider: _pp2,
+    preferred_model: _pm,
+    provider_model: _pm2,
     ...rest
   } = rawBody;
   return { ...rest, model };
@@ -233,6 +248,8 @@ function buildCerebrasBody(rawBody: Record<string, unknown>, model: string): Rec
     models: _ms,
     provider_preference: _pp,
     preferred_provider: _pp2,
+    preferred_model: _pm,
+    provider_model: _pm2,
     ...rest
   } = rawBody;
   const hasExplicitMax =
@@ -251,6 +268,8 @@ function applyModelFallback(body: Record<string, unknown>): Record<string, unkno
   const {
     provider_preference: _pp,
     preferred_provider: _pp2,
+    preferred_model: _pm,
+    provider_model: _pm2,
     ...cleanBody
   } = body;
   const fallback = getFallbackModels();
@@ -286,8 +305,9 @@ async function tryGroq(
   rawBody: Record<string, unknown>,
   apiKey: string,
   wantsStream: boolean,
+  modelOrder?: string[],
 ): Promise<Response | null> {
-  for (const model of getGroqModels()) {
+  for (const model of modelOrder ?? getGroqModels()) {
     try {
       const res = await fetch(GROQ_ENDPOINT, {
         method: 'POST',
@@ -471,9 +491,32 @@ serve(async (req) => {
     const wantsStream = rawBody.stream === true && !rawBody.response_format;
     const providerPreference = getProviderPreference(rawBody);
 
-    // Tac vu nhe (vd: nhan xet ngan tren dashboard) co the uu tien Cerebras de
-    // giam tai truc tiep cho Groq. Neu Cerebras loi/het quota thi quay ve chuoi
-    // fallback mac dinh.
+    // Tac vu nhe co the uu tien model/provider rieng. Dashboard insight dung
+    // Groq 8B de tranh Cerebras output ky tu la va giam tai cho Groq 70B.
+    if (providerPreference === 'groq') {
+      if (groqApiKey) {
+        const groqRes = await tryGroq(
+          body,
+          groqApiKey,
+          wantsStream,
+          getPreferredGroqModels(rawBody),
+        );
+        if (groqRes) return groqRes;
+        console.warn('Preferred Groq unavailable, falling back to OpenRouter');
+      }
+
+      if (openRouterApiKey) {
+        return await callOpenRouter(body, openRouterApiKey, wantsStream);
+      }
+
+      return new Response(
+        JSON.stringify({ error: 'Preferred Groq failed and no OpenRouter fallback key is configured.' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Mot so tac vu co the uu tien Cerebras, nhung fallback ve Groq/OpenRouter
+    // neu Cerebras loi/het quota.
     if (providerPreference === 'cerebras') {
       if (cerebrasApiKey) {
         const cerebrasRes = await tryCerebras(body, cerebrasApiKey, wantsStream);

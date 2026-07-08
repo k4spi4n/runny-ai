@@ -70,6 +70,7 @@ class GeminiService {
     String prompt, {
     List<Map<String, String>>? history,
     String? preferredProvider,
+    String? preferredModel,
   }) async {
     try {
       final messages = <Map<String, String>>[];
@@ -85,9 +86,13 @@ class GeminiService {
 
       messages.add({'role': 'user', 'content': prompt});
 
-      final providerPayload = preferredProvider == null
-          ? const <String, dynamic>{}
-          : {'provider_preference': preferredProvider};
+      final providerPayload = <String, dynamic>{};
+      if (preferredProvider != null) {
+        providerPayload['provider_preference'] = preferredProvider;
+      }
+      if (preferredModel != null) {
+        providerPayload['preferred_model'] = preferredModel;
+      }
 
       final response = await Supabase.instance.client.functions.invoke(
         'openrouter',
