@@ -50,11 +50,7 @@ class _LegacyManualMetadata {
   final String? workoutType;
   final String? notes;
 
-  const _LegacyManualMetadata({
-    this.startTime,
-    this.workoutType,
-    this.notes,
-  });
+  const _LegacyManualMetadata({this.startTime, this.workoutType, this.notes});
 }
 
 class TrainingService {
@@ -93,9 +89,7 @@ class TrainingService {
     return normalized;
   }
 
-  static _LegacyManualMetadata? _readLegacyManualMetadata(
-    String? description,
-  ) {
+  static _LegacyManualMetadata? _readLegacyManualMetadata(String? description) {
     if (description == null || !description.startsWith(_manualMetadataPrefix)) {
       return null;
     }
@@ -171,8 +165,8 @@ class TrainingService {
   }) {
     final notes = input.notes?.trim();
     return {
-      if (scheduleId != null) 'schedule_id': scheduleId,
-      if (userId != null) 'user_id': userId,
+      'schedule_id': ?scheduleId,
+      'user_id': ?userId,
       'date': _dateOnly(input.date),
       if (includeExtendedColumns) 'start_time': input.startTime,
       'title': _cleanText(input.title),
@@ -301,7 +295,9 @@ class TrainingService {
       includeSourceColumn: includeExtendedColumns,
     );
 
-    await _supabase.from('scheduled_workouts').insert(
+    await _supabase
+        .from('scheduled_workouts')
+        .insert(
           _manualWorkoutValues(
             input,
             scheduleId: schedule['id'] as String,
@@ -374,10 +370,7 @@ class TrainingService {
     }
 
     final scheduleId = normalizedWorkout['schedule_id'] as String;
-    await _supabase
-        .from('scheduled_workouts')
-        .delete()
-        .eq('id', workoutId);
+    await _supabase.from('scheduled_workouts').delete().eq('id', workoutId);
 
     final remaining = await _supabase
         .from('scheduled_workouts')
@@ -867,7 +860,9 @@ $upcomingSummary
     final rawNotes = activity['notes'];
     final notes = rawNotes != null && rawNotes != name ? rawNotes : 'Không có';
     final startedAtRaw = activity['started_at'];
-    final startedAtStr = startedAtRaw != null ? _dateTimeFullStr(DateTime.parse(startedAtRaw).toLocal()) : 'chưa rõ';
+    final startedAtStr = startedAtRaw != null
+        ? _dateTimeFullStr(DateTime.parse(startedAtRaw).toLocal())
+        : 'chưa rõ';
     final cadence = activity['avg_cadence'];
     final cadenceStr = cadence != null ? ', guồng chân $cadence spm' : '';
     final userPrompt =

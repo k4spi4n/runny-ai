@@ -247,9 +247,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
                   _PickerTile(
                     width: tileWidth,
                     icon: Icons.schedule,
-                    label: context.translate(
-                      'manual_workout_start_time_label',
-                    ),
+                    label: context.translate('manual_workout_start_time_label'),
                     value: _startTime.format(context),
                     onTap: _isSubmitting ? null : _pickTime,
                   ),
@@ -298,7 +296,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _workoutType,
+            initialValue: _workoutType,
             decoration: themedInputDecoration(
               context,
               context.translate('manual_workout_type_label'),

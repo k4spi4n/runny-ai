@@ -70,9 +70,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
               .select()
               .eq('schedule_id', schedule['id'])
               .order('date', ascending: true),
-        )
-            .map(TrainingService.normalizeScheduledWorkout)
-            .toList();
+        ).map(TrainingService.normalizeScheduledWorkout).toList();
 
         // Tự động chuyển sang 'completed' khi mọi buổi tập đã hoàn thành — để lịch
         // được lưu vào Lịch sử. Bao phủ cả luồng liên kết lẫn tải hoạt động.
@@ -412,14 +410,19 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                       ),
                       onAddActivity: () => _showAddActivityOptions(nextWorkout),
                       onReschedule: () => _rescheduleWorkout(nextWorkout),
-                      onEditManual:
-                          nextWorkout['source'] == 'manual'
-                              ? () => _openManualWorkout(workout: nextWorkout)
-                              : null,
-                      onDeleteManual:
-                          nextWorkout['source'] == 'manual'
-                              ? () => _deleteManualWorkout(nextWorkout)
-                              : null,
+                      onScheduleChanged: (workoutAt, leadMinutes, enabled) =>
+                          _rescheduleWorkoutAt(
+                            workout: nextWorkout,
+                            workoutAt: workoutAt,
+                            leadMinutes: leadMinutes,
+                            enabled: enabled,
+                          ),
+                      onEditManual: nextWorkout['source'] == 'manual'
+                          ? () => _openManualWorkout(workout: nextWorkout)
+                          : null,
+                      onDeleteManual: nextWorkout['source'] == 'manual'
+                          ? () => _deleteManualWorkout(nextWorkout)
+                          : null,
                       onWarmUp: () => _askWarmUp(nextWorkout),
                       reminder: _runReminders[nextWorkout['id']],
                       onReminderChanged: (workoutAt, leadMinutes, enabled) =>
@@ -463,14 +466,20 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                           ),
                           onAddActivity: () => _showAddActivityOptions(workout),
                           onReschedule: () => _rescheduleWorkout(workout),
-                          onEditManual:
-                              workout['source'] == 'manual'
-                                  ? () => _openManualWorkout(workout: workout)
-                                  : null,
-                          onDeleteManual:
-                              workout['source'] == 'manual'
-                                  ? () => _deleteManualWorkout(workout)
-                                  : null,
+                          onScheduleChanged:
+                              (workoutAt, leadMinutes, enabled) =>
+                                  _rescheduleWorkoutAt(
+                                    workout: workout,
+                                    workoutAt: workoutAt,
+                                    leadMinutes: leadMinutes,
+                                    enabled: enabled,
+                                  ),
+                          onEditManual: workout['source'] == 'manual'
+                              ? () => _openManualWorkout(workout: workout)
+                              : null,
+                          onDeleteManual: workout['source'] == 'manual'
+                              ? () => _deleteManualWorkout(workout)
+                              : null,
                           reminder: _runReminders[workout['id']],
                           onReminderChanged:
                               (workoutAt, leadMinutes, enabled) =>
@@ -530,28 +539,6 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         SnackBar(content: Text('${context.translate('reminder_error')}: $e')),
       );
     }
-  }
-
-  DateTime _workoutAtForDate(Map<String, dynamic> workout, DateTime date) {
-    final reminder = _runReminders[workout['id']];
-    final current = reminder?.workoutAt;
-    final startTime = _timeParts(workout['start_time']?.toString());
-    return DateTime(
-      date.year,
-      date.month,
-      date.day,
-      current?.hour ?? startTime.$1,
-      current?.minute ?? startTime.$2,
-    );
-  }
-
-  (int, int) _timeParts(String? raw) {
-    if (raw == null || raw.isEmpty) return (6, 0);
-    final parts = raw.split(':');
-    if (parts.length < 2) return (6, 0);
-    final hour = int.tryParse(parts[0]) ?? 6;
-    final minute = int.tryParse(parts[1]) ?? 0;
-    return (hour.clamp(0, 23).toInt(), minute.clamp(0, 59).toInt());
   }
 
   Widget _buildCompletionBanner(BuildContext context) {
@@ -925,6 +912,42 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       default:
         return Icons.directions_run;
     }
+  }
+
+  Future<void> _rescheduleWorkout(Map<String, dynamic> workout) async {
+    final currentDate = DateTime.parse(workout['date'] as String);
+    final firstDate = DateTime.now().subtract(const Duration(days: 365));
+    final lastDate = DateTime.now().add(const Duration(days: 365));
+    final initialDate = currentDate.isBefore(firstDate)
+        ? firstDate
+        : currentDate.isAfter(lastDate)
+        ? lastDate
+        : currentDate;
+
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
+    );
+
+    if (selectedDate == null || !mounted) return;
+
+    final reminder = _runReminders[workout['id']];
+    final workoutAt = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      reminder?.workoutAt.hour ?? 6,
+      reminder?.workoutAt.minute ?? 0,
+    );
+
+    await _rescheduleWorkoutAt(
+      workout: workout,
+      workoutAt: workoutAt,
+      leadMinutes: reminder?.leadMinutes ?? 15,
+      enabled: reminder?.enabled ?? false,
+    );
   }
 
   /// Đổi ngày buổi tập và giờ nhắc trong cùng một thao tác.
