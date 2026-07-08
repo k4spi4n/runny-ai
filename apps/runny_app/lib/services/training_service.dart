@@ -104,13 +104,15 @@ class TrainingService {
     final scheduleId = placeholder['id'] as String;
 
     // Fire-and-forget: chạy nền, không await để người dùng có thể rời màn hình.
-    unawaited(_runGeneration(
-      scheduleId: scheduleId,
-      userId: user.id,
-      goal: goal,
-      startDate: startDate,
-      endDate: endDate,
-    ));
+    unawaited(
+      _runGeneration(
+        scheduleId: scheduleId,
+        userId: user.id,
+        goal: goal,
+        startDate: startDate,
+        endDate: endDate,
+      ),
+    );
   }
 
   Future<void> _runGeneration({
@@ -214,7 +216,8 @@ Phản hồi của bạn PHẢI là một đối tượng JSON có cấu trúc n
         ? 'Ngày kết thúc mong muốn: ${_dateOnly(endDate)} (khoảng ${endDate.difference(startDate).inDays} ngày kể từ ngày bắt đầu). Hãy phân bổ buổi tập trong khoảng này.'
         : 'Người dùng không chỉ định ngày kết thúc — hãy tự chọn số tuần ("weeks") hợp lý cho mục tiêu.';
 
-    final userContext = '''
+    final userContext =
+        '''
 Mục tiêu người dùng: $goal
 Ngày bắt đầu: ${_dateOnly(startDate)}
 $durationConstraint
@@ -242,12 +245,14 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
 
   String _summariseActivities(List<dynamic> activities) {
     if (activities.isEmpty) return 'Chưa có dữ liệu hoạt động.';
-    return activities.map((a) {
-      final dist = (a['distance_km'] as num?)?.toDouble() ?? 0;
-      final dur = (a['duration_min'] as num?)?.toDouble() ?? 0;
-      final pace = dist > 0 ? (dur / dist).toStringAsFixed(2) : 'N/A';
-      return 'Quãng đường: ${dist}km, Pace: $pace';
-    }).join('; ');
+    return activities
+        .map((a) {
+          final dist = (a['distance_km'] as num?)?.toDouble() ?? 0;
+          final dur = (a['duration_min'] as num?)?.toDouble() ?? 0;
+          final pace = dist > 0 ? (dur / dist).toStringAsFixed(2) : 'N/A';
+          return 'Quãng đường: ${dist}km, Pace: $pace';
+        })
+        .join('; ');
   }
 
   /// Lưu lịch tập vào Supabase. Nếu [scheduleId] có giá trị thì cập nhật bản
@@ -266,10 +271,14 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
     final values = {
       'user_id': userId,
       'title': planJson['title'] ?? 'Lịch tập của bạn',
-      'target_distance_km':
-          _safeNumeric(planJson['target_distance_km'], max: 99999.99),
-      'target_pace_min_per_km':
-          _safeNumeric(planJson['target_pace_min_per_km'], max: 999.99),
+      'target_distance_km': _safeNumeric(
+        planJson['target_distance_km'],
+        max: 99999.99,
+      ),
+      'target_pace_min_per_km': _safeNumeric(
+        planJson['target_pace_min_per_km'],
+        max: 999.99,
+      ),
       'goal_description': goal,
       'start_date': _dateOnly(startDate),
       'end_date': _dateOnly(computedEnd),
@@ -307,12 +316,18 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
         'date': _dateOnly(startDate.add(Duration(days: offset))),
         'title': w['title'],
         'description': w['description'],
-        'target_distance_km':
-            _safeNumeric(w['target_distance_km'], max: 99999.99),
-        'target_duration_min':
-            _safeNumeric(w['target_duration_min'], max: 99999.99),
-        'target_pace_min_per_km':
-            _safeNumeric(w['target_pace_min_per_km'], max: 999.99),
+        'target_distance_km': _safeNumeric(
+          w['target_distance_km'],
+          max: 99999.99,
+        ),
+        'target_duration_min': _safeNumeric(
+          w['target_duration_min'],
+          max: 99999.99,
+        ),
+        'target_pace_min_per_km': _safeNumeric(
+          w['target_pace_min_per_km'],
+          max: 999.99,
+        ),
         'status': 'planned',
       };
     }).toList();
@@ -344,11 +359,13 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
       return const PlanAdjustmentProposal(adjustments: []);
     }
 
-    final workouts = List<Map<String, dynamic>>.from(await _supabase
-        .from('scheduled_workouts')
-        .select()
-        .eq('schedule_id', activeSchedule['id'])
-        .order('date', ascending: true));
+    final workouts = List<Map<String, dynamic>>.from(
+      await _supabase
+          .from('scheduled_workouts')
+          .select()
+          .eq('schedule_id', activeSchedule['id'])
+          .order('date', ascending: true),
+    );
 
     // Căn cứ điều chỉnh = các buổi đã hoàn thành và có hoạt động thực tế đính kèm.
     final completed = workouts
@@ -358,19 +375,18 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
       throw NoCompletedWorkoutException();
     }
 
-    final upcoming =
-        workouts.where((w) => w['status'] == 'planned').toList();
+    final upcoming = workouts.where((w) => w['status'] == 'planned').toList();
     if (upcoming.isEmpty) {
       return const PlanAdjustmentProposal(adjustments: []);
     }
 
     // Nạp hoạt động thực tế của các buổi đã hoàn thành để so sánh kế hoạch vs thực tế.
-    final activityIds =
-        completed.map((w) => w['activity_id'] as String).toList();
-    final activities = List<Map<String, dynamic>>.from(await _supabase
-        .from('activities')
-        .select()
-        .inFilter('id', activityIds));
+    final activityIds = completed
+        .map((w) => w['activity_id'] as String)
+        .toList();
+    final activities = List<Map<String, dynamic>>.from(
+      await _supabase.from('activities').select().inFilter('id', activityIds),
+    );
     final activityById = {for (final a in activities) a['id'] as String: a};
 
     const systemPrompt = '''
@@ -391,18 +407,23 @@ Phản hồi của bạn PHẢI là một đối tượng JSON:
 }
 ''';
 
-    final completedSummary = completed.map((w) {
-      final act = activityById[w['activity_id']];
-      final planned = _formatWorkoutTargets(w);
-      final actual = act == null ? 'không rõ' : _formatActivityActual(act);
-      return '- ${w['title']} (${w['date']}): kế hoạch [$planned], thực tế [$actual]';
-    }).join('\n');
+    final completedSummary = completed
+        .map((w) {
+          final act = activityById[w['activity_id']];
+          final planned = _formatWorkoutTargets(w);
+          final actual = act == null ? 'không rõ' : _formatActivityActual(act);
+          return '- ${w['title']} (${w['date']}): kế hoạch [$planned], thực tế [$actual]';
+        })
+        .join('\n');
 
-    final upcomingSummary = upcoming.map((w) {
-      return '- id ${w['id']}: ${w['title']} vào ${w['date']}, mục tiêu [${_formatWorkoutTargets(w)}]';
-    }).join('\n');
+    final upcomingSummary = upcoming
+        .map((w) {
+          return '- id ${w['id']}: ${w['title']} vào ${w['date']}, mục tiêu [${_formatWorkoutTargets(w)}]';
+        })
+        .join('\n');
 
-    final context = '''
+    final context =
+        '''
 Lịch tập hiện tại: ${activeSchedule['title']}
 Các buổi đã hoàn thành (kế hoạch vs thực tế):
 $completedSummary
@@ -411,8 +432,10 @@ Các buổi tập sắp tới (có thể điều chỉnh):
 $upcomingSummary
 ''';
 
-    final json =
-        await _gemini.generateStructuredResponse(context, systemPrompt);
+    final json = await _gemini.generateStructuredResponse(
+      context,
+      systemPrompt,
+    );
 
     final byId = {for (final w in workouts) w['id'] as String: w};
     final adjustments = <WorkoutAdjustment>[];
@@ -430,8 +453,10 @@ $upcomingSummary
           currentDate: current['date'] as String?,
           currentDistanceKm: current['target_distance_km'] as num?,
           newDate: _validDate(adj['new_date']),
-          newDistanceKm:
-              _safeNumeric(adj['new_target_distance_km'], max: 99999.99),
+          newDistanceKm: _safeNumeric(
+            adj['new_target_distance_km'],
+            max: 99999.99,
+          ),
           reason: adj['reason']?.toString() ?? '',
         );
         // Chỉ giữ buổi có thay đổi thực sự để preview không hiện mục thừa.
@@ -500,8 +525,11 @@ $upcomingSummary
 
     final systemPrompt =
         'Bạn là Huấn luyện viên Chạy bộ Ảo. Hãy phân tích buổi tập này và đưa ra nhận xét ngắn gọn, khích lệ.';
+    final name = activity['name'] ?? activity['notes'] ?? 'Buổi tập';
+    final rawNotes = activity['notes'];
+    final notes = rawNotes != null && rawNotes != name ? rawNotes : 'Không có';
     final userPrompt =
-        'Buổi tập: ${activity['distance_km']}km, thời gian ${activity['duration_min']} phút, nhịp tim ${activity['avg_hr']} bpm. Ghi chú: ${activity['notes']}';
+        'Buổi tập "$name": ${activity['distance_km']}km, thời gian ${activity['duration_min']} phút, nhịp tim ${activity['avg_hr']} bpm. Ghi chú: $notes';
 
     final insight = await _gemini.generateResponse(
       userPrompt,

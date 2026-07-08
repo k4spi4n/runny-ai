@@ -1567,7 +1567,9 @@ class _OverviewContentState extends State<OverviewContent> {
                           ),
                         ),
                         title: Text(
-                          activity.notes ?? context.translate('run_activity'),
+                          activity.name ??
+                              activity.notes ??
+                              context.translate('run_activity'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

@@ -42,8 +42,10 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   final _durationController = TextEditingController();
   final _avgHrController = TextEditingController();
   final _elevationController = TextEditingController();
+  final _nameController = TextEditingController();
   final _notesController = TextEditingController();
   final _screenshotFormKey = GlobalKey<FormState>();
+  final _screenshotNameController = TextEditingController();
   final _screenshotDistanceController = TextEditingController();
   final _screenshotDurationController = TextEditingController();
   final _screenshotAvgHrController = TextEditingController();
@@ -64,7 +66,9 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     _durationController.dispose();
     _avgHrController.dispose();
     _elevationController.dispose();
+    _nameController.dispose();
     _notesController.dispose();
+    _screenshotNameController.dispose();
     _screenshotDistanceController.dispose();
     _screenshotDurationController.dispose();
     _screenshotAvgHrController.dispose();
@@ -236,7 +240,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
             resultFromAi.activity.elevationGainM != null
             ? _formatNumber(resultFromAi.activity.elevationGainM!)
             : '';
-        _screenshotNotesController.text = _defaultScreenshotName(file.name, l);
+        _screenshotNameController.text = _defaultScreenshotName(file.name, l);
+        _screenshotNotesController.text = resultFromAi.notes ?? '';
         _statusMessage =
             l?.translate('screenshot_preview_ready') ??
             'screenshot_preview_ready';
@@ -282,9 +287,10 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     final elevation = double.tryParse(
       _screenshotElevationController.text.trim().replaceAll(',', '.'),
     );
-    final notes = _screenshotNotesController.text.trim().isNotEmpty
-        ? _screenshotNotesController.text.trim()
+    final name = _screenshotNameController.text.trim().isNotEmpty
+        ? _screenshotNameController.text.trim()
         : _defaultScreenshotName(_screenshotFilename ?? '', l);
+    final notes = _screenshotNotesController.text.trim();
 
     try {
       setState(() {
@@ -299,7 +305,11 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         avgHr: avgHr != null && avgHr > 0 ? avgHr : null,
         elevationGainM: elevation,
       );
-      final outcome = await _saveParsedActivity(parsed: parsed, notes: notes);
+      final outcome = await _saveParsedActivity(
+        parsed: parsed,
+        name: name,
+        notes: notes.isEmpty ? null : notes,
+      );
 
       if (outcome.$1 == _ImportOutcome.duplicate) {
         setState(() {
@@ -363,13 +373,14 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
 
     return _saveParsedActivity(
       parsed: parsed,
-      notes: l?.translate('imported_from', [file.name]) ?? 'imported_from',
+      name: l?.translate('imported_from', [file.name]) ?? 'imported_from',
     );
   }
 
   Future<(_ImportOutcome, String?)> _saveParsedActivity({
     required ParsedActivity parsed,
-    required String notes,
+    required String name,
+    String? notes,
   }) async {
     final uid = Supabase.instance.client.auth.currentUser!.id;
     final startedIso = parsed.startedAt.toIso8601String();
@@ -414,6 +425,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           'aqi': weather?.aqi,
           'weather_json': weather?.toJson(),
           'weather_fetched_at': weather?.fetchedAt.toIso8601String(),
+          'name': name,
           'notes': notes,
           if (_selectedShoeId != null) 'shoe_id': _selectedShoeId,
         })
@@ -450,6 +462,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     final elevation = double.tryParse(
       _elevationController.text.trim().replaceAll(',', '.'),
     );
+    final name = _nameController.text.trim();
     final notes = _notesController.text.trim();
 
     try {
@@ -483,9 +496,10 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
             'duration_min': duration,
             if (avgHr != null && avgHr > 0) 'avg_hr': avgHr,
             'elevation_gain_m': ?elevation,
-            'notes': notes.isNotEmpty
-                ? notes
+            'name': name.isNotEmpty
+                ? name
                 : (l?.translate('manual_logged_note') ?? 'manual_logged_note'),
+            'notes': notes.isEmpty ? null : notes,
             if (_selectedShoeId != null) 'shoe_id': _selectedShoeId,
           })
           .select('id')
@@ -736,6 +750,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     _screenshotDurationController.clear();
     _screenshotAvgHrController.clear();
     _screenshotElevationController.clear();
+    _screenshotNameController.clear();
     _screenshotNotesController.clear();
     _screenshotStartedAt = DateTime.now();
   }
@@ -879,6 +894,15 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           ),
           const SizedBox(height: 16),
           TextFormField(
+            controller: _screenshotNameController,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('activity_name'),
+              icon: Icons.title,
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
             controller: _screenshotDistanceController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: themedInputDecoration(
@@ -941,7 +965,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
             maxLines: 2,
             decoration: themedInputDecoration(
               context,
-              context.translate('activity_name_or_notes'),
+              context.translate('notes_optional'),
               icon: Icons.notes,
             ),
           ),
@@ -991,6 +1015,15 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                 icon: Icons.calendar_today,
               ),
               child: Text(dateLabel, style: theme.textTheme.bodyLarge),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _nameController,
+            decoration: themedInputDecoration(
+              context,
+              context.translate('activity_name'),
+              icon: Icons.title,
             ),
           ),
           const SizedBox(height: 16),

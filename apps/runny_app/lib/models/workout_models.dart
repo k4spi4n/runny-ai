@@ -6,6 +6,7 @@ class Activity {
   final double durationMin;
   final int? avgHr;
   final double? elevationGainM;
+  final String? name;
   final String? notes;
   final Map<String, dynamic>? dataPoints;
   final double? startLat;
@@ -25,6 +26,7 @@ class Activity {
     required this.durationMin,
     this.avgHr,
     this.elevationGainM,
+    this.name,
     this.notes,
     this.dataPoints,
     this.startLat,
@@ -48,6 +50,7 @@ class Activity {
       elevationGainM: json['elevation_gain_m'] != null
           ? (json['elevation_gain_m'] as num).toDouble()
           : null,
+      name: json['name'] ?? json['notes'],
       notes: json['notes'],
       dataPoints: json['data_points'],
       startLat: (json['start_lat'] as num?)?.toDouble(),
@@ -72,6 +75,7 @@ class Activity {
       'duration_min': durationMin,
       'avg_hr': avgHr,
       'elevation_gain_m': elevationGainM,
+      'name': name,
       'notes': notes,
       'data_points': dataPoints,
       'start_lat': startLat,

@@ -94,9 +94,11 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   }
 
   // Calculate statistics for the filtered range
-  double get _totalDistance => _filteredActivities.fold(0.0, (sum, a) => sum + a.distanceKm);
-  double get _totalDuration => _filteredActivities.fold(0.0, (sum, a) => sum + a.durationMin);
-  
+  double get _totalDistance =>
+      _filteredActivities.fold(0.0, (sum, a) => sum + a.distanceKm);
+  double get _totalDuration =>
+      _filteredActivities.fold(0.0, (sum, a) => sum + a.durationMin);
+
   double get _avgPace {
     final dist = _totalDistance;
     if (dist == 0) return 0.0;
@@ -104,13 +106,18 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   }
 
   double get _avgHr {
-    final hrs = _filteredActivities.where((a) => a.avgHr != null).map((a) => a.avgHr!).toList();
+    final hrs = _filteredActivities
+        .where((a) => a.avgHr != null)
+        .map((a) => a.avgHr!)
+        .toList();
     if (hrs.isEmpty) return 0.0;
     return hrs.reduce((a, b) => a + b) / hrs.length;
   }
 
   String _formatPace(double paceDecimal) {
-    if (paceDecimal == 0 || paceDecimal.isInfinite || paceDecimal.isNaN) return "-:--";
+    if (paceDecimal == 0 || paceDecimal.isInfinite || paceDecimal.isNaN) {
+      return "-:--";
+    }
     int minutes = paceDecimal.floor();
     int seconds = ((paceDecimal - minutes) * 60).round();
     return "$minutes:${seconds.toString().padLeft(2, '0')}";
@@ -142,7 +149,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
         }
       }
 
-      final sortedWeekdays = List.generate(7, (index) => now.subtract(Duration(days: 6 - index)).weekday);
+      final sortedWeekdays = List.generate(
+        7,
+        (index) => now.subtract(Duration(days: 6 - index)).weekday,
+      );
       return List.generate(7, (index) {
         final weekday = sortedWeekdays[index];
         final val = dailyData[weekday] ?? 0.0;
@@ -168,7 +178,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
       final List<DateTime> weekStarts = [];
       final now = DateTime.now();
 
-      int weeksToCalculate = _selectedRange == '30' ? 4 : (_selectedRange == '90' ? 12 : 24);
+      int weeksToCalculate = _selectedRange == '30'
+          ? 4
+          : (_selectedRange == '90' ? 12 : 24);
       for (int i = 0; i < weeksToCalculate; i++) {
         final date = now.subtract(Duration(days: now.weekday - 1 + (i * 7)));
         final key = DateFormat('yyyy-MM-dd').format(date);
@@ -177,7 +189,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
       }
 
       for (var a in filtered) {
-        final actMonday = a.startedAt.subtract(Duration(days: a.startedAt.weekday - 1));
+        final actMonday = a.startedAt.subtract(
+          Duration(days: a.startedAt.weekday - 1),
+        );
         final key = DateFormat('yyyy-MM-dd').format(actMonday);
         if (weeklyData.containsKey(key)) {
           weeklyData[key] = weeklyData[key]! + a.distanceKm;
@@ -224,11 +238,16 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
       final List<dynamic>? hrs = a.dataPoints?['hrs'];
       final List<dynamic>? times = a.dataPoints?['times'];
 
-      if (hrs != null && times != null && hrs.length == times.length && hrs.isNotEmpty) {
+      if (hrs != null &&
+          times != null &&
+          hrs.length == times.length &&
+          hrs.isNotEmpty) {
         for (int i = 0; i < hrs.length; i++) {
           final hr = (hrs[i] as num).toInt();
-          final interval = (i == 0) ? 1 : ((times[i] as num) - (times[i - 1] as num)).toInt();
-          
+          final interval = (i == 0)
+              ? 1
+              : ((times[i] as num) - (times[i - 1] as num)).toInt();
+
           int zone = 1;
           if (hr >= z4Max) {
             zone = 5;
@@ -267,7 +286,15 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
 
   // VO2 Max & Race Predictor Calculations
   double _estimateVo2Max() {
-    final runsWithHr = _activities.where((a) => a.avgHr != null && a.avgHr! > 100 && a.distanceKm > 0 && a.durationMin > 0).toList();
+    final runsWithHr = _activities
+        .where(
+          (a) =>
+              a.avgHr != null &&
+              a.avgHr! > 100 &&
+              a.distanceKm > 0 &&
+              a.durationMin > 0,
+        )
+        .toList();
     if (runsWithHr.isEmpty) return 40.0; // Standard baseline VO2 Max
 
     double bestVo2 = 0.0;
@@ -293,12 +320,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
     final tHalf = 1880.8 / (_mathPow(vo2max, 0.72));
     final tFull = 4232.1 / (_mathPow(vo2max, 0.74));
 
-    return {
-      '5K': t5,
-      '10K': t10,
-      '21K': tHalf,
-      '42K': tFull,
-    };
+    return {'5K': t5, '10K': t10, '21K': tHalf, '42K': tFull};
   }
 
   // Custom power math utility
@@ -356,7 +378,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: colorScheme.surface,
-          title: Text(context.translate('add_shoe'), style: TextStyle(color: colorScheme.onSurface)),
+          title: Text(
+            context.translate('add_shoe'),
+            style: TextStyle(color: colorScheme.onSurface),
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -364,19 +389,28 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                 TextField(
                   controller: nameController,
                   style: TextStyle(color: colorScheme.onSurface),
-                  decoration: themedInputDecoration(context, context.translate('shoe_name')),
+                  decoration: themedInputDecoration(
+                    context,
+                    context.translate('shoe_name'),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: brandController,
                   style: TextStyle(color: colorScheme.onSurface),
-                  decoration: themedInputDecoration(context, context.translate('brand')),
+                  decoration: themedInputDecoration(
+                    context,
+                    context.translate('brand'),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: modelController,
                   style: TextStyle(color: colorScheme.onSurface),
-                  decoration: themedInputDecoration(context, context.translate('model')),
+                  decoration: themedInputDecoration(
+                    context,
+                    context.translate('model'),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -408,22 +442,29 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(context.translate('cancel'), style: TextStyle(color: colorScheme.onSurfaceVariant)),
+              child: Text(
+                context.translate('cancel'),
+                style: TextStyle(color: colorScheme.onSurfaceVariant),
+              ),
             ),
             TextButton(
               onPressed: () async {
                 final name = nameController.text.trim();
                 if (name.isEmpty) return;
                 Navigator.pop(context);
-                
+
                 final userId = _supabase.auth.currentUser?.id;
                 if (userId == null) return;
 
                 final newShoe = Shoe(
                   userId: userId,
                   name: name,
-                  brand: brandController.text.trim().isEmpty ? null : brandController.text.trim(),
-                  model: modelController.text.trim().isEmpty ? null : modelController.text.trim(),
+                  brand: brandController.text.trim().isEmpty
+                      ? null
+                      : brandController.text.trim(),
+                  model: modelController.text.trim().isEmpty
+                      ? null
+                      : modelController.text.trim(),
                   acquiredAt: acquiredDate,
                 );
 
@@ -436,7 +477,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                   setState(() => _isLoading = false);
                 }
               },
-              child: Text(context.translate('save'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              child: Text(
+                context.translate('save'),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -490,7 +534,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
               DropdownButton<String>(
                 value: _selectedRange,
                 dropdownColor: colorScheme.surface,
-                style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.bold,
+                ),
                 underline: const SizedBox(),
                 icon: Icon(Icons.tune, color: colorScheme.primary, size: 20),
                 onChanged: (String? newValue) {
@@ -499,10 +546,22 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                   }
                 },
                 items: [
-                  DropdownMenuItem(value: '7', child: Text(context.translate('filter_7d'))),
-                  DropdownMenuItem(value: '30', child: Text(context.translate('filter_30d'))),
-                  DropdownMenuItem(value: '90', child: Text(context.translate('filter_90d'))),
-                  DropdownMenuItem(value: 'all', child: Text(context.translate('filter_all'))),
+                  DropdownMenuItem(
+                    value: '7',
+                    child: Text(context.translate('filter_7d')),
+                  ),
+                  DropdownMenuItem(
+                    value: '30',
+                    child: Text(context.translate('filter_30d')),
+                  ),
+                  DropdownMenuItem(
+                    value: '90',
+                    child: Text(context.translate('filter_90d')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'all',
+                    child: Text(context.translate('filter_all')),
+                  ),
                 ],
               ),
             ],
@@ -526,7 +585,8 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
               ),
               _buildMiniStatCard(
                 title: context.translate('sessions'),
-                value: '${filtered.length} ${context.translate('run_count').toLowerCase()}',
+                value:
+                    '${filtered.length} ${context.translate('run_count').toLowerCase()}',
                 icon: Icons.directions_run,
                 gradient: secondaryPulseGradient,
               ),
@@ -554,12 +614,21 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.query_stats_rounded, size: 48, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3)),
+                    Icon(
+                      Icons.query_stats_rounded,
+                      size: 48,
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.3,
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     Text(
                       context.translate('no_data_range'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 15),
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 15,
+                      ),
                     ),
                   ],
                 ),
@@ -614,10 +683,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
       child: Text(
         title,
         style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
       ),
     );
   }
@@ -697,8 +766,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
             ),
             titlesData: FlTitlesData(
               show: true,
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
               bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
@@ -708,7 +781,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                     String label = '';
                     if (_selectedRange == '7') {
                       final now = DateTime.now();
-                      final sortedWeekdays = List.generate(7, (index) => now.subtract(Duration(days: 6 - index)));
+                      final sortedWeekdays = List.generate(
+                        7,
+                        (index) => now.subtract(Duration(days: 6 - index)),
+                      );
                       if (val >= 0 && val < 7) {
                         label = DateFormat('E').format(sortedWeekdays[val]);
                       }
@@ -719,7 +795,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                       axisSide: meta.axisSide,
                       child: Text(
                         label,
-                        style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6), fontSize: 10),
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.6,
+                          ),
+                          fontSize: 10,
+                        ),
                       ),
                     );
                   },
@@ -734,7 +815,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                       axisSide: meta.axisSide,
                       child: Text(
                         '${value.toStringAsFixed(0)}k',
-                        style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6), fontSize: 10),
+                        style: TextStyle(
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.6,
+                          ),
+                          fontSize: 10,
+                        ),
                       ),
                     );
                   },
@@ -748,7 +834,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                 getTooltipItem: (group, groupIndex, rod, rodIndex) {
                   return BarTooltipItem(
                     '${rod.toY.toStringAsFixed(1)} km',
-                    const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   );
                 },
               ),
@@ -791,10 +880,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
       final zoneNum = index + 1;
       final pct = zones[zoneNum] ?? 0.0;
       final meta = zoneMeta[index];
-      
+
       final isTouched = index == _touchedHrZoneIndex;
       final radius = isTouched ? 48.0 : 40.0;
-      
+
       return PieChartSectionData(
         color: meta['color'] as Color,
         value: pct > 0 ? pct * 100 : 0.01,
@@ -833,7 +922,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                               _touchedHrZoneIndex = -1;
                               return;
                             }
-                            _touchedHrZoneIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                            _touchedHrZoneIndex = pieTouchResponse
+                                .touchedSection!
+                                .touchedSectionIndex;
                           });
                         },
                       ),
@@ -860,20 +951,31 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                           Container(
                             width: 10,
                             height: 10,
-                            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               label,
-                              style: TextStyle(color: colorScheme.onSurface, fontSize: 11, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                color: colorScheme.onSurface,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           Text(
                             '${(pct * 100).toStringAsFixed(1)}%',
-                            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
@@ -906,8 +1008,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
               TextButton(
                 onPressed: () => setState(() => _selectedTrendTab = 'pace'),
                 style: TextButton.styleFrom(
-                  backgroundColor: _selectedTrendTab == 'pace' ? colorScheme.primary.withValues(alpha: 0.15) : Colors.transparent,
-                  foregroundColor: _selectedTrendTab == 'pace' ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                  backgroundColor: _selectedTrendTab == 'pace'
+                      ? colorScheme.primary.withValues(alpha: 0.15)
+                      : Colors.transparent,
+                  foregroundColor: _selectedTrendTab == 'pace'
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
                 ),
                 child: Text(context.translate('pace_trend')),
               ),
@@ -915,8 +1021,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
               TextButton(
                 onPressed: () => setState(() => _selectedTrendTab = 'hr'),
                 style: TextButton.styleFrom(
-                  backgroundColor: _selectedTrendTab == 'hr' ? colorScheme.primary.withValues(alpha: 0.15) : Colors.transparent,
-                  foregroundColor: _selectedTrendTab == 'hr' ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                  backgroundColor: _selectedTrendTab == 'hr'
+                      ? colorScheme.primary.withValues(alpha: 0.15)
+                      : Colors.transparent,
+                  foregroundColor: _selectedTrendTab == 'hr'
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
                 ),
                 child: Text(context.translate('hr_trend')),
               ),
@@ -937,8 +1047,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                 ),
                 titlesData: FlTitlesData(
                   show: true,
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -949,7 +1063,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                           axisSide: meta.axisSide,
                           child: Text(
                             'Run ${value.toInt() + 1}',
-                            style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6), fontSize: 9),
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant.withValues(
+                                alpha: 0.6,
+                              ),
+                              fontSize: 9,
+                            ),
                           ),
                         );
                       },
@@ -970,7 +1089,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                           axisSide: meta.axisSide,
                           child: Text(
                             label,
-                            style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6), fontSize: 9),
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant.withValues(
+                                alpha: 0.6,
+                              ),
+                              fontSize: 9,
+                            ),
                           ),
                         );
                       },
@@ -982,7 +1106,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                   LineChartBarData(
                     spots: spots,
                     isCurved: true,
-                    gradient: _selectedTrendTab == 'pace' ? secondaryPulseGradient : accentPulseGradient,
+                    gradient: _selectedTrendTab == 'pace'
+                        ? secondaryPulseGradient
+                        : accentPulseGradient,
                     barWidth: 3,
                     isStrokeCapRound: true,
                     dotData: const FlDotData(show: true),
@@ -1009,10 +1135,15 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                     getTooltipColor: (group) => const Color(0xFF1E2640),
                     getTooltipItems: (touchedSpots) {
                       return touchedSpots.map((spot) {
-                        final valStr = _selectedTrendTab == 'pace' ? _formatPace(spot.y) : '${spot.y.toStringAsFixed(0)} bpm';
+                        final valStr = _selectedTrendTab == 'pace'
+                            ? _formatPace(spot.y)
+                            : '${spot.y.toStringAsFixed(0)} bpm';
                         return LineTooltipItem(
                           'Run ${spot.x.toInt() + 1}\n$valStr',
-                          const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         );
                       }).toList();
                     },
@@ -1042,25 +1173,42 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
             children: [
               Text(
                 context.translate('estimated_vo2max'),
-                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   gradient: accentPulseGradient,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '${vo2max.toStringAsFixed(1)} ml/kg/min',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            context.translate('vo2max_progress_msg', [vo2max.toStringAsFixed(1)]),
-            style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7), fontSize: 11, fontStyle: FontStyle.italic),
+            context.translate('vo2max_progress_msg', [
+              vo2max.toStringAsFixed(1),
+            ]),
+            style: TextStyle(
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              fontSize: 11,
+              fontStyle: FontStyle.italic,
+            ),
           ),
           const SizedBox(height: 16),
           const Divider(height: 1),
@@ -1073,12 +1221,20 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                   children: [
                     Text(
                       entry.key,
-                      style: TextStyle(color: colorScheme.primary, fontSize: 12, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       _formatPredictedTime(entry.value),
-                      style: TextStyle(color: colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: colorScheme.onSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -1102,7 +1258,11 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
           children: [
             Text(
               context.translate('active_shoes'),
-              style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             IconButton(
               icon: Icon(Icons.add_circle, color: colorScheme.primary),
@@ -1118,7 +1278,11 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
             child: Center(
               child: Text(
                 context.translate('no_shoes_yet'),
-                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13, fontStyle: FontStyle.italic),
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ),
           ),
@@ -1131,18 +1295,29 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: glassCard(
                   context: context,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: (shoe.isActive ? colorScheme.primary : Colors.grey).withValues(alpha: 0.1),
+                          color:
+                              (shoe.isActive
+                                      ? colorScheme.primary
+                                      : Colors.grey)
+                                  .withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: FaIcon(
                           FontAwesomeIcons.shoePrints,
-                          color: shoe.isActive ? (isOverLimit ? Colors.redAccent : colorScheme.primary) : Colors.grey,
+                          color: shoe.isActive
+                              ? (isOverLimit
+                                    ? Colors.redAccent
+                                    : colorScheme.primary)
+                              : Colors.grey,
                           size: 20,
                         ),
                       ),
@@ -1160,20 +1335,31 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                                       color: colorScheme.onSurface,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 14,
-                                      decoration: shoe.isActive ? null : TextDecoration.lineThrough,
+                                      decoration: shoe.isActive
+                                          ? null
+                                          : TextDecoration.lineThrough,
                                     ),
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: (shoe.isActive ? Colors.green : Colors.grey).withValues(alpha: 0.1),
+                                    color:
+                                        (shoe.isActive
+                                                ? Colors.green
+                                                : Colors.grey)
+                                            .withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     shoe.isActive ? 'Active' : 'Retired',
                                     style: TextStyle(
-                                      color: shoe.isActive ? Colors.green : Colors.grey,
+                                      color: shoe.isActive
+                                          ? Colors.green
+                                          : Colors.grey,
                                       fontSize: 10,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -1184,7 +1370,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                             const SizedBox(height: 4),
                             Text(
                               '${shoe.brand ?? ''} ${shoe.model ?? ''} • ${context.translate('acquired_date')}: ${DateFormat('yyyy-MM-dd').format(shoe.acquiredAt)}',
-                              style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 11),
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant,
+                                fontSize: 11,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             // Mileage Progress Bar
@@ -1196,18 +1385,35 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                                       Container(
                                         height: 6,
                                         decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.05),
-                                          borderRadius: BorderRadius.circular(3),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.05,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            3,
+                                          ),
                                         ),
                                       ),
                                       Container(
                                         height: 6,
-                                        width: MediaQuery.of(context).size.width * 0.45 * (shoe.distanceKm / 500.0).clamp(0.0, 1.0),
+                                        width:
+                                            MediaQuery.of(context).size.width *
+                                            0.45 *
+                                            (shoe.distanceKm / 500.0).clamp(
+                                              0.0,
+                                              1.0,
+                                            ),
                                         decoration: BoxDecoration(
                                           gradient: isOverLimit
-                                              ? const LinearGradient(colors: [Colors.redAccent, Colors.red])
+                                              ? const LinearGradient(
+                                                  colors: [
+                                                    Colors.redAccent,
+                                                    Colors.red,
+                                                  ],
+                                                )
                                               : accentPulseGradient,
-                                          borderRadius: BorderRadius.circular(3),
+                                          borderRadius: BorderRadius.circular(
+                                            3,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -1217,7 +1423,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                                 Text(
                                   '${shoe.distanceKm.toStringAsFixed(1)} / 500 km',
                                   style: TextStyle(
-                                    color: isOverLimit ? Colors.redAccent : colorScheme.onSurfaceVariant,
+                                    color: isOverLimit
+                                        ? Colors.redAccent
+                                        : colorScheme.onSurfaceVariant,
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -1228,7 +1436,11 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                               const SizedBox(height: 6),
                               Text(
                                 context.translate('shoe_replace_warning'),
-                                style: const TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ],
@@ -1237,12 +1449,16 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                       const SizedBox(width: 10),
                       IconButton(
                         icon: Icon(
-                          shoe.isActive ? Icons.archive_outlined : Icons.unarchive_outlined,
+                          shoe.isActive
+                              ? Icons.archive_outlined
+                              : Icons.unarchive_outlined,
                           color: colorScheme.onSurfaceVariant,
                           size: 20,
                         ),
                         onPressed: () => _toggleShoeActive(shoe),
-                        tooltip: shoe.isActive ? 'Retire Shoe' : 'Reactivate Shoe',
+                        tooltip: shoe.isActive
+                            ? 'Retire Shoe'
+                            : 'Reactivate Shoe',
                       ),
                     ],
                   ),
@@ -1274,14 +1490,18 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                 final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => ActivityDetailsPage(activity: activity),
+                    builder: (context) =>
+                        ActivityDetailsPage(activity: activity),
                   ),
                 );
                 if (result == true) {
                   _fetchData();
                 }
               },
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 8,
+              ),
               leading: Container(
                 width: 44,
                 height: 44,
@@ -1289,17 +1509,32 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                   gradient: accentPulseGradient,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.run_circle, color: Colors.white, size: 24),
+                child: const Icon(
+                  Icons.run_circle,
+                  color: Colors.white,
+                  size: 24,
+                ),
               ),
               title: Text(
-                activity.notes ?? context.translate('run_activity'),
-                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
+                activity.name ??
+                    activity.notes ??
+                    context.translate('run_activity'),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
               ),
               subtitle: Text(
                 '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr',
-                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                ),
               ),
-              trailing: Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
+              trailing: Icon(
+                Icons.chevron_right,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         );
