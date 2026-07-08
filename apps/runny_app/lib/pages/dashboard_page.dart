@@ -23,6 +23,7 @@ import '../services/integration_service.dart';
 import '../services/strava_redirect.dart';
 import '../services/entitlement_service.dart';
 import '../services/payment_redirect.dart';
+import '../services/notification_navigation_service.dart';
 import '../widgets/paywall.dart';
 import '../widgets/dashboard_settings_sheet.dart';
 import '../widgets/pwa_install_button.dart';
@@ -84,6 +85,7 @@ class _DashboardPageState extends State<DashboardPage> {
       _requestLocationOnEntry();
       _handleStravaRedirect();
       _handlePaymentRedirectAndEntitlement();
+      flushPendingRunReminderNavigation();
     });
   }
 

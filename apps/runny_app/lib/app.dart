@@ -10,6 +10,7 @@ import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
 import 'l10n/language_provider.dart';
 import 'l10n/app_localizations.dart';
+import 'services/notification_navigation_service.dart';
 
 class RunnyApp extends StatelessWidget {
   const RunnyApp({super.key});
@@ -20,6 +21,7 @@ class RunnyApp extends StatelessWidget {
     final languageProvider = context.watch<LanguageProvider>();
 
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       onGenerateTitle: (context) => context.translate('app_title'),
       debugShowCheckedModeBanner: false,
       themeMode: themeProvider.themeMode,

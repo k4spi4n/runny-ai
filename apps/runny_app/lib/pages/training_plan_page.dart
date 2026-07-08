@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/run_reminder_model.dart';
+import '../services/run_reminder_service.dart';
 import '../services/training_service.dart';
 import '../services/paywall_exception.dart';
+import '../widgets/run_timer_panel.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/paywall.dart';
 import 'create_training_plan_page.dart';
@@ -26,9 +29,11 @@ class TrainingPlanPage extends StatefulWidget {
 class _TrainingPlanPageState extends State<TrainingPlanPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   final TrainingService _trainingService = TrainingService();
+  final RunReminderService _reminderService = RunReminderService();
   bool _isLoading = true;
   Map<String, dynamic>? _activeSchedule;
   List<Map<String, dynamic>> _workouts = [];
+  Map<String, RunReminder> _runReminders = {};
 
   @override
   void initState() {
@@ -56,12 +61,16 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           .maybeSingle();
 
       List<Map<String, dynamic>> workouts = [];
+      Map<String, RunReminder> reminders = {};
       if (schedule != null && (schedule['status'] == 'active' || schedule['status'] == 'completed')) {
         workouts = List<Map<String, dynamic>>.from(await _supabase
             .from('scheduled_workouts')
             .select()
             .eq('schedule_id', schedule['id'])
             .order('date', ascending: true));
+        reminders = await _reminderService.remindersForWorkouts(
+          workouts.map((w) => w['id'] as String).toList(),
+        );
 
         // Tự động chuyển sang 'completed' khi mọi buổi tập đã hoàn thành — để lịch
         // được lưu vào Lịch sử. Bao phủ cả luồng liên kết lẫn tải hoạt động.
@@ -80,6 +89,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         setState(() {
           _activeSchedule = schedule;
           _workouts = workouts;
+          _runReminders = reminders;
         });
       }
     } catch (e) {
@@ -330,7 +340,16 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                       onAddActivity: () => _showAddActivityOptions(nextWorkout),
                       onReschedule: () => _rescheduleWorkout(nextWorkout),
                       onWarmUp: () => _askWarmUp(nextWorkout),
+                      reminder: _runReminders[nextWorkout['id']],
+                      onReminderChanged: (workoutAt, leadMinutes, enabled) =>
+                          _saveReminder(
+                        workout: nextWorkout,
+                        workoutAt: workoutAt,
+                        leadMinutes: leadMinutes,
+                        enabled: enabled,
+                      ),
                       initiallyExpanded: true,
+                      showTimer: true,
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -354,6 +373,15 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                                 isNext: isNext, isLast: isLast),
                             onAddActivity: () => _showAddActivityOptions(workout),
                             onReschedule: () => _rescheduleWorkout(workout),
+                            reminder: _runReminders[workout['id']],
+                            onReminderChanged:
+                                (workoutAt, leadMinutes, enabled) =>
+                                    _saveReminder(
+                              workout: workout,
+                              workoutAt: workoutAt,
+                              leadMinutes: leadMinutes,
+                              enabled: enabled,
+                            ),
                           ),
                         );
                       },
@@ -375,6 +403,50 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => AICoachPage(initialPrompt: prompt)),
+    );
+  }
+
+  Future<void> _saveReminder({
+    required Map<String, dynamic> workout,
+    required DateTime workoutAt,
+    required int leadMinutes,
+    required bool enabled,
+  }) async {
+    try {
+      final reminder = await _reminderService.saveReminder(
+        workoutId: workout['id'] as String,
+        workoutTitle: workout['title']?.toString() ?? '',
+        workoutAt: workoutAt,
+        leadMinutes: leadMinutes,
+        enabled: enabled,
+      );
+      if (!mounted) return;
+      setState(() {
+        _runReminders = {
+          ..._runReminders,
+          reminder.workoutId: reminder,
+        };
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.translate('reminder_saved'))),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.translate('reminder_error')}: $e')),
+      );
+    }
+  }
+
+  DateTime _workoutAtForDate(Map<String, dynamic> workout, DateTime date) {
+    final reminder = _runReminders[workout['id']];
+    final current = reminder?.workoutAt;
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      current?.hour ?? 6,
+      current?.minute ?? 0,
     );
   }
 
@@ -642,6 +714,27 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           .from('scheduled_workouts')
           .update({'date': newDate})
           .eq('id', workout['id']);
+      final reminder = _runReminders[workout['id']];
+      if (reminder != null) {
+        try {
+          await _reminderService.saveReminder(
+            workoutId: workout['id'] as String,
+            workoutTitle: workout['title']?.toString() ?? '',
+            workoutAt: _workoutAtForDate(workout, picked),
+            leadMinutes: reminder.leadMinutes,
+            enabled: reminder.enabled,
+          );
+        } catch (e) {
+          debugPrint('Error rescheduling reminder: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${context.translate('reminder_error')}: $e'),
+              ),
+            );
+          }
+        }
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.translate('reschedule_success'))),
@@ -919,9 +1012,16 @@ class _WorkoutScheduleCard extends StatefulWidget {
   final IconData statusIcon;
   final VoidCallback onAddActivity;
   final VoidCallback onReschedule;
+  final RunReminder? reminder;
+  final Future<void> Function(
+    DateTime workoutAt,
+    int leadMinutes,
+    bool enabled,
+  ) onReminderChanged;
   // Chỉ buổi tập sắp tới mới có nút "Khởi động" (null -> ẩn).
   final VoidCallback? onWarmUp;
   final bool initiallyExpanded;
+  final bool showTimer;
 
   const _WorkoutScheduleCard({
     required this.workout,
@@ -929,8 +1029,11 @@ class _WorkoutScheduleCard extends StatefulWidget {
     required this.statusIcon,
     required this.onAddActivity,
     required this.onReschedule,
+    required this.onReminderChanged,
+    this.reminder,
     this.onWarmUp,
     this.initiallyExpanded = false,
+    this.showTimer = false,
   });
 
   @override
@@ -939,6 +1042,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
 
 class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
   late bool _expanded = widget.initiallyExpanded;
+  bool _savingReminder = false;
 
   @override
   Widget build(BuildContext context) {
@@ -999,6 +1103,14 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                       style: TextStyle(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7), fontSize: 13),
                     ),
                   ],
+                  if (workout['status'] == 'planned') ...[
+                    const SizedBox(height: 14),
+                    _buildReminderSettings(context, date),
+                  ],
+                  if (widget.showTimer && workout['status'] == 'planned') ...[
+                    const SizedBox(height: 14),
+                    const RunTimerPanel(),
+                  ],
                   const SizedBox(height: 14),
                   Wrap(
                     spacing: 12,
@@ -1047,6 +1159,173 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
         ],
       ),
     );
+  }
+
+  Widget _buildReminderSettings(BuildContext context, DateTime workoutDate) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final reminder = widget.reminder;
+    final enabled = reminder?.enabled ?? false;
+    final leadMinutes = reminder?.leadMinutes ?? 10;
+    final workoutAt = _workoutAt(workoutDate);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colorScheme.secondary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: colorScheme.secondary.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                enabled
+                    ? Icons.notifications_active_outlined
+                    : Icons.notifications_none_outlined,
+                color: enabled ? colorScheme.primary : colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  context.translate('run_reminder'),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              if (_savingReminder)
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Switch(
+                  value: enabled,
+                  onChanged: (value) => _changeReminder(
+                    workoutAt: workoutAt,
+                    leadMinutes: leadMinutes,
+                    enabled: value,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _savingReminder
+                    ? null
+                    : () async {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.fromDateTime(workoutAt),
+                        );
+                        if (picked == null) return;
+                        final updated = DateTime(
+                          workoutDate.year,
+                          workoutDate.month,
+                          workoutDate.day,
+                          picked.hour,
+                          picked.minute,
+                        );
+                        await _changeReminder(
+                          workoutAt: updated,
+                          leadMinutes: leadMinutes,
+                          enabled: true,
+                        );
+                      },
+                icon: const Icon(Icons.schedule, size: 18),
+                label: Text(DateFormat('HH:mm').format(workoutAt)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(color: colorScheme.outlineVariant),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: leadMinutes,
+                    onChanged: _savingReminder
+                        ? null
+                        : (value) {
+                            if (value == null) return;
+                            _changeReminder(
+                              workoutAt: workoutAt,
+                              leadMinutes: value,
+                              enabled: true,
+                            );
+                          },
+                    items: reminderLeadMinuteOptions
+                        .map(
+                          (minutes) => DropdownMenuItem<int>(
+                            value: minutes,
+                            child: Text(_leadLabel(context, minutes)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ),
+              Text(
+                enabled
+                    ? context.translate('reminder_on')
+                    : context.translate('reminder_off'),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  DateTime _workoutAt(DateTime workoutDate) {
+    final current = widget.reminder?.workoutAt;
+    return DateTime(
+      workoutDate.year,
+      workoutDate.month,
+      workoutDate.day,
+      current?.hour ?? 6,
+      current?.minute ?? 0,
+    );
+  }
+
+  Future<void> _changeReminder({
+    required DateTime workoutAt,
+    required int leadMinutes,
+    required bool enabled,
+  }) async {
+    setState(() => _savingReminder = true);
+    try {
+      await widget.onReminderChanged(workoutAt, leadMinutes, enabled);
+    } finally {
+      if (mounted) setState(() => _savingReminder = false);
+    }
+  }
+
+  String _leadLabel(BuildContext context, int minutes) {
+    switch (minutes) {
+      case 0:
+        return context.translate('reminder_at_time');
+      case 60:
+        return context.translate('reminder_before_1h');
+      default:
+        return context.translate('reminder_before_minutes', ['$minutes']);
+    }
   }
 }
 

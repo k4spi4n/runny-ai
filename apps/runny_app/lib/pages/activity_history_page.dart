@@ -473,9 +473,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 980),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
           // Range Filter Chip Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -510,39 +513,45 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
           const SizedBox(height: 16),
 
           // Period Statistics Grid
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 2.2,
-            children: [
-              _buildMiniStatCard(
-                title: context.translate('distance'),
-                value: '${_totalDistance.toStringAsFixed(1)} km',
-                icon: Icons.straighten,
-                gradient: accentPulseGradient,
-              ),
-              _buildMiniStatCard(
-                title: context.translate('sessions'),
-                value: '${filtered.length} ${context.translate('run_count').toLowerCase()}',
-                icon: Icons.directions_run,
-                gradient: secondaryPulseGradient,
-              ),
-              _buildMiniStatCard(
-                title: context.translate('pace'),
-                value: '${_formatPace(_avgPace)} /km',
-                icon: Icons.speed,
-                gradient: secondaryPulseGradient,
-              ),
-              _buildMiniStatCard(
-                title: context.translate('avg_hr'),
-                value: _avgHr > 0 ? '${_avgHr.round()} bpm' : '--',
-                icon: Icons.favorite,
-                gradient: accentPulseGradient,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 900 ? 4 : 2;
+              return GridView.count(
+                crossAxisCount: columns,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: columns == 4 ? 2.45 : 2.35,
+                children: [
+                  _buildMiniStatCard(
+                    title: context.translate('distance'),
+                    value: '${_totalDistance.toStringAsFixed(1)} km',
+                    icon: Icons.straighten,
+                    gradient: accentPulseGradient,
+                  ),
+                  _buildMiniStatCard(
+                    title: context.translate('sessions'),
+                    value:
+                        '${filtered.length} ${context.translate('run_count').toLowerCase()}',
+                    icon: Icons.directions_run,
+                    gradient: secondaryPulseGradient,
+                  ),
+                  _buildMiniStatCard(
+                    title: context.translate('pace'),
+                    value: '${_formatPace(_avgPace)} /km',
+                    icon: Icons.speed,
+                    gradient: secondaryPulseGradient,
+                  ),
+                  _buildMiniStatCard(
+                    title: context.translate('avg_hr'),
+                    value: _avgHr > 0 ? '${_avgHr.round()} bpm' : '--',
+                    icon: Icons.favorite,
+                    gradient: accentPulseGradient,
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 24),
 
@@ -603,7 +612,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
           const SizedBox(height: 12),
           _buildActivitiesList(context),
           const SizedBox(height: 24),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

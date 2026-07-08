@@ -581,16 +581,17 @@ class _AtomicFeatureChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(11),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             feature.icon(feature.color, 18),
             const SizedBox(width: 8),
-            Text(
-              feature.label,
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.visible,
-              style: _AtomicFeatureRow._chipTextStyle(context),
+            Expanded(
+              child: Text(
+                feature.label,
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: _AtomicFeatureRow._chipTextStyle(context),
+              ),
             ),
           ],
         ),
@@ -889,8 +890,7 @@ class _HeroDashboardMockup extends StatelessWidget {
         children: [
           // 1. Background Main Activity Card
           Positioned.fill(
-            bottom:
-                54, // Leave some room at the bottom for the overlapping AI card
+            bottom: 96,
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1038,7 +1038,7 @@ class _HeroDashboardMockup extends StatelessWidget {
             ),
           ),
 
-          // 2. Floating AI Coach Insight Card (Overlapping at the bottom)
+          // 2. AI Coach Insight Card
           Positioned(
             left: 12,
             right: 12,

@@ -566,4 +566,23 @@
   "landing_footer_desc": "Runny AI kết hợp huấn luyện, phân tích, động lực và dữ liệu sức khỏe cho runner.",
   "landing_footer_copyright": "Copyright 2026 Runny AI. Được phát triển tận tâm cho cộng đồng chạy bộ.",
   "no_shoe": "Không chọn giày"
+  ,
+  "run_reminder": "Nhắc lịch chạy",
+  "reminder_on": "Đã bật nhắc",
+  "reminder_off": "Chưa bật nhắc",
+  "reminder_at_time": "Đúng giờ chạy",
+  "reminder_before_minutes": "Trước %s phút",
+  "reminder_before_1h": "Trước 1 giờ",
+  "reminder_saved": "Đã lưu nhắc lịch.",
+  "reminder_error": "Không thể lưu nhắc lịch",
+  "run_timer": "Bộ đếm buổi chạy",
+  "timer_not_started": "Chưa bắt đầu",
+  "timer_running": "Đang chạy",
+  "timer_paused": "Tạm dừng",
+  "timer_finished": "Kết thúc",
+  "timer_start": "Bắt đầu",
+  "timer_pause": "Tạm dừng",
+  "timer_resume": "Tiếp tục",
+  "timer_finish": "Kết thúc",
+  "timer_reset": "Đặt lại"
 }
