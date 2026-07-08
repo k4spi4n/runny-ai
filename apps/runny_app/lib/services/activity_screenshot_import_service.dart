@@ -84,6 +84,7 @@ class ActivityScreenshotImportService {
               ],
             },
           ],
+          'reasoning_effort': 'none',
           'temperature': 0.1,
           'max_tokens': 800,
         },
