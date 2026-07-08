@@ -118,7 +118,10 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
           SafeArea(
             child: ResponsiveContent(
               child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: EdgeInsets.symmetric(
+                horizontal: MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0,
+                vertical: 16.0,
+              ),
               child: glassCard(
                 context: context,
                 child: Column(

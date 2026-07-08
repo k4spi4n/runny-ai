@@ -310,7 +310,12 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           ),
           SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.embedded
+                    ? 0.0
+                    : (MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0),
+                vertical: 20.0,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

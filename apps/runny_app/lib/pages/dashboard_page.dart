@@ -380,9 +380,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   ),
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 20,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isDesktop ? 20.0 : 16.0,
+                      vertical: 20.0,
                     ),
                     child: ResponsiveContent(child: _pages[_selectedIndex]),
                   ),
@@ -910,25 +910,22 @@ class _OverviewContentState extends State<OverviewContent> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.event_available,
-                    color: colorScheme.primary,
-                    size: 22,
+            Row(
+              children: [
+                Icon(
+                  Icons.event_available,
+                  color: colorScheme.primary,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  context.translate('today_schedule'),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    context.translate('today_schedule'),
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             if (workouts.isEmpty)
@@ -958,7 +955,6 @@ class _OverviewContentState extends State<OverviewContent> {
               ...workouts.map(
                 (w) => Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
                     vertical: 6,
                   ),
                   child: glassCard(
@@ -1049,14 +1045,11 @@ class _OverviewContentState extends State<OverviewContent> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Text(
-            context.translate('nutrition_status'),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
-            ),
+        Text(
+          context.translate('nutrition_status'),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: 12),
@@ -1079,14 +1072,11 @@ class _OverviewContentState extends State<OverviewContent> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Text(
-            context.translate('performance_overview'),
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
-            ),
+        Text(
+          context.translate('performance_overview'),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: 16),
@@ -1119,7 +1109,7 @@ class _OverviewContentState extends State<OverviewContent> {
               mainAxisSpacing: 16,
               crossAxisSpacing: 16,
               childAspectRatio: 1.6,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+              padding: EdgeInsets.zero,
               children: [
                 PerformanceStatCard(
                   title: context.translate('distance'),
@@ -1515,25 +1505,22 @@ class _OverviewContentState extends State<OverviewContent> {
               );
             },
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    context.translate('recent_activities'),
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurface,
-                    ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  context.translate('recent_activities'),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
                   ),
                 ),
-                TextButton(
-                  onPressed: widget.onViewAllActivities,
-                  child: Text(context.translate('view_all')),
-                ),
-              ],
-            ),
+              ),
+              TextButton(
+                onPressed: widget.onViewAllActivities,
+                child: Text(context.translate('view_all')),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           FutureBuilder<List<Activity>>(
@@ -1563,7 +1550,6 @@ class _OverviewContentState extends State<OverviewContent> {
 
                   return Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
                       vertical: 8,
                     ),
                     child: glassCard(
@@ -1648,20 +1634,15 @@ class _OverviewContentState extends State<OverviewContent> {
             },
           ),
           const SizedBox(height: 24),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              context.translate('quick_actions'),
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
-              ),
+          Text(
+            context.translate('quick_actions'),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Wrap(
+          Wrap(
               spacing: 12,
               runSpacing: 12,
               children: [
@@ -1706,7 +1687,6 @@ class _OverviewContentState extends State<OverviewContent> {
                 ),
               ],
             ),
-          ),
           const SizedBox(height: 24),
         ],
       ),

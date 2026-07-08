@@ -76,7 +76,12 @@ class _NutritionPageState extends State<NutritionPage> {
               onRefresh: () => nutritionService.refresh(),
               child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16.0),
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.embedded
+                    ? 0.0
+                    : (MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0),
+                vertical: 16.0,
+              ),
               child: Column(
                 children: [
                   NutritionOverviewCard(summary: summary),

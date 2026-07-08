@@ -77,7 +77,10 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
                 final onSurface = Theme.of(context).colorScheme.onSurface;
                 return ResponsiveContent(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0,
+                      vertical: 20.0,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [

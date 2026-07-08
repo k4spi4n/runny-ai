@@ -328,7 +328,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
     return ResponsiveContent(
       maxWidth: 560,
       child: SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0,
+        vertical: 16.0,
+      ),
       child: glassCard(
         context: context,
         child: Column(
@@ -381,7 +384,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
     return ResponsiveContent(
       maxWidth: 560,
       child: SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: EdgeInsets.symmetric(
+        horizontal: MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0,
+        vertical: 16.0,
+      ),
       child: glassCard(
         context: context,
         child: Column(
@@ -465,7 +471,9 @@ class _OnboardingStepper extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(
+        horizontal: MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0,
+      ),
       child: Row(
         children: [
           _StepDot(label: context.translate('metrics_tab'), active: currentStep == 0),

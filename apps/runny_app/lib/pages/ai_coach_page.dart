@@ -827,7 +827,10 @@ class _AICoachPageState extends State<AICoachPage> {
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: widget.embedded ? 0.0 : 16.0,
+                      vertical: 16.0,
+                    ),
                     itemCount:
                         _messages.length + (_greetingText != null ? 1 : 0),
                     itemBuilder: (context, index) {
@@ -938,7 +941,10 @@ class _AICoachPageState extends State<AICoachPage> {
                 _buildSuggestedQuestions(context),
                 _buildAttachmentBar(context),
                 Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: widget.embedded ? 0.0 : 16.0,
+                    vertical: 16.0,
+                  ),
                   child: Row(
                     children: [
                       if (_isRecording)

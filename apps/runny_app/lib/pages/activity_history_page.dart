@@ -517,7 +517,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
     final estimatedVo2 = _estimateVo2Max();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 980),
@@ -684,15 +684,12 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+        fontWeight: FontWeight.bold,
+        fontSize: 18,
+        color: Theme.of(context).colorScheme.onSurface,
       ),
     );
   }

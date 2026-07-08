@@ -609,7 +609,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: EdgeInsets.all(MediaQuery.of(context).size.width > 900 ? 24.0 : 16.0),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
               child: glassCard(
