@@ -578,12 +578,42 @@ class TrainingService {
         .order('started_at', ascending: false)
         .limit(5);
 
+    // Truy vấn các buổi tập do người dùng tự đặt trong lịch đang hoạt động (active) mà sắp tới (ngày >= ngày bắt đầu).
+    final activeSchedule = await _supabase
+        .from('training_schedules')
+        .select()
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    List<Map<String, dynamic>> manualWorkouts = [];
+    if (activeSchedule != null) {
+      final wList = await _supabase
+          .from('scheduled_workouts')
+          .select()
+          .eq('schedule_id', activeSchedule['id'])
+          .eq('source', 'manual')
+          .gte('date', _dateOnly(startDate))
+          .order('date', ascending: true);
+      manualWorkouts = List<Map<String, dynamic>>.from(wList);
+    }
+
     const systemPrompt = '''
 Bạn là một Huấn luyện viên Chạy bộ Ảo chuyên nghiệp.
 Nhiệm vụ của bạn là tạo ra một lịch tập luyện chi tiết dựa trên mục tiêu, thể trạng và lịch sử tập luyện của người dùng.
 Mỗi buổi tập dùng "day_offset" là SỐ NGÀY tính từ ngày bắt đầu (day_offset = 0 nghĩa là đúng ngày bắt đầu).
 Nếu người dùng có ngày kết thúc, toàn bộ buổi tập phải nằm trong khoảng từ ngày bắt đầu đến ngày kết thúc và trường "weeks" phải khớp với khoảng thời gian đó.
 Nếu không có ngày kết thúc, hãy tự chọn số tuần ("weeks") hợp lý cho mục tiêu.
+
+ĐẶC BIỆT LƯU Ý VỀ CÁC BUỔI TẬP DO NGƯỜI DÙNG TỰ ĐẶT:
+- Nếu trong ngữ cảnh có cung cấp danh sách "LỊCH TẬP DO NGƯỜI DÙNG TỰ ĐẶT", bạn PHẢI đưa toàn bộ các buổi tập này vào mảng "workouts" của kết quả JSON.
+- Giữ nguyên tuyệt đối mọi thông tin của các buổi tập do người dùng tự đặt (không thay đổi day_offset, ngày tập, cự ly, thời gian, tên, mô tả).
+- Thêm trường "source": "manual" và các trường "start_time", "workout_type" của các buổi này y hệt như được cung cấp vào đối tượng buổi tập trong kết quả JSON.
+- Bạn KHÔNG được tự ý thay đổi hay xóa bỏ bất kỳ buổi tập nào do người dùng tự đặt.
+- Chỉ điều chỉnh, phân bổ các buổi tập do AI tạo (được đánh dấu là "source": "ai") xen kẽ hoặc xoay quanh lịch tập do người dùng đặt để đảm bảo kế hoạch tập luyện hài hòa, hợp lý, tránh trùng ngày tập hoặc gây quá sức cho người dùng.
+
 Phản hồi của bạn PHẢI là một đối tượng JSON có cấu trúc như sau:
 {
   "title": "Tên lịch tập",
@@ -597,7 +627,21 @@ Phản hồi của bạn PHẢI là một đối tượng JSON có cấu trúc n
       "description": "Chạy chậm để làm quen",
       "target_distance_km": 2.0,
       "target_duration_min": 15.0,
-      "target_pace_min_per_km": 7.5
+      "target_pace_min_per_km": 7.5,
+      "source": "ai",
+      "workout_type": "easy_run",
+      "start_time": "18:00:00"
+    },
+    {
+      "day_offset": 3,
+      "title": "Chạy dài cuối tuần",
+      "description": "Duy trì thể lực",
+      "target_distance_km": 5.0,
+      "target_duration_min": 35.0,
+      "target_pace_min_per_km": 7.0,
+      "source": "manual",
+      "workout_type": "long_run",
+      "start_time": "06:00:00"
     }
   ]
 }
@@ -607,6 +651,18 @@ Phản hồi của bạn PHẢI là một đối tượng JSON có cấu trúc n
         ? 'Ngày kết thúc mong muốn: ${_dateOnly(endDate)} (${_weekdayVi(endDate)}) (khoảng ${endDate.difference(startDate).inDays} ngày kể từ ngày bắt đầu). Hãy phân bổ buổi tập trong khoảng này.'
         : 'Người dùng không chỉ định ngày kết thúc — hãy tự chọn số tuần ("weeks") hợp lý cho mục tiêu.';
 
+    String manualWorkoutsSection = '';
+    if (manualWorkouts.isNotEmpty) {
+      manualWorkoutsSection = '\nLỊCH TẬP DO NGƯỜI DÙNG TỰ ĐẶT (BẮT BUỘC giữ nguyên, không thay đổi, chỉ sắp xếp các buổi tập AI xoay quanh các buổi này):\n';
+      for (final mw in manualWorkouts) {
+        final dateStr = mw['date'] as String;
+        final dateVal = DateTime.tryParse(dateStr);
+        final offset = dateVal != null ? dateVal.difference(startDate).inDays : 0;
+        final targets = _formatWorkoutTargets(mw);
+        manualWorkoutsSection += '- day_offset $offset: ${mw['title']} (${_weekdayVi(dateVal ?? startDate)}, ngày $dateStr), mục tiêu [$targets], source: "manual", start_time: "${mw['start_time'] ?? ''}", workout_type: "${mw['workout_type'] ?? ''}"\n';
+      }
+    }
+
     final userContext =
         '''
 Thời gian hiện tại: ${_dateTimeFullStr(DateTime.now())}
@@ -615,6 +671,7 @@ Ngày bắt đầu: ${_dateOnly(startDate)} (${_weekdayVi(startDate)})
 $durationConstraint
 Thông tin thể trạng: Giới tính ${_genderLabel(profile['gender'])}, Cân nặng ${profile['weight_kg']}kg, Chiều cao ${profile['height_cm']}cm, BMI ${profile['bmi']}, Nhịp tim tối đa ${profile['max_hr'] ?? 'chưa rõ'} bpm.
 Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseActivities(recentActivities)}
+$manualWorkoutsSection
 ''';
 
     return _gemini.generateStructuredResponse(userContext, systemPrompt);
@@ -660,6 +717,28 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
     final weeks = (planJson['weeks'] as num?)?.toInt() ?? 4;
     final computedEnd = endDate ?? startDate.add(Duration(days: weeks * 7));
 
+    // Truy vấn các buổi tập do người dùng tự đặt (manual) từ lịch hoạt động cũ trước khi lưu trữ
+    final activeSchedule = await _supabase
+        .from('training_schedules')
+        .select()
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    List<Map<String, dynamic>> manualWorkouts = [];
+    if (activeSchedule != null) {
+      final wList = await _supabase
+          .from('scheduled_workouts')
+          .select()
+          .eq('schedule_id', activeSchedule['id'])
+          .eq('source', 'manual')
+          .gte('date', _dateOnly(startDate))
+          .order('date', ascending: true);
+      manualWorkouts = List<Map<String, dynamic>>.from(wList);
+    }
+
     final values = {
       'user_id': userId,
       'title': planJson['title'] ?? 'Lịch tập của bạn',
@@ -700,29 +779,64 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
           .single();
     }
 
-    final workouts = (planJson['workouts'] as List).map((w) {
-      final offset = (w['day_offset'] as num?)?.toInt() ?? 0;
-      return {
+    final workouts = <Map<String, dynamic>>[];
+    if (planJson['workouts'] is List) {
+      for (final w in planJson['workouts']) {
+        final offset = (w['day_offset'] as num?)?.toInt() ?? 0;
+        final dateStr = _dateOnly(startDate.add(Duration(days: offset)));
+
+        // Kiểm tra xem ngày này có trùng với buổi tập thủ công nào không để tránh đè hoặc tạo trùng
+        final isDuplicateOfManual = manualWorkouts.any((mw) => mw['date'] == dateStr);
+        final isAiSourceManual = w['source'] == 'manual';
+
+        if (isDuplicateOfManual || isAiSourceManual) {
+          continue;
+        }
+
+        workouts.add({
+          'schedule_id': schedule['id'],
+          'user_id': userId,
+          'date': dateStr,
+          'title': w['title'] ?? 'Buổi tập',
+          'description': w['description'],
+          'target_distance_km': _safeNumeric(
+            w['target_distance_km'],
+            max: 99999.99,
+          ),
+          'target_duration_min': _safeNumeric(
+            w['target_duration_min'],
+            max: 99999.99,
+          ),
+          'target_pace_min_per_km': _safeNumeric(
+            w['target_pace_min_per_km'],
+            max: 999.99,
+          ),
+          'status': 'planned',
+          'source': 'ai',
+          'workout_type': w['workout_type'],
+          'start_time': w['start_time'],
+        });
+      }
+    }
+
+    // Thêm lại các buổi tập do người dùng tự đặt gốc (giữ nguyên hoàn toàn thông tin)
+    for (final mw in manualWorkouts) {
+      workouts.add({
         'schedule_id': schedule['id'],
         'user_id': userId,
-        'date': _dateOnly(startDate.add(Duration(days: offset))),
-        'title': w['title'],
-        'description': w['description'],
-        'target_distance_km': _safeNumeric(
-          w['target_distance_km'],
-          max: 99999.99,
-        ),
-        'target_duration_min': _safeNumeric(
-          w['target_duration_min'],
-          max: 99999.99,
-        ),
-        'target_pace_min_per_km': _safeNumeric(
-          w['target_pace_min_per_km'],
-          max: 999.99,
-        ),
-        'status': 'planned',
-      };
-    }).toList();
+        'date': mw['date'],
+        'title': mw['title'] ?? 'Buổi tập',
+        'description': mw['description'],
+        'target_distance_km': mw['target_distance_km'],
+        'target_duration_min': mw['target_duration_min'],
+        'target_pace_min_per_km': mw['target_pace_min_per_km'],
+        'status': mw['status'] ?? 'planned',
+        'source': 'manual',
+        'workout_type': mw['workout_type'],
+        'start_time': mw['start_time'],
+        'activity_id': mw['activity_id'],
+      });
+    }
 
     await _supabase.from('scheduled_workouts').insert(workouts);
   }
@@ -786,13 +900,18 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
     const systemPrompt = '''
 Bạn là Huấn luyện viên Chạy bộ Ảo. Dựa trên KẾT QUẢ THỰC TẾ của các buổi đã tập, hãy tinh chỉnh các buổi tập SẮP TỚI cho phù hợp thể trạng người dùng.
 Nếu người dùng tập tốt hơn mục tiêu, có thể tăng nhẹ cường độ; nếu chưa đạt hoặc có dấu hiệu quá sức, hãy giảm cường độ hoặc dời lịch.
-CHỈ điều chỉnh các buổi có trong danh sách "buổi tập sắp tới" và CHỈ dùng đúng workout_id được cung cấp. Buổi nào đã hợp lý thì bỏ qua (không cần liệt kê).
+
+ĐẶC BIỆT LƯU Ý VỀ CÁC BUỔI TẬP DO NGƯỜI DÙNG TỰ ĐẶT (nguồn: do người dùng tự đặt (manual)):
+- Bạn KHÔNG ĐƯỢC PHÉP thay đổi bất kỳ thông tin nào của các buổi tập do người dùng tự đặt (không thay đổi ngày, quãng đường, mục tiêu và KHÔNG đưa workout_id của chúng vào danh sách "adjustments").
+- Bạn chỉ được phép điều chỉnh các buổi tập do AI tạo (nguồn: do AI tự động tạo (ai)) xoay quanh các buổi tập của người dùng để phân bổ hợp lý, tránh trùng lặp ngày tập hoặc quá tải.
+
+CHỈ điều chỉnh các buổi do AI tạo có trong danh sách "buổi tập sắp tới" và CHỈ dùng đúng workout_id được cung cấp. Buổi nào đã hợp lý hoặc là buổi của người dùng thì bỏ qua (không đưa vào danh sách adjustments).
 Phản hồi của bạn PHẢI là một đối tượng JSON:
 {
   "summary": "Nhận xét tổng quan ngắn gọn về tiến độ và hướng điều chỉnh",
   "adjustments": [
     {
-      "workout_id": "uuid của buổi sắp tới",
+      "workout_id": "uuid của buổi sắp tới do AI tạo",
       "new_date": "YYYY-MM-DD",
       "new_target_distance_km": 5.0,
       "reason": "Giải thích ngắn gọn lý do điều chỉnh buổi này"
@@ -812,7 +931,9 @@ Phản hồi của bạn PHẢI là một đối tượng JSON:
 
     final upcomingSummary = upcoming
         .map((w) {
-          return '- id ${w['id']}: ${w['title']} vào ${w['date']}, mục tiêu [${_formatWorkoutTargets(w)}]';
+          final isManual = w['source'] == 'manual';
+          final sourceLabel = isManual ? 'do người dùng tự đặt (manual)' : 'do AI tự động tạo (ai)';
+          return '- id ${w['id']}: ${w['title']} vào ${w['date']}, mục tiêu [${_formatWorkoutTargets(w)}], nguồn: $sourceLabel';
         })
         .join('\n');
 
@@ -842,6 +963,8 @@ $upcomingSummary
         final current = wid == null ? null : byId[wid];
         // Bỏ qua id AI bịa ra hoặc buổi không còn ở trạng thái 'planned'.
         if (current == null || current['status'] != 'planned') continue;
+        // BỎ QUA nếu buổi tập này là do người dùng tự đặt (source == 'manual')
+        if (current['source'] == 'manual') continue;
         final item = WorkoutAdjustment(
           workoutId: wid!,
           title: current['title'] as String? ?? 'Buổi tập',
