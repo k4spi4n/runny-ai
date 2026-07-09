@@ -1001,7 +1001,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     await _rescheduleWorkoutAt(
       workout: workout,
       workoutAt: workoutAt,
-      leadMinutes: reminder?.leadMinutes ?? 15,
+      leadMinutes: reminder?.leadMinutes ?? 10,
       enabled: reminder?.enabled ?? false,
     );
   }
@@ -1125,6 +1125,28 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                 onTap: () {
                   Navigator.pop(context);
                   _showLinkActivityDialog(workout);
+                },
+              ),
+              const Divider(indent: 72, endIndent: 20),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
+                  child: Icon(Icons.hotel, color: colorScheme.primary),
+                ),
+                title: Text(
+                  context.translate('add_activity_option_skip_rest'),
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                subtitle: Text(
+                  context.translate('add_activity_option_skip_rest_desc'),
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _skipWorkoutAsRest(workout);
                 },
               ),
               const SizedBox(height: 20),
@@ -1370,6 +1392,59 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       setState(() => _isLoading = false);
     }
   }
+
+  Future<void> _skipWorkoutAsRest(Map<String, dynamic> workout) async {
+    setState(() => _isLoading = true);
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      final dateStr = workout['date'] as String;
+      final now = DateTime.now();
+      final startedAt = DateTime.parse(dateStr).add(Duration(
+        hours: now.hour,
+        minutes: now.minute,
+        seconds: now.second,
+      ));
+      final startedIso = startedAt.toUtc().toIso8601String();
+
+      // Create Rest activity (0 km, 0 min)
+      final activityRes = await _supabase
+          .from('activities')
+          .insert({
+            'user_id': user.id,
+            'started_at': startedIso,
+            'distance_km': 0.0,
+            'duration_min': 0.0,
+            'name': context.translate('rest_activity_name'),
+            'notes': context.translate('add_activity_option_skip_rest_desc'),
+          })
+          .select('id')
+          .single();
+
+      final activityId = activityRes['id'] as String;
+
+      // Link the activity to the scheduled workout and complete it
+      await _supabase
+          .from('scheduled_workouts')
+          .update({'activity_id': activityId, 'status': 'completed'})
+          .eq('id', workout['id']);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.translate('link_success'))),
+        );
+      }
+      _fetchData();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
+      }
+      setState(() => _isLoading = false);
+    }
+  }
 }
 
 /// Thẻ buổi tập trong "Lịch chi tiết". Mặc định chỉ hiện tiêu đề; nhấn mũi tên
@@ -1569,12 +1644,13 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                             ),
                           ],
                         ),
-                      // Nút "Đặt lịch" có cho mọi buổi tập để đổi ngày theo ý muốn.
-                      OutlinedButton.icon(
-                        onPressed: widget.onReschedule,
-                        icon: const Icon(Icons.event_repeat, size: 18),
-                        label: Text(context.translate('reschedule')),
-                      ),
+                      // Nút "Đặt lịch" cho các buổi tập chưa hoàn thành để đổi ngày theo ý muốn.
+                      if (workout['status'] != 'completed')
+                        OutlinedButton.icon(
+                          onPressed: widget.onReschedule,
+                          icon: const Icon(Icons.event_repeat, size: 18),
+                          label: Text(context.translate('reschedule')),
+                        ),
                       if (widget.onEditManual != null)
                         OutlinedButton.icon(
                           onPressed: widget.onEditManual,
