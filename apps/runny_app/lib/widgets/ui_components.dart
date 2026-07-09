@@ -446,6 +446,76 @@ Widget badgeLabel(BuildContext context, String text, {Color? background}) {
   );
 }
 
+class ProBadge extends StatelessWidget {
+  final double fontSize;
+  final double iconSize;
+
+  const ProBadge({
+    super.key,
+    this.fontSize = 10,
+    this.iconSize = 12,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFFD700), // Pure Gold
+            Color(0xFFFFA500), // Orange
+            Color(0xFFFF4500), // OrangeRed (creates rich golden fire gradient)
+          ],
+        ),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFF8C00).withValues(alpha: 0.45),
+            blurRadius: 6,
+            spreadRadius: 1,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(
+          color: const Color(0xFFFFF8DC).withValues(alpha: 0.6),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.workspace_premium_rounded,
+            size: iconSize,
+            color: Colors.white,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            'PRO',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.8,
+              height: 1.1,
+              shadows: const [
+                Shadow(
+                  color: Colors.black26,
+                  offset: Offset(0, 1),
+                  blurRadius: 2,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class RunnyLogo extends StatelessWidget {
   final double fontSize;
   final bool showText;

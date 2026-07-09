@@ -613,6 +613,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (!_isEditingName) {
       final name = _displayNameController.text.trim();
+      final isPro = _activeSubscription != null &&
+          _activeSubscription!.isActive &&
+          (_activeSubscription!.plan?.durationType == SubscriptionDuration.monthly ||
+              _activeSubscription!.plan?.durationType == SubscriptionDuration.yearly);
+
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -627,6 +632,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
             ),
           ),
+          if (isPro) ...[
+            const SizedBox(width: 8),
+            const ProBadge(fontSize: 12, iconSize: 14),
+          ],
           const SizedBox(width: 4),
           IconButton(
             icon: Icon(Icons.edit, size: 20, color: colorScheme.onSurfaceVariant),

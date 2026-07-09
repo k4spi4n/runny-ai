@@ -358,6 +358,10 @@ class _LeaderboardRow extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (entry.isPro) ...[
+                      const SizedBox(width: 6),
+                      const ProBadge(),
+                    ],
                     if (isMe) ...[
                       const SizedBox(width: 8),
                       badgeLabel(context, context.translate('you'), background: const Color(0xFFF85F2B)),

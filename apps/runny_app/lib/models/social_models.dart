@@ -42,6 +42,7 @@ class LeaderboardEntry {
   final double totalDistanceKm;
   final int activityCount;
   final int rank;
+  final bool isPro;
 
   LeaderboardEntry({
     required this.userId,
@@ -49,6 +50,7 @@ class LeaderboardEntry {
     required this.totalDistanceKm,
     required this.activityCount,
     required this.rank,
+    required this.isPro,
   });
 
   factory LeaderboardEntry.fromJson(Map<String, dynamic> json) {
@@ -58,6 +60,7 @@ class LeaderboardEntry {
       totalDistanceKm: (json['total_distance_km'] as num?)?.toDouble() ?? 0,
       activityCount: (json['activity_count'] as num?)?.toInt() ?? 0,
       rank: (json['rank'] as num?)?.toInt() ?? 0,
+      isPro: json['is_pro'] as bool? ?? false,
     );
   }
 }
