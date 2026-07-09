@@ -727,13 +727,14 @@ List<_AtomicFeatureData> _atomicFeatures(BuildContext context) {
       color: blue,
     ),
     _AtomicFeatureData(
-      icon: _materialIcon(Icons.edit_note_rounded),
+      icon: _materialIcon(Icons.add_photo_alternate_rounded),
       label: _landingFeatureLabel(
         context,
-        vi: 'Ghi buổi chạy thủ công',
-        en: 'Manual run logging',
+        vi: 'AI hỗ trợ nhập buổi tập từ ảnh chụp',
+        en: 'AI workout photo import',
       ),
       color: yellow,
+      isAi: true,
     ),
     _AtomicFeatureData(
       icon: _materialIcon(Icons.link_rounded),
