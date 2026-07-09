@@ -1427,14 +1427,18 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
 
     return glassCard(
       context: context,
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.vertical(
+              top: const Radius.circular(24),
+              bottom: Radius.circular(_expanded ? 0 : 24),
+            ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
               child: Row(
                 children: [
                   CircleAvatar(
@@ -1444,7 +1448,7 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                       color: Colors.white,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       workout['title'] ?? '',
@@ -1457,6 +1461,17 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                   const SizedBox(width: 8),
                   if (workout['source'] == 'manual') ...[
                     _buildSourceChip(context, compact: true),
+                    const SizedBox(width: 8),
+                  ],
+                  if (!_expanded) ...[
+                    Text(
+                      DateFormat('dd/MM').format(date),
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                   ],
                   AnimatedRotation(
@@ -1474,7 +1489,7 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
           AnimatedCrossFade(
             firstChild: const SizedBox(width: double.infinity),
             secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
