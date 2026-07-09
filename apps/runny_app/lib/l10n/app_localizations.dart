@@ -160,6 +160,8 @@ class AppLocalizations {
       'landing_footer_analytics': 'Analytics',
       'landing_footer_desc':
           'Runny AI combines coaching, analytics, motivation, and health data for runners.',
+      'landing_footer_follow_dev':
+          'Follow or contribute to the development at:',
       'landing_footer_copyright':
           'Copyright 2026 Runny AI. Built with care for the running community.',
       'edit': 'Edit',
@@ -308,6 +310,8 @@ class AppLocalizations {
       'landing_footer_analytics': 'Phân tích',
       'landing_footer_desc':
           'Runny AI kết hợp huấn luyện, phân tích, động lực và dữ liệu sức khỏe cho runner.',
+      'landing_footer_follow_dev':
+          'Theo dõi hoặc đóng góp vào quá trình phát triển tại:',
       'landing_footer_copyright':
           'Copyright 2026 Runny AI. Được phát triển tận tâm cho cộng đồng chạy bộ.',
       'edit': 'Sửa',

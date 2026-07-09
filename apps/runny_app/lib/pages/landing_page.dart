@@ -1,8 +1,10 @@
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
@@ -1361,8 +1363,38 @@ class _RouteAndChartPainter extends CustomPainter {
   }
 }
 
-class _LandingFooter extends StatelessWidget {
+class _LandingFooter extends StatefulWidget {
   const _LandingFooter();
+
+  @override
+  State<_LandingFooter> createState() => _LandingFooterState();
+}
+
+class _LandingFooterState extends State<_LandingFooter> {
+  late final TapGestureRecognizer _tapRecognizer;
+
+  @override
+  void initState() {
+    super.initState();
+    _tapRecognizer = TapGestureRecognizer()..onTap = _launchDevUrl;
+  }
+
+  @override
+  void dispose() {
+    _tapRecognizer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _launchDevUrl() async {
+    final url = Uri.parse('https://unikorn.vn/p/runny-ai');
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1373,6 +1405,30 @@ class _LandingFooter extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.4,
+              ),
+              children: [
+                TextSpan(
+                  text: '${context.translate('landing_footer_follow_dev')} ',
+                ),
+                TextSpan(
+                  text: 'https://unikorn.vn/p/runny-ai',
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    decoration: TextDecoration.underline,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  recognizer: _tapRecognizer,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
           Text(
             context.translate('landing_footer_copyright'),
             style: theme.textTheme.bodySmall?.copyWith(
