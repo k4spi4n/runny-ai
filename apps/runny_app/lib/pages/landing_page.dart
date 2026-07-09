@@ -730,7 +730,7 @@ List<_AtomicFeatureData> _atomicFeatures(BuildContext context) {
       icon: _materialIcon(Icons.add_photo_alternate_rounded),
       label: _landingFeatureLabel(
         context,
-        vi: 'AI hỗ trợ nhập buổi tập từ ảnh chụp',
+        vi: 'AI nhập buổi tập từ ảnh chụp',
         en: 'AI workout photo import',
       ),
       color: yellow,
