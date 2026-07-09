@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 class LanguageProvider extends ChangeNotifier {
   static const String _localeKey = 'selected_locale';
@@ -7,7 +8,9 @@ class LanguageProvider extends ChangeNotifier {
   
   Locale _locale;
 
-  LanguageProvider(this._prefs) : _locale = _loadLocale(_prefs);
+  LanguageProvider(this._prefs) : _locale = _loadLocale(_prefs) {
+    Intl.defaultLocale = _locale.languageCode;
+  }
 
   Locale get locale => _locale;
 
@@ -22,6 +25,7 @@ class LanguageProvider extends ChangeNotifier {
     if (!['en', 'vi'].contains(locale.languageCode)) return;
     
     _locale = locale;
+    Intl.defaultLocale = locale.languageCode;
     notifyListeners();
     await _prefs.setString(_localeKey, locale.languageCode);
   }

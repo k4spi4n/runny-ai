@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
 import 'theme/theme_provider.dart';
@@ -15,6 +16,8 @@ import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('vi', null);
+  await initializeDateFormatting('en', null);
   await dotenv.load(fileName: '.env');
 
   // Bắt mã callback của Strava (và dọn URL) TRƯỚC khi Supabase khởi tạo để
