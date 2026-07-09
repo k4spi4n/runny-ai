@@ -254,6 +254,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         );
         _screenshotAvgHrController.text =
             resultFromAi.activity.avgHr?.toString() ?? '';
+        _screenshotAvgCadenceController.text =
+            resultFromAi.activity.avgCadence?.toString() ?? '';
         _screenshotElevationController.text =
             resultFromAi.activity.elevationGainM != null
             ? _formatNumber(resultFromAi.activity.elevationGainM!)
@@ -302,6 +304,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     }
 
     final avgHr = int.tryParse(_screenshotAvgHrController.text.trim());
+    final avgCadence = int.tryParse(_screenshotAvgCadenceController.text.trim());
     final elevation = double.tryParse(
       _screenshotElevationController.text.trim().replaceAll(',', '.'),
     );
@@ -321,6 +324,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         distanceKm: distance,
         durationMin: duration,
         avgHr: avgHr != null && avgHr > 0 ? avgHr : null,
+        avgCadence: avgCadence != null && avgCadence > 0 ? avgCadence : null,
         elevationGainM: elevation,
       );
       final outcome = await _saveParsedActivity(
@@ -477,6 +481,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     }
 
     final avgHr = int.tryParse(_avgHrController.text.trim());
+    final avgCadence = int.tryParse(_avgCadenceController.text.trim());
     final elevation = double.tryParse(
       _elevationController.text.trim().replaceAll(',', '.'),
     );
@@ -513,7 +518,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
             'distance_km': distance,
             'duration_min': duration,
             if (avgHr != null && avgHr > 0) 'avg_hr': avgHr,
-            'elevation_gain_m': ?elevation,
+            if (avgCadence != null && avgCadence > 0) 'avg_cadence': avgCadence,
+            'elevation_gain_m': elevation,
             'name': name.isNotEmpty
                 ? name
                 : (l?.translate('manual_logged_note') ?? 'manual_logged_note'),
@@ -767,6 +773,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     _screenshotDistanceController.clear();
     _screenshotDurationController.clear();
     _screenshotAvgHrController.clear();
+    _screenshotAvgCadenceController.clear();
     _screenshotElevationController.clear();
     _screenshotNameController.clear();
     _screenshotNotesController.clear();
