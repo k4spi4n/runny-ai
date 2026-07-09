@@ -1595,13 +1595,28 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
     if (startTime != null) parts.add(startTime);
     final distance = (workout['target_distance_km'] as num?)?.toDouble();
     if (distance != null) parts.add('${_formatNumber(distance)} km');
-    final duration = (workout['target_duration_min'] as num?)?.toDouble();
-    if (duration != null) {
-      parts.add(
-        '${_formatNumber(duration)} ${context.translate('minutes_short')}',
-      );
+
+    double? pace = (workout['target_pace_min_per_km'] as num?)?.toDouble();
+    if (pace == null || pace == 0) {
+      final dist = distance ?? 0.0;
+      final dur = (workout['target_duration_min'] as num?)?.toDouble() ?? 0.0;
+      if (dist > 0 && dur > 0) {
+        pace = dur / dist;
+      }
+    }
+    if (pace != null && pace > 0) {
+      parts.add('${context.translate('pace')} ${_formatPace(pace)}');
     }
     return parts.join(' • ');
+  }
+
+  String _formatPace(double paceDecimal) {
+    if (paceDecimal == 0 || paceDecimal.isInfinite || paceDecimal.isNaN) {
+      return "-:--";
+    }
+    int minutes = paceDecimal.floor();
+    int seconds = ((paceDecimal - minutes) * 60).round();
+    return "$minutes:${seconds.toString().padLeft(2, '0')}";
   }
 
   String? _formatStartTime(String? raw) {
