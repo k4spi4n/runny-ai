@@ -222,6 +222,7 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
             label,
             suffixText: 'kg',
             icon: Icons.monitor_weight,
+            isRequired: true,
           ),
         ),
         actions: [
@@ -278,6 +279,7 @@ class _WeightTrackingPageState extends State<WeightTrackingPage> {
                 context.translate('target_weight'),
                 suffixText: 'kg',
                 icon: Icons.emoji_events,
+                isRequired: true,
               ),
             ),
           ],

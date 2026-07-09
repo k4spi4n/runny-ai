@@ -174,6 +174,7 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
                         context.translate('plan_goal_label'),
                         hint: context.translate('goal_hint'),
                         icon: Icons.flag_circle,
+                        isRequired: true,
                       ),
                       style: TextStyle(color: isDark ? Colors.white : Colors.black87),
                     ),

@@ -393,6 +393,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                   decoration: themedInputDecoration(
                     context,
                     context.translate('shoe_name'),
+                    isRequired: true,
                   ),
                 ),
                 const SizedBox(height: 12),

@@ -350,12 +350,25 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
           controller: _customNameCtrl,
           textCapitalization: TextCapitalization.sentences,
           decoration: InputDecoration(
-            labelText: l10n.translate('food_name'),
+            label: Text.rich(
+              TextSpan(
+                text: l10n.translate('food_name'),
+                children: const [
+                  TextSpan(
+                    text: ' *',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             prefixIcon: const Icon(Icons.restaurant_menu),
           ),
         ),
         const SizedBox(height: 12),
-        _numberField(_caloriesCtrl, '${l10n.translate('calories')} (kcal)'),
+        _numberField(_caloriesCtrl, '${l10n.translate('calories')} (kcal)', isRequired: true),
         const SizedBox(height: 12),
         Row(
           children: [
@@ -384,11 +397,29 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
     );
   }
 
-  Widget _numberField(TextEditingController controller, String label) {
+  Widget _numberField(TextEditingController controller, String label, {bool isRequired = false}) {
     return TextField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(labelText: label),
+      decoration: InputDecoration(
+        label: isRequired
+            ? Text.rich(
+                TextSpan(
+                  text: label,
+                  children: const [
+                    TextSpan(
+                      text: ' *',
+                      style: TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : null,
+        labelText: isRequired ? null : label,
+      ),
     );
   }
 

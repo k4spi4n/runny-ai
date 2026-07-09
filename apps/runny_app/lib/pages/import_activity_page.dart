@@ -911,6 +911,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                 context,
                 context.translate('activity_date_time'),
                 icon: Icons.calendar_today,
+                isRequired: true,
               ),
               child: Text(
                 _formatDateTime(_screenshotStartedAt),
@@ -936,6 +937,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               context.translate('distance_label'),
               icon: Icons.straighten,
               suffixText: context.translate('km'),
+              isRequired: true,
             ),
             validator: (v) {
               final d = double.tryParse((v ?? '').replaceAll(',', '.'));
@@ -954,6 +956,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               context.translate('duration_label'),
               icon: Icons.timer_outlined,
               suffixText: context.translate('min'),
+              isRequired: true,
             ),
             validator: (v) {
               final d = double.tryParse((v ?? '').replaceAll(',', '.'));
@@ -1050,6 +1053,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                 context,
                 context.translate('activity_date_time'),
                 icon: Icons.calendar_today,
+                isRequired: true,
               ),
               child: Text(dateLabel, style: theme.textTheme.bodyLarge),
             ),
@@ -1072,6 +1076,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               context.translate('distance_label'),
               icon: Icons.straighten,
               suffixText: context.translate('km'),
+              isRequired: true,
             ),
             validator: (v) {
               final d = double.tryParse((v ?? '').replaceAll(',', '.'));
@@ -1090,6 +1095,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               context.translate('duration_label'),
               icon: Icons.timer_outlined,
               suffixText: context.translate('min'),
+              isRequired: true,
             ),
             validator: (v) {
               final d = double.tryParse((v ?? '').replaceAll(',', '.'));

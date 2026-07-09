@@ -188,6 +188,7 @@ class _LoginPageState extends State<LoginPage> {
                   dialogContext,
                   dialogContext.translate('email'),
                   icon: Icons.email,
+                  isRequired: true,
                 ),
                 inputFormatters: [UnsignedTextInputFormatter()],
               ),
@@ -290,6 +291,7 @@ class _LoginPageState extends State<LoginPage> {
                           context,
                           context.translate('email'),
                           icon: Icons.email,
+                          isRequired: true,
                         ),
                         keyboardType: TextInputType.emailAddress,
                         style: TextStyle(
@@ -304,6 +306,7 @@ class _LoginPageState extends State<LoginPage> {
                           context,
                           context.translate('password'),
                           icon: Icons.lock,
+                          isRequired: true,
                         ),
                         keyboardType: TextInputType.visiblePassword,
                         obscureText: true,

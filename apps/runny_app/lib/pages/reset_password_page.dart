@@ -96,6 +96,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                           context,
                           context.translate('new_password'),
                           icon: Icons.lock,
+                          isRequired: true,
                         ),
                         keyboardType: TextInputType.visiblePassword,
                         obscureText: true,

@@ -296,10 +296,31 @@ InputDecoration themedInputDecoration(
   IconData? icon,
   Widget? prefixIcon,
   String? suffixText,
+  bool isRequired = false,
 }) {
   final theme = Theme.of(context);
   return InputDecoration(
-    labelText: label,
+    label: isRequired
+        ? Text.rich(
+            TextSpan(
+              text: label,
+              children: const [
+                TextSpan(
+                  text: ' *',
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            style: TextStyle(
+              color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
+              fontWeight: FontWeight.w600,
+            ),
+          )
+        : null,
+    labelText: isRequired ? null : label,
     hintText: hint,
     suffixText: suffixText,
     prefixIcon: prefixIcon ??
