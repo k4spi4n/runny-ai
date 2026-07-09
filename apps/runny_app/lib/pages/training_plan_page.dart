@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_lucide/flutter_lucide.dart';
 import '../models/run_reminder_model.dart';
 import '../services/run_reminder_service.dart';
 import '../services/training_service.dart';
@@ -484,6 +485,8 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                             enabled: enabled,
                           ),
                       initiallyExpanded: true,
+                      isLast: _workouts.isNotEmpty &&
+                          nextWorkout['id'] == _workouts.last['id'],
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -540,6 +543,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                                     leadMinutes: leadMinutes,
                                     enabled: enabled,
                                   ),
+                          isLast: isLast,
                         ),
                       );
                     }),
@@ -1387,6 +1391,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
   // Chỉ buổi tập sắp tới mới có nút "Khởi động" (null -> ẩn).
   final VoidCallback? onWarmUp;
   final bool initiallyExpanded;
+  final bool isLast;
 
   const _WorkoutScheduleCard({
     required this.workout,
@@ -1401,6 +1406,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
     this.reminder,
     this.onWarmUp,
     this.initiallyExpanded = false,
+    this.isLast = false,
   });
 
   @override
@@ -1433,8 +1439,8 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                 children: [
                   CircleAvatar(
                     backgroundColor: widget.statusColor,
-                    child: const Icon(
-                      Icons.directions_run,
+                    child: Icon(
+                      widget.isLast ? LucideIcons.medal : Icons.directions_run,
                       color: Colors.white,
                     ),
                   ),
