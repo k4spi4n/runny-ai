@@ -158,6 +158,8 @@ class NotificationService {
     }
   }
 
+  bool get supportsScheduledNotifications => _supportsScheduledNotifications;
+
   bool get _supportsScheduledNotifications {
     if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.android ||

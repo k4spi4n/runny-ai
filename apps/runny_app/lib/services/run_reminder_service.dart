@@ -52,22 +52,23 @@ class RunReminderService {
     final reminder = RunReminder(
       userId: user.id,
       workoutId: workoutId,
-      workoutAt: workoutAt,
       leadMinutes: leadMinutes,
       enabled: enabled,
       notificationId: notificationId,
       scheduledFor: scheduledFor,
     );
 
-    if (enabled) {
-      final granted = await _notificationService.requestReminderPermission();
-      if (!granted) throw StateError('Notification permission denied.');
-      await _notificationService.scheduleRunReminder(
-        reminder: reminder,
-        workoutTitle: workoutTitle,
-      );
-    } else {
-      await _notificationService.cancelRunReminder(notificationId);
+    if (_notificationService.supportsScheduledNotifications) {
+      if (enabled) {
+        final granted = await _notificationService.requestReminderPermission();
+        if (!granted) throw StateError('Notification permission denied.');
+        await _notificationService.scheduleRunReminder(
+          reminder: reminder,
+          workoutTitle: workoutTitle,
+        );
+      } else {
+        await _notificationService.cancelRunReminder(notificationId);
+      }
     }
 
     try {
@@ -78,7 +79,7 @@ class RunReminderService {
           .single();
       return RunReminder.fromJson(row);
     } catch (_) {
-      if (enabled) {
+      if (enabled && _notificationService.supportsScheduledNotifications) {
         await _notificationService.cancelRunReminder(notificationId);
       }
       rethrow;
@@ -87,7 +88,9 @@ class RunReminderService {
 
   Future<void> disableReminder(String workoutId) async {
     final notificationId = notificationIdForWorkout(workoutId);
-    await _notificationService.cancelRunReminder(notificationId);
+    if (_notificationService.supportsScheduledNotifications) {
+      await _notificationService.cancelRunReminder(notificationId);
+    }
     await _supabase
         .from('run_reminders')
         .update({

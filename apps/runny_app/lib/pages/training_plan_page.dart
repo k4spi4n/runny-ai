@@ -14,6 +14,15 @@ import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'import_activity_page.dart';
 
+(int, int) _parseWorkoutTime(String? raw) {
+  if (raw == null || raw.isEmpty) return (6, 0);
+  final parts = raw.split(':');
+  if (parts.length < 2) return (6, 0);
+  final hour = int.tryParse(parts[0]) ?? 6;
+  final minute = int.tryParse(parts[1]) ?? 0;
+  return (hour.clamp(0, 23).toInt(), minute.clamp(0, 59).toInt());
+}
+
 class TrainingPlanPage extends StatefulWidget {
   /// [embedded] = true khi hiển thị bên trong khung tab của Dashboard: bỏ nền
   /// gradient riêng (Dashboard đã vẽ gradient toàn màn) để không tạo ra "box"
@@ -84,12 +93,18 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           schedule['status'] = 'completed';
         }
       }
+      Map<String, RunReminder> reminders = {};
+      if (workouts.isNotEmpty) {
+        reminders = await _reminderService.remindersForWorkouts(
+          workouts.map((w) => w['id'] as String).toList(),
+        );
+      }
 
       if (mounted) {
         setState(() {
           _activeSchedule = schedule;
           _workouts = workouts;
-          _runReminders = {};
+          _runReminders = reminders;
         });
       }
     } catch (e) {
@@ -970,12 +985,13 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     if (selectedDate == null || !mounted) return;
 
     final reminder = _runReminders[workout['id']];
+    final startTime = _parseWorkoutTime(workout['start_time']?.toString());
     final workoutAt = DateTime(
       selectedDate.year,
       selectedDate.month,
       selectedDate.day,
-      reminder?.workoutAt.hour ?? 6,
-      reminder?.workoutAt.minute ?? 0,
+      startTime.$1,
+      startTime.$2,
     );
 
     await _rescheduleWorkoutAt(
@@ -994,11 +1010,15 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     required bool enabled,
   }) async {
     final newDate = DateFormat('yyyy-MM-dd').format(workoutAt);
+    final newStartTime = DateFormat('HH:mm:ss').format(workoutAt);
     setState(() => _isLoading = true);
     try {
       await _supabase
           .from('scheduled_workouts')
-          .update({'date': newDate})
+          .update({
+            'date': newDate,
+            'start_time': newStartTime,
+          })
           .eq('id', workout['id']);
       await _reminderService.saveReminder(
         workoutId: workout['id'] as String,
@@ -1484,10 +1504,11 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                       ),
                     ),
                   ],
-                  if (workout['status'] == 'planned') ...[
-                    const SizedBox(height: 14),
-                    _buildReminderSettings(context, date),
-                  ],
+                  // Ẩn tạm thời tính năng nhắc lịch chạy trên Web/PWA
+                  // if (workout['status'] == 'planned') ...[
+                  //   const SizedBox(height: 14),
+                  //   _buildReminderSettings(context, date),
+                  // ],
                   const SizedBox(height: 14),
                   Wrap(
                     spacing: 12,
@@ -1787,24 +1808,14 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
   }
 
   DateTime _workoutAt(DateTime workoutDate) {
-    final current = widget.reminder?.workoutAt;
-    final startTime = _timeParts(widget.workout['start_time']?.toString());
+    final startTime = _parseWorkoutTime(widget.workout['start_time']?.toString());
     return DateTime(
       workoutDate.year,
       workoutDate.month,
       workoutDate.day,
-      current?.hour ?? startTime.$1,
-      current?.minute ?? startTime.$2,
+      startTime.$1,
+      startTime.$2,
     );
-  }
-
-  (int, int) _timeParts(String? raw) {
-    if (raw == null || raw.isEmpty) return (6, 0);
-    final parts = raw.split(':');
-    if (parts.length < 2) return (6, 0);
-    final hour = int.tryParse(parts[0]) ?? 6;
-    final minute = int.tryParse(parts[1]) ?? 0;
-    return (hour.clamp(0, 23).toInt(), minute.clamp(0, 59).toInt());
   }
 
   Future<void> _changeReminder({

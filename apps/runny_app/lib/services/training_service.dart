@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/workout_models.dart';
+import '../models/run_reminder_model.dart';
 import 'gemini_service.dart';
+import 'notification_service.dart';
 
 /// Ném ra khi chưa có buổi tập nào hoàn thành (gắn hoạt động thực tế) — HLV AI
 /// cần ít nhất một buổi để căn cứ tinh chỉnh lịch.
@@ -355,6 +357,70 @@ class TrainingService {
       schedule: schedule,
       workoutDate: input.date,
     );
+
+    // Cập nhật nhắc nhở nếu có để tránh lệch lịch khi sửa đổi buổi tập thủ công
+    try {
+      final existingReminderRow = await _supabase
+          .from('run_reminders')
+          .select()
+          .eq('workout_id', workoutId)
+          .maybeSingle();
+
+      if (existingReminderRow != null) {
+        final enabled = existingReminderRow['enabled'] as bool? ?? false;
+        final leadMinutes = (existingReminderRow['lead_minutes'] as num?)?.toInt() ?? 10;
+        final parts = input.startTime.split(':');
+        final hour = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 6) : 6;
+        final minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+
+        final workoutAt = DateTime(
+          input.date.year,
+          input.date.month,
+          input.date.day,
+          hour,
+          minute,
+        );
+        final scheduledFor = workoutAt.subtract(Duration(minutes: leadMinutes));
+        final notificationId = (existingReminderRow['notification_id'] as num?)?.toInt() ?? 0;
+
+        await _supabase
+            .from('run_reminders')
+            .update({
+              'scheduled_for': scheduledFor.toUtc().toIso8601String(),
+              'updated_at': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('workout_id', workoutId);
+
+        // Đồng thời cập nhật hoặc hủy lịch thông báo local trên thiết bị
+        final notificationService = NotificationService.instance;
+        if (notificationService.supportsScheduledNotifications) {
+          if (enabled) {
+            final workoutTitle = input.title;
+            final reminder = RunReminder(
+              id: existingReminderRow['id'],
+              userId: existingReminderRow['user_id'],
+              workoutId: workoutId,
+              leadMinutes: leadMinutes,
+              enabled: enabled,
+              notificationId: notificationId,
+              scheduledFor: scheduledFor,
+            );
+            try {
+              await notificationService.scheduleRunReminder(
+                reminder: reminder,
+                workoutTitle: workoutTitle,
+              );
+            } catch (e) {
+              debugPrint('Failed to reschedule local notification: $e');
+            }
+          } else {
+            await notificationService.cancelRunReminder(notificationId);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error updating run reminder: $e');
+    }
   }
 
   Future<void> deleteManualWorkout(String workoutId) async {

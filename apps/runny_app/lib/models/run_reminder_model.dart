@@ -2,7 +2,6 @@ class RunReminder {
   final String? id;
   final String userId;
   final String workoutId;
-  final DateTime workoutAt;
   final int leadMinutes;
   final bool enabled;
   final int notificationId;
@@ -14,7 +13,6 @@ class RunReminder {
     this.id,
     required this.userId,
     required this.workoutId,
-    required this.workoutAt,
     required this.leadMinutes,
     required this.enabled,
     required this.notificationId,
@@ -28,7 +26,6 @@ class RunReminder {
       id: json['id'],
       userId: json['user_id'],
       workoutId: json['workout_id'],
-      workoutAt: DateTime.parse(json['workout_at']).toLocal(),
       leadMinutes: (json['lead_minutes'] as num?)?.toInt() ?? 10,
       enabled: json['enabled'] as bool? ?? false,
       notificationId: (json['notification_id'] as num?)?.toInt() ??
@@ -47,7 +44,6 @@ class RunReminder {
     return {
       'user_id': userId,
       'workout_id': workoutId,
-      'workout_at': workoutAt.toUtc().toIso8601String(),
       'lead_minutes': leadMinutes,
       'enabled': enabled,
       'notification_id': notificationId,
@@ -60,7 +56,6 @@ class RunReminder {
     String? id,
     String? userId,
     String? workoutId,
-    DateTime? workoutAt,
     int? leadMinutes,
     bool? enabled,
     int? notificationId,
@@ -72,7 +67,6 @@ class RunReminder {
       id: id ?? this.id,
       userId: userId ?? this.userId,
       workoutId: workoutId ?? this.workoutId,
-      workoutAt: workoutAt ?? this.workoutAt,
       leadMinutes: leadMinutes ?? this.leadMinutes,
       enabled: enabled ?? this.enabled,
       notificationId: notificationId ?? this.notificationId,
