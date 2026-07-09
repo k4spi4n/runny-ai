@@ -1668,6 +1668,7 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildReminderSettings(BuildContext context, DateTime workoutDate) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
