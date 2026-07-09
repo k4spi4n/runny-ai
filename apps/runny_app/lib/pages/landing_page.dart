@@ -1420,7 +1420,6 @@ class _LandingFooterState extends State<_LandingFooter> {
                   text: 'https://unikorn.vn/p/runny-ai',
                   style: TextStyle(
                     color: theme.colorScheme.primary,
-                    decoration: TextDecoration.underline,
                     fontWeight: FontWeight.w600,
                   ),
                   recognizer: _tapRecognizer,
