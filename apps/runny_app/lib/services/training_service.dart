@@ -718,7 +718,12 @@ Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseAc
 $manualWorkoutsSection
 ''';
 
-    return _gemini.generateStructuredResponse(userContext, systemPrompt);
+    return _gemini.generateStructuredResponse(
+      userContext,
+      systemPrompt,
+      preferredProvider: 'groq',
+      preferredModel: 'openai/gpt-oss-120b',
+    );
   }
 
   /// Chuyển giá trị giới tính chuẩn ('male'/'female'/'other') sang nhãn tiếng

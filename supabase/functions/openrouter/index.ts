@@ -234,8 +234,10 @@ const GROQ_DEFAULT_MODELS = [
 ];
 
 // Client chi duoc yeu cau model Groq ngoai danh sach mac dinh khi server da
-// allowlist ro rang. Dung cho tac vu vision nhap buoi tap tu anh chup man hinh.
+// allowlist ro rang. Dung cho tao lich tap va tac vu vision nhap buoi tap tu anh chup man hinh.
 const GROQ_CLIENT_ALLOWED_MODELS = [
+  // Dung cho tao lich tap co cau truc. Llama 3.3 van la mac dinh cho chat.
+  'openai/gpt-oss-120b',
   'meta-llama/llama-4-scout-17b-16e-instruct',
   'qwen/qwen3.6-27b',
 ];

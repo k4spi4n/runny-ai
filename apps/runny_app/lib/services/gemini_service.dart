@@ -268,8 +268,10 @@ class GeminiService {
 
   Future<Map<String, dynamic>> generateStructuredResponse(
     String prompt,
-    String systemPrompt,
-  ) async {
+    String systemPrompt, {
+    String? preferredProvider,
+    String? preferredModel,
+  }) async {
     try {
       final messages = [
         {'role': 'system', 'content': systemPrompt},
@@ -280,6 +282,8 @@ class GeminiService {
         'openrouter',
         body: {
           ..._modelPayload,
+          'provider_preference': ?preferredProvider,
+          'preferred_model': ?preferredModel,
           'messages': messages,
           'response_format': {'type': 'json_object'},
         },
