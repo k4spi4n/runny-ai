@@ -271,6 +271,7 @@ class GeminiService {
     String systemPrompt, {
     String? preferredProvider,
     String? preferredModel,
+    Map<String, dynamic>? responseFormat,
   }) async {
     try {
       final messages = [
@@ -285,7 +286,7 @@ class GeminiService {
           'provider_preference': ?preferredProvider,
           'preferred_model': ?preferredModel,
           'messages': messages,
-          'response_format': {'type': 'json_object'},
+          'response_format': responseFormat ?? {'type': 'json_object'},
         },
       );
 

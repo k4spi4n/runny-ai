@@ -60,6 +60,65 @@ class TrainingService {
   final GeminiService _gemini = GeminiService();
   static const String _manualMetadataPrefix = 'RUNNY_MANUAL_WORKOUT_V1:';
 
+  // Groq JSON Object Mode co the tra 400 neu model tu sinh JSON sai cu phap.
+  // Schema strict rang buoc decoding o cap token va giu output on dinh de luu DB.
+  static const Map<String, dynamic> _planResponseFormat = {
+    'type': 'json_schema',
+    'json_schema': {
+      'name': 'training_plan',
+      'strict': true,
+      'schema': {
+        'type': 'object',
+        'additionalProperties': false,
+        'properties': {
+          'title': {'type': 'string'},
+          'target_distance_km': {'type': 'number'},
+          'target_pace_min_per_km': {'type': 'number'},
+          'weeks': {'type': 'integer'},
+          'workouts': {
+            'type': 'array',
+            'items': {
+              'type': 'object',
+              'additionalProperties': false,
+              'properties': {
+                'day_offset': {'type': 'integer'},
+                'title': {'type': 'string'},
+                'description': {'type': 'string'},
+                'target_distance_km': {'type': 'number'},
+                'target_duration_min': {'type': 'number'},
+                'target_pace_min_per_km': {'type': 'number'},
+                'source': {
+                  'type': 'string',
+                  'enum': ['ai', 'manual'],
+                },
+                'workout_type': {'type': 'string'},
+                'start_time': {'type': 'string'},
+              },
+              'required': [
+                'day_offset',
+                'title',
+                'description',
+                'target_distance_km',
+                'target_duration_min',
+                'target_pace_min_per_km',
+                'source',
+                'workout_type',
+                'start_time',
+              ],
+            },
+          },
+        },
+        'required': [
+          'title',
+          'target_distance_km',
+          'target_pace_min_per_km',
+          'weeks',
+          'workouts',
+        ],
+      },
+    },
+  };
+
   Future<void> completeScheduledWorkout({
     required String workoutId,
     required String activityId,
@@ -723,6 +782,7 @@ $manualWorkoutsSection
       systemPrompt,
       preferredProvider: 'groq',
       preferredModel: 'openai/gpt-oss-120b',
+      responseFormat: _planResponseFormat,
     );
   }
 

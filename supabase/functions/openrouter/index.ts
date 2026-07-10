@@ -355,6 +355,21 @@ function buildGroqBody(rawBody: Record<string, unknown>, model: string): Record<
   return { ...rest, model };
 }
 
+// JSON Schema strict la co che rieng cua Groq cho structured output. Cac
+// fallback co the khong ho tro hoan toan nen ha xuong JSON Object Mode; prompt
+// cua client van bat buoc tra JSON va Flutter se parse/kiem tra ket qua.
+function compatibleStructuredOutput(body: Record<string, unknown>): Record<string, unknown> {
+  const responseFormat = body.response_format;
+  if (
+    responseFormat &&
+    typeof responseFormat === 'object' &&
+    (responseFormat as Record<string, unknown>).type === 'json_schema'
+  ) {
+    return { ...body, response_format: { type: 'json_object' } };
+  }
+  return body;
+}
+
 // Body gui sang Cerebras: tuong tu Groq, bo model(s) OpenRouter va dat model
 // rieng. Dat max_completion_tokens mac dinh neu client chua gui de tranh
 // provider uoc tinh token dau ra qua lon luc rate-limit.
@@ -371,12 +386,13 @@ function buildCerebrasBody(rawBody: Record<string, unknown>, model: string): Rec
   const hasExplicitMax =
     typeof rest.max_completion_tokens === 'number' ||
     typeof rest.max_tokens === 'number';
-  if (hasExplicitMax) return { ...rest, model };
+  const compatibleBody = compatibleStructuredOutput(rest);
+  if (hasExplicitMax) return { ...compatibleBody, model };
 
   const maxCompletionTokens = rawBody.response_format
     ? CEREBRAS_STRUCTURED_MAX_COMPLETION_TOKENS()
     : CEREBRAS_CHAT_MAX_COMPLETION_TOKENS();
-  return { ...rest, model, max_completion_tokens: maxCompletionTokens };
+  return { ...compatibleBody, model, max_completion_tokens: maxCompletionTokens };
 }
 
 // Chuan hoa body cho OpenRouter: dam bao luon co mang `models` de ap dung fallback routing.
@@ -388,19 +404,20 @@ function applyModelFallback(body: Record<string, unknown>): Record<string, unkno
     provider_model: pm2,
     ...cleanBody
   } = body;
+  const compatibleBody = compatibleStructuredOutput(cleanBody);
   const fallback = getFallbackModels(body);
 
-  if (Array.isArray(cleanBody.models) && cleanBody.models.length > 0) {
-    const capped = [...new Set(cleanBody.models as unknown[])].slice(0, MAX_MODELS);
-    return { ...cleanBody, models: capped };
+  if (Array.isArray(compatibleBody.models) && compatibleBody.models.length > 0) {
+    const capped = [...new Set(compatibleBody.models as unknown[])].slice(0, MAX_MODELS);
+    return { ...compatibleBody, models: capped };
   }
 
   const preferred = (typeof pm === 'string' ? pm : null) ?? (typeof pm2 === 'string' ? pm2 : null);
-  const primary = typeof cleanBody.model === 'string' ? cleanBody.model : preferred;
+  const primary = typeof compatibleBody.model === 'string' ? compatibleBody.model : preferred;
   const models = primary ? [primary, ...fallback] : [...fallback];
   const deduped = [...new Set(models)].slice(0, MAX_MODELS);
 
-  const { model: _drop, ...rest } = cleanBody;
+  const { model: _drop, ...rest } = compatibleBody;
   return { ...rest, models: deduped };
 }
 
@@ -622,10 +639,10 @@ serve(async (req) => {
         console.warn('Preferred Groq unavailable, falling back to Cerebras/OpenRouter');
       }
 
-      if (cerebrasApiKey && hasImageInput(rawBody)) {
+      if (cerebrasApiKey) {
         const cerebrasRes = await tryCerebras(body, cerebrasApiKey, wantsStream);
         if (cerebrasRes) return cerebrasRes;
-        console.warn('Cerebras vision fallback unavailable, falling back to OpenRouter');
+        console.warn('Cerebras fallback unavailable, falling back to OpenRouter');
       }
 
       if (openRouterApiKey) {
