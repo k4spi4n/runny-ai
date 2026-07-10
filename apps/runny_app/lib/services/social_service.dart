@@ -104,9 +104,12 @@ class SocialService {
   }
 
   Future<void> respondToRequest(String matchId, {required bool accept}) async {
-    await _supabase.from('run_matches').update({
-      'status': accept ? 'accepted' : 'declined',
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', matchId);
+    await _supabase.rpc('respond_to_match', params: {
+      'p_match_id': matchId,
+      'p_accept': accept,
+    });
   }
+
+  Future<void> cancelMatchRequest(String matchId) =>
+      _supabase.rpc('cancel_match', params: {'p_match_id': matchId});
 }

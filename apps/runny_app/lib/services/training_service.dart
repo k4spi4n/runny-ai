@@ -60,6 +60,14 @@ class TrainingService {
   final GeminiService _gemini = GeminiService();
   static const String _manualMetadataPrefix = 'RUNNY_MANUAL_WORKOUT_V1:';
 
+  Future<void> completeScheduledWorkout({
+    required String workoutId,
+    required String activityId,
+  }) => _supabase.rpc('complete_scheduled_workout', params: {
+        'p_workout_id': workoutId,
+        'p_activity_id': activityId,
+      });
+
   void _ensureGeminiReady() {
     if (!_gemini.isConfigured) {
       throw Exception('OPENROUTER_API_KEY not found in .env');
@@ -368,7 +376,8 @@ class TrainingService {
 
       if (existingReminderRow != null) {
         final enabled = existingReminderRow['enabled'] as bool? ?? false;
-        final leadMinutes = (existingReminderRow['lead_minutes'] as num?)?.toInt() ?? 10;
+        final leadMinutes =
+            (existingReminderRow['lead_minutes'] as num?)?.toInt() ?? 10;
         final parts = input.startTime.split(':');
         final hour = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 6) : 6;
         final minute = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
@@ -381,7 +390,8 @@ class TrainingService {
           minute,
         );
         final scheduledFor = workoutAt.subtract(Duration(minutes: leadMinutes));
-        final notificationId = (existingReminderRow['notification_id'] as num?)?.toInt() ?? 0;
+        final notificationId =
+            (existingReminderRow['notification_id'] as num?)?.toInt() ?? 0;
 
         await _supabase
             .from('run_reminders')
@@ -601,20 +611,50 @@ class TrainingService {
     }
 
     const systemPrompt = '''
-Bạn là một Huấn luyện viên Chạy bộ Ảo chuyên nghiệp.
-Nhiệm vụ của bạn là tạo ra một lịch tập luyện chi tiết dựa trên mục tiêu, thể trạng và lịch sử tập luyện của người dùng.
-Mỗi buổi tập dùng "day_offset" là SỐ NGÀY tính từ ngày bắt đầu (day_offset = 0 nghĩa là đúng ngày bắt đầu).
-Nếu người dùng có ngày kết thúc, toàn bộ buổi tập phải nằm trong khoảng từ ngày bắt đầu đến ngày kết thúc và trường "weeks" phải khớp với khoảng thời gian đó.
-Nếu không có ngày kết thúc, hãy tự chọn số tuần ("weeks") hợp lý cho mục tiêu.
+Bạn là một Huấn luyện viên Chạy bộ Ảo chuyên nghiệp cho Runny AI.
+Nhiệm vụ: tạo lịch tập chạy bộ thực tế, an toàn và đủ chi tiết dựa trên mục tiêu, thể trạng và lịch sử tập luyện của người dùng.
+
+QUY TẮC OUTPUT BẮT BUỘC:
+- Chỉ trả về MỘT JSON object hợp lệ. Không dùng Markdown, không giải thích ngoài JSON, không thêm comment.
+- Tất cả khóa phải đúng như schema bên dưới. Không thêm khóa mới.
+- Tất cả chuỗi hiển thị cho người dùng phải viết bằng tiếng Việt tự nhiên.
+- Các số phải dùng đơn vị km, phút, phút/km. Không dùng mét, giây, giờ hoặc pace dạng "06:30".
+- Nếu không chắc một giá trị số, hãy chọn giá trị bảo thủ và hợp lý thay vì để null.
+
+QUY TẮC THỜI GIAN:
+- Mỗi buổi tập dùng "day_offset" là SỐ NGÀY tính từ ngày bắt đầu; day_offset = 0 nghĩa là đúng ngày bắt đầu.
+- Nếu người dùng có ngày kết thúc, mọi day_offset phải nằm trong khoảng cho phép và "weeks" phải khớp với khoảng thời gian đó.
+- Nếu không có ngày kết thúc, tự chọn "weeks" hợp lý theo mục tiêu; ưu tiên 4-8 tuần cho mục tiêu phổ thông.
+- Không tạo quá 1 buổi tập trong cùng một ngày, trừ khi đó là buổi manual đã được cung cấp.
+- Mỗi tuần nên có ngày nhẹ hoặc nghỉ ngầm giữa các bài nặng; không xếp interval/tempo/long_run sát nhau nếu không cần thiết.
+
+WORKOUT TYPE BẮT BUỘC:
+- Với mọi buổi "source": "ai", "workout_type" CHỈ được là một trong 5 giá trị sau:
+  "easy_run", "long_run", "interval", "tempo", "recovery".
+- Tuyệt đối không sinh các giá trị khác như "endurance_run", "speed_run", "hill_run", "fartlek", "test_run", "race", "strength", "rest".
+- Nếu bài là chạy bền/aerobic/base/endurance/steady nhẹ -> dùng "easy_run".
+- Nếu bài là chạy dài cuối tuần hoặc dài nhất tuần -> dùng "long_run".
+- Nếu bài là chạy nhanh, biến tốc, fartlek, hill repeats, VO2max, speed work -> dùng "interval".
+- Nếu bài là tempo, threshold, kiểm tra thể lực, time trial ngắn, progression run -> dùng "tempo".
+- Nếu bài là phục hồi, rất nhẹ sau bài nặng hoặc sau chạy dài -> dùng "recovery".
+
+QUY TẮC NỘI DUNG BÀI TẬP:
+- "title" ngắn gọn, dễ hiểu, không lặp lại workout_type dạng key kỹ thuật.
+- "description" mô tả mục đích và cách chạy trong 1 câu ngắn; không nhồi quá nhiều chỉ dẫn.
+- "target_distance_km" phải thực tế với lịch sử gần đây và mục tiêu.
+- "target_duration_min" phải tương thích với distance và pace.
+- "target_pace_min_per_km" là số thập phân phút/km, ví dụ 6.5 nghĩa là 6 phút 30 giây/km.
+- "start_time" dùng định dạng HH:mm:ss, ưu tiên "06:00:00" hoặc "18:00:00" nếu người dùng không nói rõ.
+- "source" của bài AI luôn là "ai".
 
 ĐẶC BIỆT LƯU Ý VỀ CÁC BUỔI TẬP DO NGƯỜI DÙNG TỰ ĐẶT:
-- Nếu trong ngữ cảnh có cung cấp danh sách "LỊCH TẬP DO NGƯỜI DÙNG TỰ ĐẶT", bạn PHẢI đưa toàn bộ các buổi tập này vào mảng "workouts" của kết quả JSON.
-- Giữ nguyên tuyệt đối mọi thông tin của các buổi tập do người dùng tự đặt (không thay đổi day_offset, ngày tập, cự ly, thời gian, tên, mô tả).
-- Thêm trường "source": "manual" và các trường "start_time", "workout_type" của các buổi này y hệt như được cung cấp vào đối tượng buổi tập trong kết quả JSON.
-- Bạn KHÔNG được tự ý thay đổi hay xóa bỏ bất kỳ buổi tập nào do người dùng tự đặt.
-- Chỉ điều chỉnh, phân bổ các buổi tập do AI tạo (được đánh dấu là "source": "ai") xen kẽ hoặc xoay quanh lịch tập do người dùng đặt để đảm bảo kế hoạch tập luyện hài hòa, hợp lý, tránh trùng ngày tập hoặc gây quá sức cho người dùng.
+- Nếu ngữ cảnh có "LỊCH TẬP DO NGƯỜI DÙNG TỰ ĐẶT", bạn PHẢI đưa toàn bộ các buổi này vào mảng "workouts" của JSON.
+- Giữ nguyên tuyệt đối mọi thông tin của các buổi manual: day_offset, ngày tập, cự ly, thời gian, tên, mô tả, start_time, workout_type.
+- Với buổi manual, đặt "source": "manual" và copy "start_time", "workout_type" y hệt dữ liệu được cung cấp, kể cả khi workout_type không nằm trong enum AI.
+- Không thay đổi, không xóa, không đổi ngày, không đổi cự ly của buổi manual.
+- Chỉ phân bổ các buổi "source": "ai" xen kẽ quanh lịch manual để tránh trùng ngày và tránh quá tải.
 
-Phản hồi của bạn PHẢI là một đối tượng JSON có cấu trúc như sau:
+Phản hồi PHẢI là JSON theo cấu trúc sau:
 {
   "title": "Tên lịch tập",
   "target_distance_km": 5.0,
@@ -653,13 +693,17 @@ Phản hồi của bạn PHẢI là một đối tượng JSON có cấu trúc n
 
     String manualWorkoutsSection = '';
     if (manualWorkouts.isNotEmpty) {
-      manualWorkoutsSection = '\nLỊCH TẬP DO NGƯỜI DÙNG TỰ ĐẶT (BẮT BUỘC giữ nguyên, không thay đổi, chỉ sắp xếp các buổi tập AI xoay quanh các buổi này):\n';
+      manualWorkoutsSection =
+          '\nLỊCH TẬP DO NGƯỜI DÙNG TỰ ĐẶT (BẮT BUỘC giữ nguyên, không thay đổi, chỉ sắp xếp các buổi tập AI xoay quanh các buổi này):\n';
       for (final mw in manualWorkouts) {
         final dateStr = mw['date'] as String;
         final dateVal = DateTime.tryParse(dateStr);
-        final offset = dateVal != null ? dateVal.difference(startDate).inDays : 0;
+        final offset = dateVal != null
+            ? dateVal.difference(startDate).inDays
+            : 0;
         final targets = _formatWorkoutTargets(mw);
-        manualWorkoutsSection += '- day_offset $offset: ${mw['title']} (${_weekdayVi(dateVal ?? startDate)}, ngày $dateStr), mục tiêu [$targets], source: "manual", start_time: "${mw['start_time'] ?? ''}", workout_type: "${mw['workout_type'] ?? ''}"\n';
+        manualWorkoutsSection +=
+            '- day_offset $offset: ${mw['title']} (${_weekdayVi(dateVal ?? startDate)}, ngày $dateStr), mục tiêu [$targets], source: "manual", start_time: "${mw['start_time'] ?? ''}", workout_type: "${mw['workout_type'] ?? ''}"\n';
       }
     }
 
@@ -786,7 +830,9 @@ $manualWorkoutsSection
         final dateStr = _dateOnly(startDate.add(Duration(days: offset)));
 
         // Kiểm tra xem ngày này có trùng với buổi tập thủ công nào không để tránh đè hoặc tạo trùng
-        final isDuplicateOfManual = manualWorkouts.any((mw) => mw['date'] == dateStr);
+        final isDuplicateOfManual = manualWorkouts.any(
+          (mw) => mw['date'] == dateStr,
+        );
         final isAiSourceManual = w['source'] == 'manual';
 
         if (isDuplicateOfManual || isAiSourceManual) {
@@ -932,7 +978,9 @@ Phản hồi của bạn PHẢI là một đối tượng JSON:
     final upcomingSummary = upcoming
         .map((w) {
           final isManual = w['source'] == 'manual';
-          final sourceLabel = isManual ? 'do người dùng tự đặt (manual)' : 'do AI tự động tạo (ai)';
+          final sourceLabel = isManual
+              ? 'do người dùng tự đặt (manual)'
+              : 'do AI tự động tạo (ai)';
           return '- id ${w['id']}: ${w['title']} vào ${w['date']}, mục tiêu [${_formatWorkoutTargets(w)}], nguồn: $sourceLabel';
         })
         .join('\n');

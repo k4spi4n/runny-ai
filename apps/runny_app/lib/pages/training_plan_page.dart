@@ -1372,10 +1372,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
 
     setState(() => _isLoading = true);
     try {
-      await _supabase
-          .from('scheduled_workouts')
-          .update({'activity_id': activityId, 'status': 'completed'})
-          .eq('id', workout['id']);
+      await _trainingService.completeScheduledWorkout(
+        workoutId: workout['id'] as String,
+        activityId: activityId,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1425,10 +1425,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       final activityId = activityRes['id'] as String;
 
       // Link the activity to the scheduled workout and complete it
-      await _supabase
-          .from('scheduled_workouts')
-          .update({'activity_id': activityId, 'status': 'completed'})
-          .eq('id', workout['id']);
+      await _trainingService.completeScheduledWorkout(
+        workoutId: workout['id'] as String,
+        activityId: activityId,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

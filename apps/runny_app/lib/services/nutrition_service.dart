@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/nutrition_models.dart';
@@ -7,7 +9,21 @@ import '../models/workout_models.dart';
 /// và `meal_logs`). Dữ liệu của ~60 ngày gần nhất được nạp vào bộ nhớ để các
 /// thao tác xem theo ngày trên giao diện diễn ra tức thì.
 class NutritionService extends ChangeNotifier {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  NutritionService({SupabaseClient? supabase})
+      : _supabase = supabase ?? Supabase.instance.client {
+    _sessionUserId = _supabase.auth.currentUser?.id;
+    _authSubscription = _supabase.auth.onAuthStateChange.listen((state) {
+      final nextUserId = state.session?.user.id;
+      if (nextUserId != _sessionUserId) {
+        _sessionUserId = nextUserId;
+        _resetForSession();
+      }
+    });
+  }
+
+  final SupabaseClient _supabase;
+  late final StreamSubscription<AuthState> _authSubscription;
+  String? _sessionUserId;
 
   /// Số ngày lịch sử được nạp vào bộ nhớ.
   static const int _historyDays = 60;
@@ -28,6 +44,16 @@ class NutritionService extends ChangeNotifier {
   String? get error => _error;
 
   String? get _uid => _supabase.auth.currentUser?.id;
+
+  void _resetForSession() {
+    _currentGoal = null;
+    _logs = [];
+    _activities = [];
+    _isLoading = false;
+    _loaded = false;
+    _error = null;
+    notifyListeners();
+  }
 
   /// Nạp dữ liệu lần đầu (gọi an toàn nhiều lần — chỉ nạp một lần).
   Future<void> ensureLoaded() async {
@@ -194,5 +220,11 @@ class NutritionService extends ChangeNotifier {
             log.consumedAt.month == date.month &&
             log.consumedAt.day == date.day)
         .toList();
+  }
+
+  @override
+  void dispose() {
+    _authSubscription.cancel();
+    super.dispose();
   }
 }

@@ -18,6 +18,7 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   late bool _isSignUp = widget.initialIsSignUp;
+  String? _pendingConfirmationEmail;
 
   Future<void> _handleAuth() async {
     setState(() => _isLoading = true);
@@ -74,9 +75,7 @@ class _LoginPageState extends State<LoginPage> {
           }
         } else if (mounted) {
           // Confirm email BẬT: cần xác thực qua email trước khi đăng nhập.
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(context.translate('signup_success'))),
-          );
+          setState(() => _pendingConfirmationEmail = email);
         }
       } else {
         await Supabase.instance.client.auth.signInWithPassword(
@@ -139,7 +138,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _resendConfirmation() async {
-    final email = _emailController.text.trim();
+    final email = _pendingConfirmationEmail ?? _emailController.text.trim();
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.translate('enter_email_first'))),
@@ -163,6 +162,13 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   Future<void> _handleForgotPassword() async {
@@ -275,125 +281,141 @@ class _LoginPageState extends State<LoginPage> {
                     children: [
                       const RunnyLogo(fontSize: 32),
                       const SizedBox(height: 28),
-                      Text(
-                        _isSignUp
-                            ? context.translate('signup')
-                            : context.translate('login'),
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      TextField(
-                        controller: _emailController,
-                        decoration: themedInputDecoration(
-                          context,
-                          context.translate('email'),
-                          icon: Icons.email,
-                          isRequired: true,
-                        ),
-                        keyboardType: TextInputType.emailAddress,
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                        inputFormatters: [UnsignedTextInputFormatter()],
-                      ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: _passwordController,
-                        decoration: themedInputDecoration(
-                          context,
-                          context.translate('password'),
-                          icon: Icons.lock,
-                          isRequired: true,
-                        ),
-                        keyboardType: TextInputType.visiblePassword,
-                        obscureText: true,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        style: TextStyle(
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                        inputFormatters: [UnsignedTextInputFormatter()],
-                      ),
-                      const SizedBox(height: 24),
-                      GradientButton(
-                        onPressed: _isLoading ? null : _handleAuth,
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                _isSignUp
-                                    ? context.translate('signup')
-                                    : context.translate('login'),
-                              ),
-                      ),
-                      if (!_isSignUp)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: _isLoading
-                                ? null
-                                : _handleForgotPassword,
-                            child: Text(
-                              context.translate('forgot_password'),
-                              style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black54,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _SocialLoginButton(
-                              onPressed: _isLoading ? null : _showComingSoon,
-                              icon: const Icon(
-                                Icons.g_mobiledata,
-                                color: Colors.redAccent,
-                                size: 28,
-                              ),
-                              label: context.translate('google_login'),
-                              isDark: isDark,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _SocialLoginButton(
-                              onPressed: _isLoading ? null : _showComingSoon,
-                              icon: const Icon(
-                                Icons.facebook,
-                                color: Color(0xFF1877F2),
-                                size: 24,
-                              ),
-                              label: context.translate('facebook_login'),
-                              isDark: isDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () => setState(() => _isSignUp = !_isSignUp),
-                        child: Text(
+                      if (_pendingConfirmationEmail != null)
+                        _ConfirmationPendingContent(
+                          email: _pendingConfirmationEmail!,
+                          isLoading: _isLoading,
+                          onResend: _resendConfirmation,
+                          onBackToLogin: () => setState(() {
+                            _isSignUp = false;
+                            _passwordController.clear();
+                            _pendingConfirmationEmail = null;
+                          }),
+                        )
+                      else ...[
+                        Text(
                           _isSignUp
-                              ? context.translate('already_have_account')
-                              : context.translate('no_account_signup'),
-                          style: TextStyle(
-                            color: isDark ? Colors.white70 : Colors.black54,
-                            fontWeight: FontWeight.w600,
+                              ? context.translate('signup')
+                              : context.translate('login'),
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: isDark ? Colors.white : Colors.black87,
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 24),
+                        TextField(
+                          controller: _emailController,
+                          decoration: themedInputDecoration(
+                            context,
+                            context.translate('email'),
+                            icon: Icons.email,
+                            isRequired: true,
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                          inputFormatters: [UnsignedTextInputFormatter()],
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: _passwordController,
+                          decoration: themedInputDecoration(
+                            context,
+                            context.translate('password'),
+                            icon: Icons.lock,
+                            isRequired: true,
+                          ),
+                          keyboardType: TextInputType.visiblePassword,
+                          obscureText: true,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                          inputFormatters: [UnsignedTextInputFormatter()],
+                        ),
+                        const SizedBox(height: 24),
+                        GradientButton(
+                          onPressed: _isLoading ? null : _handleAuth,
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  _isSignUp
+                                      ? context.translate('signup')
+                                      : context.translate('login'),
+                                ),
+                        ),
+                        if (!_isSignUp)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _isLoading
+                                  ? null
+                                  : _handleForgotPassword,
+                              child: Text(
+                                context.translate('forgot_password'),
+                                style: TextStyle(
+                                  color: isDark
+                                      ? Colors.white70
+                                      : Colors.black54,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _SocialLoginButton(
+                                onPressed: _isLoading ? null : _showComingSoon,
+                                icon: const Icon(
+                                  Icons.g_mobiledata,
+                                  color: Colors.redAccent,
+                                  size: 28,
+                                ),
+                                label: context.translate('google_login'),
+                                isDark: isDark,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _SocialLoginButton(
+                                onPressed: _isLoading ? null : _showComingSoon,
+                                icon: const Icon(
+                                  Icons.facebook,
+                                  color: Color(0xFF1877F2),
+                                  size: 24,
+                                ),
+                                label: context.translate('facebook_login'),
+                                isDark: isDark,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () =>
+                              setState(() => _isSignUp = !_isSignUp),
+                          child: Text(
+                            _isSignUp
+                                ? context.translate('already_have_account')
+                                : context.translate('no_account_signup'),
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.black54,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -402,6 +424,81 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ConfirmationPendingContent extends StatelessWidget {
+  final String email;
+  final bool isLoading;
+  final VoidCallback onResend;
+  final VoidCallback onBackToLogin;
+
+  const _ConfirmationPendingContent({
+    required this.email,
+    required this.isLoading,
+    required this.onResend,
+    required this.onBackToLogin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryText = isDark ? Colors.white : Colors.black87;
+    final secondaryText = isDark ? Colors.white70 : Colors.black54;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: isDark ? 0.22 : 0.12),
+            ),
+            child: Icon(
+              Icons.mark_email_read_outlined,
+              color: Theme.of(context).colorScheme.primary,
+              size: 34,
+            ),
+          ),
+        ),
+        const SizedBox(height: 22),
+        Text(
+          context.translate('confirm_email_title'),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            color: primaryText,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          context.translate('confirm_email_desc', [email]),
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: secondaryText,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 24),
+        GradientButton(
+          onPressed: isLoading ? null : onResend,
+          child: Text(context.translate('resend_confirmation')),
+        ),
+        const SizedBox(height: 10),
+        TextButton(
+          onPressed: isLoading ? null : onBackToLogin,
+          child: Text(
+            context.translate('back_to_login'),
+            style: TextStyle(color: secondaryText, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
     );
   }
 }

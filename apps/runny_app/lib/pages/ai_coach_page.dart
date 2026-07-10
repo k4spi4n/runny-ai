@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -271,7 +272,10 @@ class _AICoachPageState extends State<AICoachPage> {
       } else {
         // Streaming: phát từng đoạn văn bản ngay khi tới để chữ chạy dần, người
         // dùng không phải đợi phản hồi đầy đủ.
-        final history = _messages.sublist(0, _messages.length - 1);
+        final allHistory = _messages.sublist(0, _messages.length - 1);
+        final history = allHistory.length <= 30
+            ? allHistory
+            : allHistory.sublist(allHistory.length - 30);
         final buffer = StringBuffer();
         int? assistantIndex; // vị trí bong bóng trả lời (tạo khi có token đầu)
         setState(() => _isStreaming = true);
@@ -279,6 +283,7 @@ class _AICoachPageState extends State<AICoachPage> {
           await for (final chunk in _geminiService.streamResponse(
             prompt,
             history: history,
+            includeCoachPersona: true,
           )) {
             buffer.write(chunk);
             if (!mounted) return;
@@ -869,13 +874,10 @@ class _AICoachPageState extends State<AICoachPage> {
                                         : Colors.black.withValues(alpha: 0.05),
                                   ),
                           ),
-                          child: Text(
-                            msg['content']!,
-                            style: TextStyle(
-                              color: isUser
-                                  ? Colors.white
-                                  : colorScheme.onSurface,
-                            ),
+                          child: _buildMessageContent(
+                            context,
+                            content: msg['content']!,
+                            isUser: isUser,
                           ),
                         ),
                       );
@@ -1016,6 +1018,36 @@ class _AICoachPageState extends State<AICoachPage> {
     );
   }
 
+  Widget _buildMessageContent(
+    BuildContext context, {
+    required String content,
+    required bool isUser,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textColor = isUser ? Colors.white : colorScheme.onSurface;
+    final baseStyle = theme.textTheme.bodyMedium?.copyWith(color: textColor);
+
+    if (isUser) {
+      return Text(content, style: baseStyle);
+    }
+
+    return MarkdownBody(
+      data: content,
+      selectable: true,
+      styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+        p: baseStyle,
+        strong: baseStyle?.copyWith(fontWeight: FontWeight.w700),
+        em: baseStyle?.copyWith(fontStyle: FontStyle.italic),
+        listBullet: baseStyle,
+        code: baseStyle?.copyWith(
+          fontFamily: 'monospace',
+          backgroundColor: colorScheme.surface.withValues(alpha: 0.45),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSuggestedQuestions(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1025,7 +1057,9 @@ class _AICoachPageState extends State<AICoachPage> {
         !_isRecording &&
         !_isLoading &&
         !_isStreaming;
-    if (!shouldShow || _selectedSuggestions.isEmpty) return const SizedBox.shrink();
+    if (!shouldShow || _selectedSuggestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return SizedBox(
       height: 44,

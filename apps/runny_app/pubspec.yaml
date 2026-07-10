@@ -59,6 +59,7 @@ dependencies:
   xml: ^6.6.1
   hugeicons: ^1.1.7
   flutter_lucide: ^1.11.0
+  flutter_markdown: ^0.7.7+1
 
 dev_dependencies:
   flutter_test:

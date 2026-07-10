@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/gemini_service.dart';
 import '../services/training_service.dart';
 import '../widgets/ui_components.dart';
 import 'dashboard_page.dart';
@@ -43,9 +46,10 @@ class OnboardingPage extends StatelessWidget {
       final user = supabase.auth.currentUser;
       if (user == null) return;
 
-      await supabase.from('profiles').update({
-        'has_completed_onboarding': true,
-      }).eq('id', user.id);
+      await supabase
+          .from('profiles')
+          .update({'has_completed_onboarding': true})
+          .eq('id', user.id);
 
       if (context.mounted) {
         Navigator.of(context).pushReplacement(
@@ -54,7 +58,9 @@ class OnboardingPage extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
       }
     }
   }
@@ -76,6 +82,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
 
   final _pageController = PageController();
   final _trainingService = TrainingService();
+  final _geminiService = GeminiService();
   final _supabase = Supabase.instance.client;
 
   final _weightController = TextEditingController();
@@ -85,7 +92,9 @@ class _OnboardingContentState extends State<OnboardingContent> {
 
   String? _gender;
   bool _isLoading = false;
+  bool _isSuggestingGoals = false;
   int _currentStep = 0;
+  List<String> _goalSuggestions = const [];
 
   DateTime _startDate = DateTime.now();
   DateTime? _endDate;
@@ -136,7 +145,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
       // Bắt buộc nhập đúng thể trạng (trong khoảng hợp lý) trước khi qua bước
       // mục tiêu — không cho bỏ qua bằng giá trị thiếu/vô lý.
       if (!_validateMetrics()) return;
-      _pageController.nextPage(duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+      );
       setState(() => _currentStep++);
     } else {
       _finishOnboarding();
@@ -146,8 +158,12 @@ class _OnboardingContentState extends State<OnboardingContent> {
   /// Kiểm tra cân nặng, chiều cao, nhịp tim tối đa: bắt buộc nhập và phải nằm
   /// trong khoảng hợp lý. Hiện snackbar nếu thiếu, dialog nếu ngoài khoảng.
   bool _validateMetrics() {
-    final weight = double.tryParse(_weightController.text.trim().replaceAll(',', '.'));
-    final height = double.tryParse(_heightController.text.trim().replaceAll(',', '.'));
+    final weight = double.tryParse(
+      _weightController.text.trim().replaceAll(',', '.'),
+    );
+    final height = double.tryParse(
+      _heightController.text.trim().replaceAll(',', '.'),
+    );
     // Nhịp tim tối đa KHÔNG bắt buộc; chỉ kiểm tra khoảng nếu người dùng nhập.
     final maxHrStr = _maxHrController.text.trim();
     final maxHr = maxHrStr.isEmpty ? null : int.tryParse(maxHrStr);
@@ -163,7 +179,8 @@ class _OnboardingContentState extends State<OnboardingContent> {
         weight > _maxWeight ||
         height < _minHeight ||
         height > _maxHeight ||
-        (maxHrStr.isNotEmpty && (maxHr == null || maxHr < _minMaxHr || maxHr > _maxMaxHr))) {
+        (maxHrStr.isNotEmpty &&
+            (maxHr == null || maxHr < _minMaxHr || maxHr > _maxMaxHr))) {
       _showInvalidMetricsDialog();
       return false;
     }
@@ -190,13 +207,24 @@ class _OnboardingContentState extends State<OnboardingContent> {
               style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
-            _metricRangeRow(context, Icons.monitor_weight,
-                context.translate('weight'),
-                '${_minWeight.toInt()} – ${_maxWeight.toInt()} kg'),
-            _metricRangeRow(context, Icons.height, context.translate('height'),
-                '${_minHeight.toInt()} – ${_maxHeight.toInt()} cm'),
-            _metricRangeRow(context, Icons.favorite,
-                context.translate('max_hr_label'), '$_minMaxHr – $_maxMaxHr bpm'),
+            _metricRangeRow(
+              context,
+              Icons.monitor_weight,
+              context.translate('weight'),
+              '${_minWeight.toInt()} – ${_maxWeight.toInt()} kg',
+            ),
+            _metricRangeRow(
+              context,
+              Icons.height,
+              context.translate('height'),
+              '${_minHeight.toInt()} – ${_maxHeight.toInt()} cm',
+            ),
+            _metricRangeRow(
+              context,
+              Icons.favorite,
+              context.translate('max_hr_label'),
+              '$_minMaxHr – $_maxMaxHr bpm',
+            ),
           ],
         ),
         actions: [
@@ -210,7 +238,11 @@ class _OnboardingContentState extends State<OnboardingContent> {
   }
 
   Widget _metricRangeRow(
-      BuildContext context, IconData icon, String label, String range) {
+    BuildContext context,
+    IconData icon,
+    String label,
+    String range,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -219,12 +251,18 @@ class _OnboardingContentState extends State<OnboardingContent> {
           Icon(icon, size: 18, color: colorScheme.primary),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(label,
-                style: TextStyle(color: colorScheme.onSurfaceVariant)),
+            child: Text(
+              label,
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
           ),
-          Text(range,
-              style: TextStyle(
-                  color: colorScheme.onSurface, fontWeight: FontWeight.w600)),
+          Text(
+            range,
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -259,14 +297,17 @@ class _OnboardingContentState extends State<OnboardingContent> {
       final heightInM = height! / 100;
       final bmi = weight! / (heightInM * heightInM);
 
-      await _supabase.from('profiles').update({
-        'weight_kg': weight,
-        'height_cm': height,
-        'bmi': double.parse(bmi.toStringAsFixed(2)),
-        'max_hr': maxHr,
-        'gender': _gender,
-        'has_completed_onboarding': true,
-      }).eq('id', user.id);
+      await _supabase
+          .from('profiles')
+          .update({
+            'weight_kg': weight,
+            'height_cm': height,
+            'bmi': double.parse(bmi.toStringAsFixed(2)),
+            'max_hr': maxHr,
+            'gender': _gender,
+            'has_completed_onboarding': true,
+          })
+          .eq('id', user.id);
 
       // Khởi tạo lịch tập ở chế độ nền — không chặn người dùng chờ AI.
       await _trainingService.startPlanGeneration(
@@ -285,18 +326,100 @@ class _OnboardingContentState extends State<OnboardingContent> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${context.translate('error')}: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  Future<void> _suggestGoals() async {
+    if (!_validateMetrics()) return;
+
+    setState(() => _isSuggestingGoals = true);
+    try {
+      final prompt =
+          '''
+Tao 2 den 4 muc tieu chay bo khoi dau cho nguoi dung Runny AI.
+
+Thong tin nguoi dung:
+- Gioi tinh: ${_gender ?? 'chua ro'}
+- Can nang: ${_weightController.text.trim()} kg
+- Chieu cao: ${_heightController.text.trim()} cm
+- Nhip tim toi da: ${_maxHrController.text.trim().isEmpty ? 'chua ro' : '${_maxHrController.text.trim()} bpm'}
+- Ngay bat dau: ${DateFormat('yyyy-MM-dd').format(_startDate)}
+- Ngay ket thuc: ${_letAiDecideEnd ? 'de AI tu quyet dinh' : (_endDate == null ? 'chua chon' : DateFormat('yyyy-MM-dd').format(_endDate!))}
+
+Yeu cau:
+- Moi muc tieu la mot cau ngan, cu the, phu hop nguoi moi/nguoi quay lai tap.
+- Co the gom cu ly, tan suat, thoi gian, muc do an toan.
+- Khong tao lich tap chi tiet.
+- Tra ve JSON dung schema: {"goals":["..."]}.
+''';
+
+      final content = await _geminiService.generateResponse(
+        prompt,
+        history: [
+          {
+            'role': 'system',
+            'content':
+                'Ban la HLV chay bo AI. Chi tra ve JSON hop le, khong markdown.',
+          },
+        ],
+        preferredProvider: 'groq',
+        preferredModel: 'openai/gpt-oss-20b',
+      );
+      final suggestions = _parseGoalSuggestions(content);
+
+      if (!mounted) return;
+      if (suggestions.length < 2) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.translate('goal_suggestions_empty'))),
+        );
+        return;
+      }
+
+      setState(() {
+        _goalSuggestions = suggestions;
+        _goalController.text = suggestions.first;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.translate('error')}: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSuggestingGoals = false);
+    }
+  }
+
+  List<String> _parseGoalSuggestions(String content) {
+    final trimmed = content.trim();
+    final start = trimmed.indexOf('{');
+    final end = trimmed.lastIndexOf('}');
+    if (start < 0 || end <= start) return const [];
+    final jsonText = trimmed.substring(start, end + 1);
+    final decoded = jsonDecode(jsonText);
+    final rawGoals = decoded is Map ? decoded['goals'] : null;
+    if (rawGoals is! List) return const [];
+    return rawGoals
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .take(4)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        SizedBox.expand(child: DecoratedBox(decoration: BoxDecoration(gradient: sportPlatformGradient(context)))),
+        SizedBox.expand(
+          child: DecoratedBox(
+            decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
+          ),
+        ),
         if (_isLoading)
           const Center(child: CircularProgressIndicator())
         else
@@ -328,53 +451,89 @@ class _OnboardingContentState extends State<OnboardingContent> {
     return ResponsiveContent(
       maxWidth: 560,
       child: SingleChildScrollView(
-      padding: EdgeInsets.symmetric(
-        horizontal: MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0,
-        vertical: 16.0,
-      ),
-      child: glassCard(
-        context: context,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(context.translate('athlete_metrics'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: isDark ? Colors.white : Colors.black87
-            )),
-            const SizedBox(height: 12),
-            Text(context.translate('onboarding_metrics_desc'), 
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: isDark ? Colors.white70 : Colors.black54)),
-            const SizedBox(height: 28),
-            TextField(
-              controller: _weightController,
-              decoration: themedInputDecoration(context, context.translate('weight'), suffixText: 'kg', icon: Icons.monitor_weight, isRequired: true),
-              keyboardType: TextInputType.number,
-              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-            ),
-            const SizedBox(height: 18),
-            TextField(
-              controller: _heightController,
-              decoration: themedInputDecoration(context, context.translate('height'), suffixText: 'cm', icon: Icons.height, isRequired: true),
-              keyboardType: TextInputType.number,
-              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-            ),
-            const SizedBox(height: 18),
-            TextField(
-              controller: _maxHrController,
-              decoration: themedInputDecoration(context, context.translate('max_hr_label'), hint: context.translate('max_hr_hint'), suffixText: 'bpm', icon: Icons.favorite),
-              keyboardType: TextInputType.number,
-              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-            ),
-            const SizedBox(height: 20),
-            GenderSelector(
-              value: _gender,
-              onChanged: (v) => setState(() => _gender = v),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton(onPressed: _nextPage, style: primaryActionButton(context), child: Text(context.translate('next'))),
-          ],
+        padding: EdgeInsets.symmetric(
+          horizontal: MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0,
+          vertical: 16.0,
         ),
-      ),
+        child: glassCard(
+          context: context,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                context.translate('athlete_metrics'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                context.translate('onboarding_metrics_desc'),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 28),
+              TextField(
+                controller: _weightController,
+                decoration: themedInputDecoration(
+                  context,
+                  context.translate('weight'),
+                  suffixText: 'kg',
+                  icon: Icons.monitor_weight,
+                  isRequired: true,
+                ),
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              ),
+              const SizedBox(height: 18),
+              TextField(
+                controller: _heightController,
+                decoration: themedInputDecoration(
+                  context,
+                  context.translate('height'),
+                  suffixText: 'cm',
+                  icon: Icons.height,
+                  isRequired: true,
+                ),
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              ),
+              const SizedBox(height: 18),
+              TextField(
+                controller: _maxHrController,
+                decoration:
+                    themedInputDecoration(
+                      context,
+                      context.translate('max_hr_label'),
+                      hint: context.translate('max_hr_hint'),
+                      suffixText: 'bpm',
+                      icon: Icons.favorite,
+                    ).copyWith(
+                      suffixIcon: Tooltip(
+                        message: context.translate('max_hr_tooltip'),
+                        triggerMode: TooltipTriggerMode.tap,
+                        child: const Icon(Icons.info_outline),
+                      ),
+                    ),
+                keyboardType: TextInputType.number,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              ),
+              const SizedBox(height: 20),
+              GenderSelector(
+                value: _gender,
+                onChanged: (v) => setState(() => _gender = v),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: _nextPage,
+                style: primaryActionButton(context),
+                child: Text(context.translate('next')),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -384,80 +543,208 @@ class _OnboardingContentState extends State<OnboardingContent> {
     return ResponsiveContent(
       maxWidth: 560,
       child: SingleChildScrollView(
-      padding: EdgeInsets.symmetric(
-        horizontal: MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0,
-        vertical: 16.0,
-      ),
-      child: glassCard(
-        context: context,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(context.translate('training_goal'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: isDark ? Colors.white : Colors.black87
-            )),
-            const SizedBox(height: 12),
-            Text(context.translate('training_goal_desc'),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: isDark ? Colors.white70 : Colors.black54)),
-            const SizedBox(height: 24),
-            _OnboardingDateTile(
-              icon: Icons.play_circle_outline,
-              label: context.translate('plan_start_date'),
-              value: DateFormat('dd/MM/yyyy').format(_startDate),
-              onTap: _pickStartDate,
-            ),
-            const SizedBox(height: 12),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _letAiDecideEnd,
-              onChanged: (v) => setState(() => _letAiDecideEnd = v),
-              title: Text(
-                context.translate('let_ai_decide_end'),
-                style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.w600),
+        padding: EdgeInsets.symmetric(
+          horizontal: MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0,
+          vertical: 16.0,
+        ),
+        child: glassCard(
+          context: context,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                context.translate('training_goal'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
               ),
-              subtitle: Text(
-                context.translate('let_ai_decide_end_desc'),
-                style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
+              const SizedBox(height: 12),
+              Text(
+                context.translate('training_goal_desc'),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
               ),
-            ),
-            if (!_letAiDecideEnd) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 24),
               _OnboardingDateTile(
-                icon: Icons.flag_outlined,
-                label: context.translate('plan_end_date'),
-                value: _endDate != null ? DateFormat('dd/MM/yyyy').format(_endDate!) : context.translate('plan_end_date_hint'),
-                onTap: _pickEndDate,
+                icon: Icons.play_circle_outline,
+                label: context.translate('plan_start_date'),
+                value: DateFormat('dd/MM/yyyy').format(_startDate),
+                onTap: _pickStartDate,
+              ),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _letAiDecideEnd,
+                onChanged: (v) => setState(() => _letAiDecideEnd = v),
+                title: Text(
+                  context.translate('let_ai_decide_end'),
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  context.translate('let_ai_decide_end_desc'),
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black54,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              if (!_letAiDecideEnd) ...[
+                const SizedBox(height: 8),
+                _OnboardingDateTile(
+                  icon: Icons.flag_outlined,
+                  label: context.translate('plan_end_date'),
+                  value: _endDate != null
+                      ? DateFormat('dd/MM/yyyy').format(_endDate!)
+                      : context.translate('plan_end_date_hint'),
+                  onTap: _pickEndDate,
+                ),
+              ],
+              const SizedBox(height: 20),
+              TextField(
+                controller: _goalController,
+                maxLines: 5,
+                enabled: !_isSuggestingGoals,
+                decoration: themedInputDecoration(
+                  context,
+                  context.translate('your_goal'),
+                  hint: context.translate('goal_hint'),
+                  icon: Icons.flag_circle,
+                  isRequired: true,
+                ),
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _isSuggestingGoals ? null : _suggestGoals,
+                style: secondaryActionButton(context),
+                icon: _isSuggestingGoals
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      )
+                    : const Icon(Icons.auto_awesome),
+                label: Text(context.translate('ai_suggest_goals')),
+              ),
+              if (_goalSuggestions.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Column(
+                  children: _goalSuggestions.map((goal) {
+                    final selected = _goalController.text.trim() == goal;
+                    return _GoalSuggestionTile(
+                      goal: goal,
+                      selected: selected,
+                      onTap: () => setState(() {
+                        _goalController.text = goal;
+                      }),
+                    );
+                  }).toList(),
+                ),
+              ],
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: _isSuggestingGoals ? null : _nextPage,
+                style: primaryActionButton(context),
+                child: Text(context.translate('complete_create_plan')),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  if (_currentStep > 0) {
+                    _pageController.previousPage(
+                      duration: const Duration(milliseconds: 350),
+                      curve: Curves.easeInOut,
+                    );
+                    setState(() => _currentStep--);
+                  }
+                },
+                child: Text(
+                  context.translate('back'),
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                ),
               ),
             ],
-            const SizedBox(height: 20),
-            TextField(
-              controller: _goalController,
-              maxLines: 5,
-              decoration: themedInputDecoration(
-                context,
-                context.translate('your_goal'),
-                hint: context.translate('goal_hint'),
-                icon: Icons.flag_circle,
-                isRequired: true,
-              ),
-              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-            ),
-            const SizedBox(height: 30),
-            ElevatedButton(onPressed: _nextPage, style: primaryActionButton(context), child: Text(context.translate('complete_create_plan'))),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () {
-                if (_currentStep > 0) {
-                  _pageController.previousPage(duration: const Duration(milliseconds: 350), curve: Curves.easeInOut);
-                  setState(() => _currentStep--);
-                }
-              },
-              child: Text(context.translate('back'), style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
-            ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _GoalSuggestionTile extends StatelessWidget {
+  final String goal;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _GoalSuggestionTile({
+    required this.goal,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: selected
+                ? colorScheme.primary.withValues(alpha: isDark ? 0.24 : 0.12)
+                : (isDark
+                      ? Colors.white.withValues(alpha: 0.07)
+                      : Colors.black.withValues(alpha: 0.035)),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? colorScheme.primary.withValues(alpha: 0.72)
+                  : theme.dividerColor.withValues(alpha: 0.16),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                selected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                size: 20,
+                color: selected
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  goal,
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -477,9 +764,20 @@ class _OnboardingStepper extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _StepDot(label: context.translate('metrics_tab'), active: currentStep == 0),
-          Expanded(child: Container(height: 2, color: theme.dividerColor.withValues(alpha: 0.1))),
-          _StepDot(label: context.translate('goal_tab'), active: currentStep == 1),
+          _StepDot(
+            label: context.translate('metrics_tab'),
+            active: currentStep == 0,
+          ),
+          Expanded(
+            child: Container(
+              height: 2,
+              color: theme.dividerColor.withValues(alpha: 0.1),
+            ),
+          ),
+          _StepDot(
+            label: context.translate('goal_tab'),
+            active: currentStep == 1,
+          ),
         ],
       ),
     );
@@ -502,12 +800,21 @@ class _StepDot extends StatelessWidget {
           width: 14,
           height: 14,
           decoration: BoxDecoration(
-            color: active ? theme.primaryColor : (isDark ? Colors.white12 : Colors.black12),
+            color: active
+                ? theme.primaryColor
+                : (isDark ? Colors.white12 : Colors.black12),
             shape: BoxShape.circle,
           ),
         ),
         const SizedBox(width: 8),
-        Text(label, style: TextStyle(color: active ? (isDark ? Colors.white : Colors.black87) : (isDark ? Colors.white54 : Colors.black45))),
+        Text(
+          label,
+          style: TextStyle(
+            color: active
+                ? (isDark ? Colors.white : Colors.black87)
+                : (isDark ? Colors.white54 : Colors.black45),
+          ),
+        ),
       ],
     );
   }
@@ -519,7 +826,12 @@ class _OnboardingDateTile extends StatelessWidget {
   final String value;
   final VoidCallback onTap;
 
-  const _OnboardingDateTile({required this.icon, required this.label, required this.value, required this.onTap});
+  const _OnboardingDateTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -533,9 +845,15 @@ class _OnboardingDateTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.04),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.06)),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.12)
+                : Colors.black.withValues(alpha: 0.06),
+          ),
         ),
         child: Row(
           children: [
@@ -544,13 +862,29 @@ class _OnboardingDateTile extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black54,
+                    fontSize: 12,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(value, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.w600)),
+                Text(
+                  value,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
             const Spacer(),
-            Icon(Icons.calendar_month, color: isDark ? Colors.white54 : Colors.black45, size: 20),
+            Icon(
+              Icons.calendar_month,
+              color: isDark ? Colors.white54 : Colors.black45,
+              size: 20,
+            ),
           ],
         ),
       ),

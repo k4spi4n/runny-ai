@@ -32,11 +32,14 @@ async function processEvent(body: any): Promise<void> {
   // cong co the gia mao su kien. Vi vay LUON tra cuu user theo athlete id truoc va
   // gioi han moi thao tac (xoa/ghi) trong pham vi user do; tuyet doi khong dung
   // rieng object_id (activity id) do client gui de dung cham du lieu nguoi khac.
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("id, strava_access_token, strava_refresh_token, strava_expires_at")
-    .eq("strava_id", String(ownerId))
-    .maybeSingle();
+  if (!Number.isFinite(Number(objectId)) || !Number.isFinite(Number(ownerId))) {
+    console.warn('Strava webhook rejected malformed event.');
+    return;
+  }
+  const { data, error } = await supabase.rpc('get_strava_connection_by_athlete', {
+    p_athlete_id: String(ownerId),
+  });
+  const profile = Array.isArray(data) ? data[0] : null;
 
   if (error || !profile) {
     console.warn(`Không tìm thấy user cho athlete ${ownerId}.`);
@@ -48,7 +51,7 @@ async function processEvent(body: any): Promise<void> {
     await supabase
       .from("activities")
       .delete()
-      .eq("user_id", profile.id)
+      .eq("user_id", profile.user_id)
       .eq("strava_activity_id", objectId);
     return;
   }
@@ -58,9 +61,9 @@ async function processEvent(body: any): Promise<void> {
   try {
     const accessToken = await ensureFreshToken(supabase, profile);
     const activity = await fetchActivity(accessToken, objectId);
-    const ok = await upsertRunActivity(supabase, profile.id, activity);
+    const ok = await upsertRunActivity(supabase, profile.user_id, activity);
     console.log(
-      `Strava ${aspectType} activity ${objectId} cho user ${profile.id}: ${ok ? "đã nhập" : "bỏ qua"}.`,
+      `Strava ${aspectType} activity ${objectId} cho user ${profile.user_id}: ${ok ? "đã nhập" : "bỏ qua"}.`,
     );
   } catch (e) {
     console.error(`Xử lý hoạt động Strava ${objectId} lỗi:`, e);

@@ -109,13 +109,28 @@ serve(async (req) => {
       return jsonResponse({ error: 'Không tìm thấy gói hợp lệ.' }, 404);
     }
 
-    const amount = Math.round(Number(plan.price));
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return jsonResponse({ error: 'Giá gói không hợp lệ.' }, 400);
+    // Persist the order before asking PayOS for a checkout URL.  The DB allocates
+    // a collision-free code and re-reads the active plan price server-side.
+    const orderRes = await fetch(`${supabaseUrl}/rest/v1/rpc/create_payment_order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ p_user_id: userId, p_plan_id: plan.id }),
+    });
+    const orderRows = await orderRes.json();
+    const order = Array.isArray(orderRows) ? orderRows[0] : null;
+    if (!orderRes.ok || !order) {
+      console.error('Failed to create pending payment order:', orderRows);
+      return jsonResponse({ error: 'Không thể tạo đơn thanh toán. Vui lòng thử lại.' }, 503);
     }
-
-    // orderCode: so nguyen duong, duy nhat. Date.now() (ms) thoa man pham vi PayOS.
-    const orderCode = Date.now();
+    const amount = Number(order.amount);
+    const orderCode = Number(order.order_code);
+    if (!Number.isSafeInteger(orderCode) || !Number.isFinite(amount) || amount <= 0) {
+      return jsonResponse({ error: 'Đơn thanh toán không hợp lệ.' }, 500);
+    }
     // PayOS gioi han description <= 25 ky tu.
     const description = `Runny ${plan.duration_type === 'yearly' ? 'goi nam' : 'goi thang'}`.slice(0, 25);
 
@@ -147,31 +162,16 @@ serve(async (req) => {
 
     const payosData = await payosRes.json();
     const checkoutUrl = payosData?.data?.checkoutUrl;
+    // A provider failure leaves a durable, cancelled audit row rather than an
+    // orphan checkout URL that the webhook cannot reconcile.
     if (!payosRes.ok || payosData?.code !== '00' || !checkoutUrl) {
+      await fetch(`${supabaseUrl}/rest/v1/payment_orders?order_code=eq.${orderCode}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
       console.error('PayOS create payment failed:', JSON.stringify(payosData));
       return jsonResponse({ error: 'Không tạo được liên kết thanh toán. Vui lòng thử lại.' }, 502);
-    }
-
-    // --- Luu don (pending) de webhook doi soat. ---
-    const insertRes = await fetch(`${supabaseUrl}/rest/v1/payment_orders`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify({
-        order_code: orderCode,
-        user_id: userId,
-        plan_id: plan.id,
-        amount,
-        status: 'pending',
-      }),
-    });
-    if (!insertRes.ok) {
-      console.error('Failed to persist payment_orders:', await insertRes.text());
-      // Khong chan nguoi dung: link da tao; webhook van doi soat duoc neu insert sau.
     }
 
     return jsonResponse({ checkoutUrl, orderCode });

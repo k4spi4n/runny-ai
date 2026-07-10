@@ -57,30 +57,32 @@ export async function exchangeCode(code: string): Promise<StravaTokenResult> {
   };
 }
 
-interface ProfileTokens {
-  id: string;
-  strava_access_token: string | null;
-  strava_refresh_token: string | null;
-  strava_expires_at: string | null;
+export interface StravaConnection {
+  user_id: string;
+  athlete_id: string | null;
+  access_token: string | null;
+  refresh_token: string | null;
+  expires_at: string | null;
+  requires_reauth: boolean;
 }
 
 /// Đảm bảo có access token còn hạn; nếu sắp/đã hết hạn thì refresh và lưu lại.
 // deno-lint-ignore no-explicit-any
 export async function ensureFreshToken(
   supabase: any,
-  profile: ProfileTokens,
+  connection: StravaConnection,
 ): Promise<string> {
   const nowSec = Math.floor(Date.now() / 1000);
-  const expiresAtSec = profile.strava_expires_at
-    ? Math.floor(new Date(profile.strava_expires_at).getTime() / 1000)
+  const expiresAtSec = connection.expires_at
+    ? Math.floor(new Date(connection.expires_at).getTime() / 1000)
     : 0;
 
   // Còn hạn (đệm 60s) -> dùng luôn.
-  if (profile.strava_access_token && expiresAtSec - 60 > nowSec) {
-    return profile.strava_access_token;
+  if (!connection.requires_reauth && connection.access_token && expiresAtSec - 60 > nowSec) {
+    return connection.access_token;
   }
 
-  if (!profile.strava_refresh_token) {
+  if (connection.requires_reauth || !connection.refresh_token) {
     throw new Error('Người dùng chưa kết nối Strava (thiếu refresh token).');
   }
 
@@ -92,7 +94,7 @@ export async function ensureFreshToken(
       client_id: clientId,
       client_secret: clientSecret,
       grant_type: 'refresh_token',
-      refresh_token: profile.strava_refresh_token,
+      refresh_token: connection.refresh_token,
     }),
   });
   if (!res.ok) {
@@ -101,14 +103,14 @@ export async function ensureFreshToken(
   }
   const data = await res.json();
 
-  await supabase
-    .from('profiles')
-    .update({
-      strava_access_token: data.access_token,
-      strava_refresh_token: data.refresh_token,
-      strava_expires_at: new Date(data.expires_at * 1000).toISOString(),
-    })
-    .eq('id', profile.id);
+  const { error } = await supabase.rpc('save_strava_connection', {
+    p_user_id: connection.user_id,
+    p_athlete_id: connection.athlete_id,
+    p_access_token: data.access_token,
+    p_refresh_token: data.refresh_token,
+    p_expires_at: new Date(data.expires_at * 1000).toISOString(),
+  });
+  if (error) throw new Error(`Không thể lưu Strava token mới: ${error.message}`);
 
   return data.access_token;
 }
@@ -170,7 +172,10 @@ export function mapActivity(userId: string, act: any): Record<string, unknown> {
     notes: null,
     start_lat: latlng ? latlng[0] : null,
     start_lon: latlng ? latlng[1] : null,
-    data_points: act,
+    // Strava's complete response can contain route/privacy metadata and is much
+    // larger than the chart schema consumed by the app.  Keep only normalized
+    // activity columns; detailed streams require a dedicated, private feature.
+    data_points: null,
   };
 }
 

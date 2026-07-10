@@ -3,17 +3,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class ChatService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  Future<List<Map<String, String>>> getChatHistory() async {
+  Future<List<Map<String, String>>> getChatHistory({int limit = 50}) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return [];
 
+    final pageSize = limit.clamp(1, 100);
     final response = await _supabase
         .from('ai_chat_history')
         .select()
         .eq('user_id', user.id)
-        .order('created_at', ascending: true);
+        .order('created_at', ascending: false)
+        .limit(pageSize);
 
-    return (response as List).map((m) {
+    return (response as List).reversed.map((m) {
       return {
         'role': m['role'] as String,
         'content': m['content'] as String,

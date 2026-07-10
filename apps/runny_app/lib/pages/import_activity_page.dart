@@ -7,6 +7,7 @@ import '../services/activity_screenshot_import_service.dart';
 import '../services/image_compress_service.dart';
 import '../services/paywall_exception.dart';
 import '../services/weather_service.dart';
+import '../services/training_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/paywall.dart';
 import '../widgets/ui_components.dart';
@@ -28,6 +29,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   bool _isLoading = false;
   String? _statusMessage;
   final WeatherService _weatherService = WeatherService();
+  final TrainingService _trainingService = TrainingService();
   final ActivityScreenshotImportService _screenshotImportService =
       ActivityScreenshotImportService();
   final ImageCompressService _compressService = ImageCompressService();
@@ -163,10 +165,10 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
 
       // Mở từ một buổi tập -> gắn hoạt động đầu tiên nhập được vào buổi tập đó.
       if (widget.scheduledWorkoutId != null && firstImportedId != null) {
-        await Supabase.instance.client
-            .from('scheduled_workouts')
-            .update({'activity_id': firstImportedId, 'status': 'completed'})
-            .eq('id', widget.scheduledWorkoutId!);
+        await _trainingService.completeScheduledWorkout(
+          workoutId: widget.scheduledWorkoutId!,
+          activityId: firstImportedId,
+        );
       }
 
       setState(() {
@@ -352,10 +354,10 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       }
 
       if (widget.scheduledWorkoutId != null) {
-        await Supabase.instance.client
-            .from('scheduled_workouts')
-            .update({'activity_id': outcome.$2, 'status': 'completed'})
-            .eq('id', widget.scheduledWorkoutId!);
+        await _trainingService.completeScheduledWorkout(
+          workoutId: widget.scheduledWorkoutId!,
+          activityId: outcome.$2!,
+        );
       }
 
       setState(() {
@@ -531,10 +533,10 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
 
       // Mở từ một buổi tập -> gắn hoạt động vừa lưu vào buổi tập đó.
       if (widget.scheduledWorkoutId != null) {
-        await Supabase.instance.client
-            .from('scheduled_workouts')
-            .update({'activity_id': res['id'], 'status': 'completed'})
-            .eq('id', widget.scheduledWorkoutId!);
+        await _trainingService.completeScheduledWorkout(
+          workoutId: widget.scheduledWorkoutId!,
+          activityId: res['id'] as String,
+        );
       }
 
       setState(() {

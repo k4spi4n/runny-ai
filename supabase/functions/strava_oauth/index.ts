@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import {
+  getStravaCredentials,
   ensureFreshToken,
   exchangeCode,
   fetchRecentActivities,
@@ -9,7 +10,8 @@ import {
 
 // =============================================================================
 // Strava OAuth + đồng bộ thủ công (client gọi kèm JWT).
-//   action 'connect': đổi authorization code lấy token, lưu vào profiles, rồi
+//   action 'start': tạo OAuth state một-lần, gắn với user hiện tại.
+//   action 'connect': đổi authorization code lấy token trong private schema, rồi
 //                      nhập ngay các hoạt động gần đây.
 //   action 'sync':     nhập các hoạt động gần đây (nút "Đồng bộ ngay").
 // Giữ STRAVA_CLIENT_SECRET ở server; client chỉ gửi `code`/`action`.
@@ -49,14 +51,11 @@ function getUserId(req: Request): string | null {
 // Nhập hoạt động gần đây (30 ngày) cho user. Trả về số lượng đã nhập.
 // deno-lint-ignore no-explicit-any
 async function syncRecent(supabase: any, userId: string): Promise<number> {
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("id, strava_access_token, strava_refresh_token, strava_expires_at")
-    .eq("id", userId)
-    .single();
-  if (error || !profile) throw new Error("Không tìm thấy hồ sơ người dùng.");
+  const { data, error } = await supabase.rpc('get_strava_connection', { p_user_id: userId });
+  const connection = Array.isArray(data) ? data[0] : null;
+  if (error || !connection) throw new Error("Không tìm thấy kết nối Strava.");
 
-  const accessToken = await ensureFreshToken(supabase, profile);
+  const accessToken = await ensureFreshToken(supabase, connection);
   const afterSec = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;
   const activities = await fetchRecentActivities(accessToken, {
     perPage: 30,
@@ -68,6 +67,11 @@ async function syncRecent(supabase: any, userId: string): Promise<number> {
     if (await upsertRunActivity(supabase, userId, act)) imported++;
   }
   return imported;
+}
+
+function randomState(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 serve(async (req) => {
@@ -96,23 +100,49 @@ serve(async (req) => {
   } catch {
     return jsonResponse({ error: "Body không hợp lệ (cần JSON)." }, 400);
   }
-  const action = payload.action ?? "connect";
+  const action = payload.action ?? "start";
 
   try {
+    if (action === 'start') {
+      const { clientId } = getStravaCredentials();
+      const redirectUri = Deno.env.get('STRAVA_REDIRECT_URI') ?? '';
+      if (!redirectUri) return jsonResponse({ error: 'Thiếu STRAVA_REDIRECT_URI trên server.' }, 500);
+      const state = randomState();
+      const { error } = await supabase.rpc('create_oauth_state', {
+        p_user_id: userId,
+        p_state: state,
+        p_provider: 'strava',
+      });
+      if (error) throw new Error(`Không thể tạo OAuth state: ${error.message}`);
+      const url = new URL('https://www.strava.com/oauth/authorize');
+      url.searchParams.set('client_id', clientId);
+      url.searchParams.set('redirect_uri', redirectUri);
+      url.searchParams.set('response_type', 'code');
+      url.searchParams.set('approval_prompt', 'auto');
+      url.searchParams.set('scope', 'activity:read_all,profile:read_all');
+      url.searchParams.set('state', state);
+      return jsonResponse({ authorizationUrl: url.toString() });
+    }
+
     if (action === "connect") {
       const code = typeof payload.code === "string" ? payload.code : "";
-      if (!code) return jsonResponse({ error: "Thiếu authorization code." }, 400);
+      const state = typeof payload.state === 'string' ? payload.state : '';
+      if (!code || !state) return jsonResponse({ error: "Thiếu authorization code hoặc state." }, 400);
+      const { data: consumed, error: stateError } = await supabase.rpc('consume_oauth_state', {
+        p_user_id: userId, p_state: state, p_provider: 'strava',
+      });
+      if (stateError || consumed != true) return jsonResponse({ error: 'OAuth state không hợp lệ hoặc đã hết hạn.' }, 400);
 
       const tokens = await exchangeCode(code);
-      await supabase
-        .from("profiles")
-        .update({
-          strava_id: tokens.athleteId != null ? String(tokens.athleteId) : null,
-          strava_access_token: tokens.accessToken,
-          strava_refresh_token: tokens.refreshToken,
-          strava_expires_at: new Date(tokens.expiresAt * 1000).toISOString(),
-        })
-        .eq("id", userId);
+      const { error: saveError } = await supabase.rpc('save_strava_connection', {
+        p_user_id: userId,
+        p_athlete_id: tokens.athleteId != null ? String(tokens.athleteId) : null,
+        p_access_token: tokens.accessToken,
+        p_refresh_token: tokens.refreshToken,
+        p_expires_at: new Date(tokens.expiresAt * 1000).toISOString(),
+      });
+      if (saveError) throw new Error(`Không thể lưu kết nối Strava: ${saveError.message}`);
+      await supabase.from('profiles').update({ strava_id: tokens.athleteId != null ? String(tokens.athleteId) : null }).eq('id', userId);
 
       // Nhập ngay các hoạt động gần đây (fail-soft nếu lỗi).
       let imported = 0;
@@ -132,6 +162,13 @@ serve(async (req) => {
     if (action === "sync") {
       const imported = await syncRecent(supabase, userId);
       return jsonResponse({ imported });
+    }
+
+    if (action === 'disconnect') {
+      const { error } = await supabase.rpc('disconnect_strava_connection', { p_user_id: userId });
+      if (error) throw new Error(`Không thể ngắt kết nối Strava: ${error.message}`);
+      await supabase.from('profiles').update({ strava_id: null }).eq('id', userId);
+      return jsonResponse({ disconnected: true });
     }
 
     return jsonResponse({ error: `Hành động không hỗ trợ: ${action}` }, 400);

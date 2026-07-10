@@ -4,11 +4,13 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'ai_http_stream.dart';
+import '../models/coach_persona.dart';
 import 'paywall_exception.dart';
 
 class GeminiService {
   final String _modelName;
   final List<String> _modelList;
+  static _CoachPreference? _cachedCoachPreference;
 
   GeminiService()
     : _modelName =
@@ -36,6 +38,53 @@ class GeminiService {
       _modelList.isNotEmpty ? {'models': _modelList} : {'model': _modelName};
 
   bool get isConfigured => true;
+
+  Future<_CoachPreference> _loadCoachPreference() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    final cached = _cachedCoachPreference;
+    if (cached != null &&
+        cached.userId == user?.id &&
+        DateTime.now().difference(cached.loadedAt) <
+            const Duration(minutes: 5)) {
+      return cached;
+    }
+
+    if (user == null) {
+      return _CoachPreference.defaultValue();
+    }
+
+    try {
+      final data = await Supabase.instance.client
+          .from('profiles')
+          .select('coach_name, coach_persona')
+          .eq('id', user.id)
+          .maybeSingle();
+      final preference = _CoachPreference.fromProfile(data, user.id);
+      _cachedCoachPreference = preference;
+      return preference;
+    } catch (e) {
+      debugPrint('Load coach preference failed: $e');
+      return _CoachPreference.defaultValue();
+    }
+  }
+
+  static void clearCoachPreferenceCache() {
+    _cachedCoachPreference = null;
+  }
+
+  Future<void> _addCoachPersonaMessage(
+    List<Map<String, String>> messages,
+  ) async {
+    final preference = await _loadCoachPreference();
+    messages.insert(0, {
+      'role': 'system',
+      'content':
+          'Bạn là ${preference.coachName}, HLV chạy bộ AI cá nhân của người dùng. '
+          'Tính cách huấn luyện: ${preference.persona.promptDescription} '
+          'Có thể dùng Markdown đơn giản để câu trả lời dễ đọc. '
+          'Không tự nhận là bác sĩ, không chẩn đoán bệnh, không ép tập quá sức.',
+    });
+  }
 
   /// Trích thông báo lỗi thân thiện từ phản hồi/exception của Edge Function.
   /// Edge Function trả về `{ "error": "..." }` (tiếng Việt) cho các lỗi guardrail
@@ -71,6 +120,7 @@ class GeminiService {
     List<Map<String, String>>? history,
     String? preferredProvider,
     String? preferredModel,
+    bool includeCoachPersona = false,
   }) async {
     try {
       final messages = <Map<String, String>>[];
@@ -85,6 +135,9 @@ class GeminiService {
       }
 
       messages.add({'role': 'user', 'content': prompt});
+      if (includeCoachPersona) {
+        await _addCoachPersonaMessage(messages);
+      }
 
       final providerPayload = <String, dynamic>{};
       if (preferredProvider != null) {
@@ -145,6 +198,7 @@ class GeminiService {
   Stream<String> streamResponse(
     String prompt, {
     List<Map<String, String>>? history,
+    bool includeCoachPersona = false,
   }) async* {
     final messages = <Map<String, String>>[];
     if (history != null) {
@@ -154,6 +208,9 @@ class GeminiService {
       }
     }
     messages.add({'role': 'user', 'content': prompt});
+    if (includeCoachPersona) {
+      await _addCoachPersonaMessage(messages);
+    }
 
     final supabaseUrl = dotenv.env['SUPABASE_URL'];
     final anonKey = dotenv.env['SUPABASE_ANON_KEY'];
@@ -274,5 +331,39 @@ class GeminiService {
       }
       rethrow;
     }
+  }
+}
+
+class _CoachPreference {
+  final String? userId;
+  final String coachName;
+  final CoachPersona persona;
+  final DateTime loadedAt;
+
+  const _CoachPreference({
+    required this.userId,
+    required this.coachName,
+    required this.persona,
+    required this.loadedAt,
+  });
+
+  factory _CoachPreference.defaultValue() => _CoachPreference(
+    userId: null,
+    coachName: 'Runny',
+    persona: CoachPersona.calm,
+    loadedAt: DateTime.now(),
+  );
+
+  factory _CoachPreference.fromProfile(
+    Map<String, dynamic>? data,
+    String userId,
+  ) {
+    final rawName = (data?['coach_name'] as String?)?.trim();
+    return _CoachPreference(
+      userId: userId,
+      coachName: rawName == null || rawName.isEmpty ? 'Runny' : rawName,
+      persona: CoachPersona.byId(data?['coach_persona'] as String?),
+      loadedAt: DateTime.now(),
+    );
   }
 }

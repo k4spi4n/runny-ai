@@ -49,24 +49,11 @@ class WeightService {
   /// Ghi nhận một lần cân. Đồng thời cập nhật cân nặng hiện tại trên hồ sơ;
   /// nếu chưa có mốc bắt đầu thì lấy lần ghi này làm mốc.
   Future<void> logWeight(double weightKg, {DateTime? loggedAt, String? note}) async {
-    await _supabase.from('weight_logs').insert({
-      'user_id': _uid,
-      'weight_kg': weightKg,
-      'logged_at': (loggedAt ?? DateTime.now()).toIso8601String(),
-      'note': note,
+    await _supabase.rpc('log_weight_atomic', params: {
+      'p_weight_kg': weightKg,
+      'p_logged_at': (loggedAt ?? DateTime.now()).toIso8601String(),
+      'p_note': note,
     });
-
-    final profile = await _supabase
-        .from('profiles')
-        .select('start_weight_kg')
-        .eq('id', _uid)
-        .single();
-
-    final update = <String, dynamic>{'weight_kg': weightKg};
-    if (profile['start_weight_kg'] == null) {
-      update['start_weight_kg'] = weightKg;
-    }
-    await _supabase.from('profiles').update(update).eq('id', _uid);
   }
 
   Future<void> deleteLog(String id) async {

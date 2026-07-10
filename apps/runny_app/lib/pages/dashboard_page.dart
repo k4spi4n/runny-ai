@@ -155,8 +155,8 @@ class _DashboardPageState extends State<DashboardPage> {
   /// Sau khi người dùng cấp quyền Strava, trình duyệt quay về app kèm ?code=...
   /// -> đổi lấy token và nhập hoạt động, rồi dọn URL.
   Future<void> _handleStravaRedirect() async {
-    final code = takePendingStravaCode();
-    if (code == null) return;
+    final redirect = takePendingStravaRedirect();
+    if (redirect == null) return;
 
     final messenger = ScaffoldMessenger.of(context);
     final errorText = context.translate('error');
@@ -164,7 +164,7 @@ class _DashboardPageState extends State<DashboardPage> {
       SnackBar(content: Text(context.translate('strava_connecting'))),
     );
     try {
-      final imported = await _integrationService.exchangeStravaCode(code);
+      final imported = await _integrationService.exchangeStravaCode(redirect.code, redirect.state);
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
@@ -800,35 +800,15 @@ class _OverviewContentState extends State<OverviewContent> {
   }
 
   Future<Map<String, dynamic>> _fetchStats() async {
-    final response = await Supabase.instance.client
-        .from('activities')
-        .select('distance_km, duration_min, avg_hr, avg_cadence');
-
-    final activities = response as List;
-    double totalDistance = 0;
-    int totalSessions = activities.length;
-    double totalDuration = 0;
-    int hrSum = 0;
-    int hrCount = 0;
-
-    for (var a in activities) {
-      totalDistance += (a['distance_km'] as num).toDouble();
-      totalDuration += (a['duration_min'] as num).toDouble();
-      if (a['avg_hr'] != null) {
-        hrSum += (a['avg_hr'] as int);
-        hrCount++;
-      }
-    }
-
-    double avgPace = totalDistance > 0 ? totalDuration / totalDistance : 0;
-    int avgHr = hrCount > 0 ? hrSum ~/ hrCount : 0;
-
-    return {
-      'totalDistance': totalDistance,
-      'totalSessions': totalSessions,
-      'avgPace': avgPace,
-      'avgHr': avgHr,
-    };
+    final response = await Supabase.instance.client.rpc('get_activity_summary');
+    return response is Map<String, dynamic>
+        ? response
+        : <String, dynamic>{
+            'totalDistance': 0,
+            'totalSessions': 0,
+            'avgPace': 0,
+            'avgHr': 0,
+          };
   }
 
   /// Tính chuỗi ngày tập liên tiếp (streak) tính tới hôm nay (hoặc hôm qua nếu

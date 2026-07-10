@@ -3,8 +3,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+const cache = new Map<string, { expiresAt: number; payload: Record<string, unknown> }>();
+const cacheTtlMs = 10 * 60 * 1000;
 
 // Ánh xạ mã thời tiết WMO của Open-Meteo sang mô tả tiếng Việt + mã icon kiểu
 // OpenWeather (client render qua https://openweathermap.org/img/wn/{icon}@2x.png).
@@ -70,31 +73,42 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed. Use POST.' }), {
+      status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
   try {
-    let lat: string | null = null;
-    let lon: string | null = null;
-
-    if (req.method === 'POST') {
-      try {
-        const body = await req.json();
-        lat = body.lat?.toString();
-        lon = body.lon?.toString();
-      } catch (e) {
-        console.error('Error parsing POST body:', e);
-      }
+    const auth = req.headers.get('authorization') ?? req.headers.get('Authorization');
+    if (!auth?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Authentication required.' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
-
-    if (!lat || !lon) {
-      const url = new URL(req.url);
-      lat = url.searchParams.get('lat');
-      lon = url.searchParams.get('lon');
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid JSON body.' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
-
-    if (!lat || !lon) {
+    const latitude = Number(body.lat);
+    const longitude = Number(body.lon);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
       return new Response(
-        JSON.stringify({ error: 'Missing lat or lon (checked body and query params)' }),
+        JSON.stringify({ error: 'lat and lon must be finite geographic coordinates.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+    const lat = latitude.toFixed(3);
+    const lon = longitude.toFixed(3);
+    const cacheKey = `${lat}:${lon}`;
+    const cached = cache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return new Response(JSON.stringify(cached.payload), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=600' },
+      });
     }
 
     // WAQI là nguồn dự phòng cho AQI khi Open-Meteo không có dữ liệu, đồng thời
@@ -172,8 +186,7 @@ serve(async (req) => {
       if (windKph == null && typeof iaqi.w?.v === 'number') windKph = iaqi.w.v * 3.6;
     }
 
-    return new Response(
-      JSON.stringify({
+    const normalized = {
         source: source ?? (temperatureC != null ? 'open-meteo' : null),
         temperature_c: temperatureC,
         feels_like_c: feelsLikeC ?? temperatureC,
@@ -183,16 +196,19 @@ serve(async (req) => {
         icon,
         aqi,
         location_name: locationName,
-      }),
+      };
+    cache.set(cacheKey, { expiresAt: Date.now() + cacheTtlMs, payload: normalized });
+    return new Response(
+      JSON.stringify(normalized),
       {
         status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'private, max-age=600' },
       }
     );
   } catch (error) {
     console.error('Error fetching weather data:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal Server Error' }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Internal Server Error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

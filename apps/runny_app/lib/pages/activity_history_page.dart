@@ -23,6 +23,11 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   bool _isLoading = true;
   List<Activity> _activities = [];
   List<Shoe> _shoes = [];
+  static const int _activityPageSize = 100;
+  String? _activityCursorStartedAt;
+  String? _activityCursorId;
+  bool _hasMoreActivities = false;
+  bool _isLoadingMoreActivities = false;
   int _maxHr = 190; // Default Max HR
   String _selectedRange = '30'; // '7', '30', '90', 'all'
   String _selectedTrendTab = 'pace'; // 'pace' or 'hr'
@@ -40,15 +45,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
 
-      // 1. Fetch activities
-      final response = await _supabase
-          .from('activities')
-          .select()
-          .order('started_at', ascending: false);
-
-      final fetchedActivities = (response as List)
-          .map((json) => Activity.fromJson(json))
-          .toList();
+      _activityCursorStartedAt = null;
+      _activityCursorId = null;
+      final fetchedActivities = await _fetchActivityPage(userId);
 
       // 2. Fetch profile for max HR
       final profileResponse = await _supabase
@@ -74,6 +73,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
 
       setState(() {
         _activities = fetchedActivities;
+        _hasMoreActivities = fetchedActivities.length == _activityPageSize;
         _shoes = fetchedShoes;
         _maxHr = maxHr;
         _isLoading = false;
@@ -81,6 +81,47 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
     } catch (e) {
       debugPrint('Error fetching history data: $e');
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<List<Activity>> _fetchActivityPage(String userId) async {
+    var query = _supabase
+        .from('activities')
+        .select()
+        .eq('user_id', userId);
+    if (_activityCursorStartedAt != null && _activityCursorId != null) {
+      query = query.or(
+        'started_at.lt.$_activityCursorStartedAt,and(started_at.eq.$_activityCursorStartedAt,id.lt.$_activityCursorId)',
+      );
+    }
+    final response = await query
+        .order('started_at', ascending: false)
+        .order('id', ascending: false)
+        .limit(_activityPageSize);
+    final page = (response as List)
+        .map((json) => Activity.fromJson(json))
+        .toList();
+    if (page.isNotEmpty) {
+      final last = page.last;
+      _activityCursorStartedAt = last.startedAt.toUtc().toIso8601String();
+      _activityCursorId = last.id;
+    }
+    return page;
+  }
+
+  Future<void> _loadMoreActivities() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null || !_hasMoreActivities || _isLoadingMoreActivities) return;
+    setState(() => _isLoadingMoreActivities = true);
+    try {
+      final page = await _fetchActivityPage(userId);
+      if (!mounted) return;
+      setState(() {
+        _activities = [..._activities, ...page];
+        _hasMoreActivities = page.length == _activityPageSize;
+      });
+    } finally {
+      if (mounted) setState(() => _isLoadingMoreActivities = false);
     }
   }
 
@@ -1481,7 +1522,8 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
-      children: filtered.map((activity) {
+      children: [
+        ...filtered.map((activity) {
         final paceStr = _formatPace(activity.durationMin / activity.distanceKm);
 
         return Padding(
@@ -1564,7 +1606,18 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
             ),
           ),
         );
-      }).toList(),
+        }),
+        if (_hasMoreActivities)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: OutlinedButton(
+            onPressed: _isLoadingMoreActivities ? null : _loadMoreActivities,
+            child: _isLoadingMoreActivities
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Tải thêm'),
+          ),
+        ),
+      ],
     );
   }
 }
