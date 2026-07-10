@@ -881,7 +881,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              context.translate('plan_failed_desc'),
+              _activeSchedule?['error_message'] != null ? '${context.translate('plan_failed_desc')}\n\nChi tiết lỗi:\n${_activeSchedule!['error_message']}' : context.translate('plan_failed_desc'),
               style: TextStyle(color: colorScheme.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),

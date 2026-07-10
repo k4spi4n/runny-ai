@@ -218,6 +218,52 @@ class TrainingService {
     return d.clamp(min, max);
   }
 
+  String? _safeTime(dynamic value) {
+    if (value == null) return null;
+    final s = value.toString().trim();
+    if (s.isEmpty) return null;
+
+    // Match HH:mm:ss or HH:mm
+    final regExp = RegExp(r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$');
+    if (regExp.hasMatch(s)) {
+      return s;
+    }
+
+    // Match single hour (e.g. "6" or "18")
+    final hourOnly = RegExp(r'^([0-1]?[0-9]|2[0-3])$');
+    if (hourOnly.hasMatch(s)) {
+      final hour = int.parse(s);
+      final pad = hour.toString().padLeft(2, '0');
+      return '$pad:00:00';
+    }
+
+    // Match pattern like "6 AM", "6PM", "06:00 PM"
+    final amPm = RegExp(r'^([0-1]?[0-9])(:[0-5][0-9])?\s*(am|pm)$', caseSensitive: false);
+    final match = amPm.firstMatch(s);
+    if (match != null) {
+      var hour = int.parse(match.group(1)!);
+      final minute = match.group(2) ?? ':00';
+      final isPm = match.group(3)!.toLowerCase() == 'pm';
+      if (isPm && hour < 12) {
+        hour += 12;
+      } else if (!isPm && hour == 12) {
+        hour = 0;
+      }
+      final pad = hour.toString().padLeft(2, '0');
+      return '$pad$minute:00';
+    }
+
+    final lower = s.toLowerCase();
+    if (lower.contains('sáng') || lower.contains('morning')) {
+      return '06:00:00';
+    }
+    if (lower.contains('chiều') || lower.contains('tối') || lower.contains('afternoon') || lower.contains('evening')) {
+      return '18:00:00';
+    }
+
+    return null;
+  }
+
   double _safeRequiredNumber(double value, {required double max}) {
     if (value.isNaN || value.isInfinite || value < 0) {
       throw ArgumentError('Invalid workout number');
@@ -597,7 +643,10 @@ class TrainingService {
       try {
         await _supabase
             .from('training_schedules')
-            .update({'status': 'failed'})
+            .update({
+              'status': 'failed',
+              'error_message': e.toString(),
+            })
             .eq('id', scheduleId);
       } catch (_) {
         // Bỏ qua: không thể đánh dấu thất bại thì trang sẽ vẫn thấy 'generating'.
@@ -925,7 +974,7 @@ $manualWorkoutsSection
           'status': 'planned',
           'source': 'ai',
           'workout_type': w['workout_type'],
-          'start_time': w['start_time'],
+          'start_time': _safeTime(w['start_time']),
         });
       }
     }
@@ -944,12 +993,14 @@ $manualWorkoutsSection
         'status': mw['status'] ?? 'planned',
         'source': 'manual',
         'workout_type': mw['workout_type'],
-        'start_time': mw['start_time'],
+        'start_time': _safeTime(mw['start_time']),
         'activity_id': mw['activity_id'],
       });
     }
 
-    await _supabase.from('scheduled_workouts').insert(workouts);
+    if (workouts.isNotEmpty) {
+      await _supabase.from('scheduled_workouts').insert(workouts);
+    }
   }
 
   /// Yêu cầu AI đề xuất tinh chỉnh các buổi tập SẮP TỚI dựa trên TẤT CẢ các buổi

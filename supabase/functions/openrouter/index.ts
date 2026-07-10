@@ -406,18 +406,25 @@ function applyModelFallback(body: Record<string, unknown>): Record<string, unkno
   } = body;
   const compatibleBody = compatibleStructuredOutput(cleanBody);
   const fallback = getFallbackModels(body);
+  const preferred = (typeof pm === 'string' ? pm : null) ?? (typeof pm2 === 'string' ? pm2 : null);
 
-  if (Array.isArray(compatibleBody.models) && compatibleBody.models.length > 0) {
-    const capped = [...new Set(compatibleBody.models as unknown[])].slice(0, MAX_MODELS);
-    return { ...compatibleBody, models: capped };
+  let models: string[] = [];
+  if (preferred) {
+    models.push(preferred);
   }
 
-  const preferred = (typeof pm === 'string' ? pm : null) ?? (typeof pm2 === 'string' ? pm2 : null);
-  const primary = typeof compatibleBody.model === 'string' ? compatibleBody.model : preferred;
-  const models = primary ? [primary, ...fallback] : [...fallback];
+  if (Array.isArray(compatibleBody.models) && compatibleBody.models.length > 0) {
+    for (const m of compatibleBody.models) {
+      if (typeof m === 'string') models.push(m);
+    }
+  } else if (typeof compatibleBody.model === 'string') {
+    models.push(compatibleBody.model);
+  }
+
+  models = [...models, ...fallback];
   const deduped = [...new Set(models)].slice(0, MAX_MODELS);
 
-  const { model: _drop, ...rest } = compatibleBody;
+  const { model: _drop, models: _drop2, ...rest } = compatibleBody;
   return { ...rest, models: deduped };
 }
 
