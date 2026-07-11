@@ -19,6 +19,7 @@ import '../services/paywall_exception.dart';
 import '../models/workout_models.dart';
 import '../models/nutrition_models.dart';
 import '../models/weight_models.dart';
+import '../models/coach_persona.dart';
 import '../l10n/app_localizations.dart';
 
 /// Các loại dữ liệu người dùng có thể đính kèm cho HLV AI phân tích kèm câu hỏi.
@@ -53,11 +54,13 @@ class _AICoachPageState extends State<AICoachPage> {
   final WeatherService _weatherService = WeatherService();
   final List<Map<String, String>> _messages = [];
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _coachNameController = TextEditingController();
   String? _greetingText;
   bool _isLoading = false;
   // Đang nhận phản hồi streaming (chữ chạy dần trong bong bóng cuối).
   bool _isStreaming = false;
   bool _isRecording = false;
+  String _coachPersona = CoachPersona.calm.id;
   String _baseText = '';
   Activity? _contextActivity;
   // Dữ liệu người dùng chọn đính kèm vào câu hỏi để AI phân tích.
@@ -84,8 +87,90 @@ class _AICoachPageState extends State<AICoachPage> {
       _controller.text = widget.initialPrompt!;
     }
     _loadGreeting();
+    _loadCoachSettings();
     _loadHistory();
     _randomizeSuggestions();
+  }
+
+  Future<void> _loadCoachSettings() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('coach_name, coach_persona')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (!mounted) return;
+      setState(() {
+        _coachNameController.text =
+            profile?['coach_name'] as String? ?? 'Runny';
+        _coachPersona = CoachPersona.byId(
+          profile?['coach_persona'] as String?,
+        ).id;
+      });
+    } catch (e) {
+      debugPrint('Error loading AI coach settings: $e');
+    }
+  }
+
+  Future<void> _saveCoachSettings() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    final coachName = _coachNameController.text.trim();
+    if (coachName.isEmpty || coachName.length > 24) {
+      _showToast(context.translate('coach_name_invalid'));
+      return;
+    }
+
+    try {
+      await Supabase.instance.client
+          .from('profiles')
+          .update({
+            'coach_name': coachName,
+            'coach_persona': CoachPersona.byId(_coachPersona).id,
+          })
+          .eq('id', user.id);
+      GeminiService.clearCoachPreferenceCache();
+      if (mounted) {
+        Navigator.of(context).pop();
+        _showToast(context.translate('coach_settings_saved'));
+      }
+    } catch (e) {
+      if (mounted) _showToast('${context.translate('error')}: $e');
+    }
+  }
+
+  void _showCoachSettings() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        var isSaving = false;
+        return StatefulBuilder(
+          builder: (context, setSheetState) => _CoachSettingsSheet(
+            coachNameController: _coachNameController,
+            persona: _coachPersona,
+            isSaving: isSaving,
+            onPersonaChanged: (persona) {
+              setState(() => _coachPersona = persona);
+              setSheetState(() {});
+            },
+            onSave: () async {
+              if (isSaving) return;
+              setSheetState(() => isSaving = true);
+              await _saveCoachSettings();
+              if (context.mounted) {
+                setSheetState(() => isSaving = false);
+              }
+            },
+          ),
+        );
+      },
+    );
   }
 
   void _randomizeSuggestions() {
@@ -696,6 +781,7 @@ class _AICoachPageState extends State<AICoachPage> {
     _controller.removeListener(_handlePromptChanged);
     _speech.cancel();
     _controller.dispose();
+    _coachNameController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -809,6 +895,11 @@ class _AICoachPageState extends State<AICoachPage> {
               )
             : null,
         actions: [
+          IconButton(
+            onPressed: _showCoachSettings,
+            icon: Icon(Icons.tune_outlined, color: colorScheme.onSurface),
+            tooltip: context.translate('coach_settings_title'),
+          ),
           IconButton(
             onPressed: _clearHistory,
             icon: Icon(Icons.delete_outline, color: colorScheme.onSurface),
@@ -1359,6 +1450,145 @@ class _AudioWaveState extends State<_AudioWave>
             }),
           );
         },
+      ),
+    );
+  }
+}
+
+class _CoachSettingsSheet extends StatelessWidget {
+  const _CoachSettingsSheet({
+    required this.coachNameController,
+    required this.persona,
+    required this.isSaving,
+    required this.onPersonaChanged,
+    required this.onSave,
+  });
+
+  final TextEditingController coachNameController;
+  final String persona;
+  final bool isSaving;
+  final ValueChanged<String> onPersonaChanged;
+  final VoidCallback onSave;
+
+  IconData _personaIcon(String id) => switch (id) {
+    'disciplined' => Icons.flag_outlined,
+    'energetic' => Icons.bolt_outlined,
+    'scientific' => Icons.insights_outlined,
+    'concise' => Icons.checklist_outlined,
+    _ => Icons.spa_outlined,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final selectedPersona = CoachPersona.byId(persona);
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+          24,
+          12,
+          24,
+          24 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colors.outlineVariant,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Icon(Icons.psychology_alt, color: colors.primary),
+                  const SizedBox(width: 10),
+                  Text(
+                    context.translate('coach_settings_title'),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                context.translate('coach_settings_desc'),
+                style: TextStyle(color: colors.onSurfaceVariant),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: coachNameController,
+                maxLength: 24,
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  labelText: context.translate('coach_name'),
+                  prefixIcon: const Icon(Icons.badge_outlined),
+                  border: const OutlineInputBorder(),
+                  counterText: '',
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                context.translate('coach_persona'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: CoachPersona.values.map((item) {
+                  final isSelected = item.id == persona;
+                  return ChoiceChip(
+                    label: Text(context.translate(item.labelKey)),
+                    avatar: Icon(
+                      _personaIcon(item.id),
+                      size: 16,
+                      color: isSelected ? colors.onPrimary : colors.primary,
+                    ),
+                    selected: isSelected,
+                    showCheckmark: false,
+                    onSelected: (_) => onPersonaChanged(item.id),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                context.translate(selectedPersona.descriptionKey),
+                style: TextStyle(color: colors.onSurfaceVariant),
+              ),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: isSaving ? null : onSave,
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(context.translate('save_coach_settings')),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

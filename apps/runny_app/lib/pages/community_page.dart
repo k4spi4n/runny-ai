@@ -15,7 +15,8 @@ class CommunityPage extends StatefulWidget {
   State<CommunityPage> createState() => _CommunityPageState();
 }
 
-class _CommunityPageState extends State<CommunityPage> with SingleTickerProviderStateMixin {
+class _CommunityPageState extends State<CommunityPage>
+    with SingleTickerProviderStateMixin {
   late final TabController _tabController;
 
   @override
@@ -31,7 +32,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
   }
 
   @override
-    Widget build(BuildContext context) {
+  Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -56,8 +57,13 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
             indicatorSize: TabBarIndicatorSize.tab,
             dividerColor: Colors.transparent,
             labelColor: Colors.white,
-            unselectedLabelColor: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-            labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            unselectedLabelColor: colorScheme.onSurfaceVariant.withValues(
+              alpha: 0.7,
+            ),
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
             tabs: [
               Tab(text: context.translate('badges_tab')),
               Tab(text: context.translate('leaderboard_tab')),
@@ -69,11 +75,7 @@ class _CommunityPageState extends State<CommunityPage> with SingleTickerProvider
         Expanded(
           child: TabBarView(
             controller: _tabController,
-            children: const [
-              _BadgesTab(),
-              _LeaderboardTab(),
-              _MatchingTab(),
-            ],
+            children: const [_BadgesTab(), _LeaderboardTab(), _MatchingTab()],
           ),
         ),
       ],
@@ -99,7 +101,10 @@ class _BadgesTab extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _errorView(context, context.translate('load_badges_error', [snapshot.error.toString()]));
+          return _errorView(
+            context,
+            context.translate('load_badges_error', [snapshot.error.toString()]),
+          );
         }
         final badges = snapshot.data ?? [];
         final earnedCount = badges.where((b) => b.isEarned).length;
@@ -120,22 +125,35 @@ class _BadgesTab extends StatelessWidget {
                         gradient: accentPulseGradient,
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      child: const Icon(Icons.emoji_events, color: Colors.white, size: 28),
+                      child: const Icon(
+                        Icons.emoji_events,
+                        color: Colors.white,
+                        size: 28,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(context.translate('your_achievements'),
-                              style: TextStyle(color: colorScheme.onSurfaceVariant)),
+                          Text(
+                            context.translate('your_achievements'),
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
                           const SizedBox(height: 4),
                           Text(
-                              context.translate('badges_earned_count', [earnedCount.toString(), badges.length.toString()]),
-                              style: TextStyle(
-                                  color: colorScheme.onSurface,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w900)),
+                            context.translate('badges_earned_count', [
+                              earnedCount.toString(),
+                              badges.length.toString(),
+                            ]),
+                            style: TextStyle(
+                              color: colorScheme.onSurface,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -188,22 +206,34 @@ class _BadgeCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: earned ? accentPulseGradient : null,
-                  color: earned ? null : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+                  color: earned
+                      ? null
+                      : (isDark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : Colors.black.withValues(alpha: 0.05)),
                   border: Border.all(
-                    color: earned ? Colors.white.withValues(alpha: 0.2) : colorScheme.outline.withValues(alpha: 0.1),
+                    color: earned
+                        ? Colors.white.withValues(alpha: 0.2)
+                        : colorScheme.outline.withValues(alpha: 0.1),
                     width: 2,
                   ),
-                  boxShadow: earned ? [
-                    BoxShadow(
-                      color: const Color(0xFFFA6B27).withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      spreadRadius: 1,
-                    )
-                  ] : null,
+                  boxShadow: earned
+                      ? [
+                          BoxShadow(
+                            color: const Color(
+                              0xFFFA6B27,
+                            ).withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            spreadRadius: 1,
+                          ),
+                        ]
+                      : null,
                 ),
                 child: Icon(
                   _iconFor(badge.icon),
-                  color: earned ? Colors.white : colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                  color: earned
+                      ? Colors.white
+                      : colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
                   size: 28,
                 ),
               ),
@@ -216,9 +246,17 @@ class _BadgeCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: colorScheme.surface,
                       shape: BoxShape.circle,
-                      border: Border.all(color: colorScheme.outline.withValues(alpha: 0.2)),
+                      border: Border.all(
+                        color: colorScheme.outline.withValues(alpha: 0.2),
+                      ),
                     ),
-                    child: Icon(Icons.lock, size: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                    child: Icon(
+                      Icons.lock,
+                      size: 12,
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.6,
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -231,7 +269,9 @@ class _BadgeCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: earned ? colorScheme.onSurface : colorScheme.onSurface.withValues(alpha: 0.5),
+              color: earned
+                  ? colorScheme.onSurface
+                  : colorScheme.onSurface.withValues(alpha: 0.5),
               fontWeight: FontWeight.w900,
               fontSize: 13,
               letterSpacing: -0.2,
@@ -292,38 +332,235 @@ class _BadgeCard extends StatelessWidget {
 // 4.2 BẢNG XẾP HẠNG
 // =====================================================================
 
-class _LeaderboardTab extends StatelessWidget {
+class _LeaderboardTab extends StatefulWidget {
   const _LeaderboardTab();
 
   @override
+  State<_LeaderboardTab> createState() => _LeaderboardTabState();
+}
+
+class _LeaderboardTabState extends State<_LeaderboardTab> {
+  final _service = SocialService();
+  late Future<LeaderboardSnapshot> _leaderboard;
+  bool _updatingVisibility = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _leaderboard = _service.fetchLeaderboard();
+  }
+
+  Future<void> _setVisibility(bool visible) async {
+    setState(() => _updatingVisibility = true);
+    try {
+      await _service.setLeaderboardVisibility(visible);
+      if (mounted) setState(() => _leaderboard = _service.fetchLeaderboard());
+    } finally {
+      if (mounted) setState(() => _updatingVisibility = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final service = SocialService();
     final myId = Supabase.instance.client.auth.currentUser?.id;
-    return FutureBuilder<List<LeaderboardEntry>>(
-      future: service.fetchLeaderboard(),
+    return FutureBuilder<LeaderboardSnapshot>(
+      future: _leaderboard,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _errorView(context, context.translate('load_leaderboard_error', [snapshot.error.toString()]));
+          return _errorView(
+            context,
+            context.translate('load_leaderboard_error', [
+              snapshot.error.toString(),
+            ]),
+          );
         }
-        final entries = snapshot.data ?? [];
-        if (entries.isEmpty) {
-          return _emptyView(context, context.translate('no_leaderboard_data'));
-        }
+        final leaderboard = snapshot.data!;
         return ListView.separated(
-          itemCount: entries.length,
+          itemCount: leaderboard.entries.length + 2,
           separatorBuilder: (_, _) => const SizedBox(height: 10),
           itemBuilder: (context, index) {
-            final e = entries[index];
-            final isMe = e.userId == myId;
-            return _LeaderboardRow(entry: e, isMe: isMe);
+            if (index == 0) {
+              return _PersonalLeaderboardCard(
+                leaderboard: leaderboard,
+                isUpdating: _updatingVisibility,
+                onVisibilityChanged: _setVisibility,
+              );
+            }
+            if (index == 1) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.translate('community_rankings', [
+                      leaderboard.visibleRunnerCount.toString(),
+                    ]),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  if (leaderboard.entries.isEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      context.translate('leaderboard_empty_community'),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            }
+            final e = leaderboard.entries[index - 2];
+            return _LeaderboardRow(entry: e, isMe: e.userId == myId);
           },
         );
       },
     );
   }
+}
+
+class _PersonalLeaderboardCard extends StatelessWidget {
+  const _PersonalLeaderboardCard({
+    required this.leaderboard,
+    required this.isUpdating,
+    required this.onVisibilityChanged,
+  });
+
+  final LeaderboardSnapshot leaderboard;
+  final bool isUpdating;
+  final ValueChanged<bool> onVisibilityChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final status = !leaderboard.isVisible
+        ? context.translate('leaderboard_private_status')
+        : leaderboard.myActivityCount == 0
+        ? context.translate('leaderboard_complete_activity')
+        : leaderboard.myRank == null
+        ? context.translate('leaderboard_first_runner')
+        : context.translate('leaderboard_your_rank', [
+            leaderboard.myRank.toString(),
+          ]);
+    return glassCard(
+      context: context,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.directions_run_rounded, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                context.translate('leaderboard_your_progress'),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              if (leaderboard.isPro) ...[
+                const SizedBox(width: 8),
+                const ProBadge(),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(status, style: TextStyle(color: colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _PersonalMetric(
+                value: '${leaderboard.myDistanceKm.toStringAsFixed(1)} km',
+                label: context.translate('leaderboard_distance'),
+              ),
+              const SizedBox(width: 28),
+              _PersonalMetric(
+                value: leaderboard.myActivityCount.toString(),
+                label: context.translate('leaderboard_activities'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Divider(
+            height: 1,
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.translate('leaderboard_visibility_label'),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      context.translate(
+                        leaderboard.isVisible
+                            ? 'leaderboard_participating'
+                            : 'leaderboard_not_participating',
+                      ),
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isUpdating)
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              Switch.adaptive(
+                value: leaderboard.isVisible,
+                onChanged: isUpdating ? null : onVisibilityChanged,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            context.translate('leaderboard_privacy_note'),
+            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonalMetric extends StatelessWidget {
+  const _PersonalMetric({required this.value, required this.label});
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        value,
+        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+      ),
+      Text(
+        label,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontSize: 12,
+        ),
+      ),
+    ],
+  );
 }
 
 class _LeaderboardRow extends StatelessWidget {
@@ -335,7 +572,7 @@ class _LeaderboardRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return glassCard(
-          context: context,
+      context: context,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       child: Row(
         children: [
@@ -364,19 +601,35 @@ class _LeaderboardRow extends StatelessWidget {
                     ],
                     if (isMe) ...[
                       const SizedBox(width: 8),
-                      badgeLabel(context, context.translate('you'), background: const Color(0xFFF85F2B)),
+                      badgeLabel(
+                        context,
+                        context.translate('you'),
+                        background: const Color(0xFFF85F2B),
+                      ),
                     ],
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text(context.translate('sessions_count', [entry.activityCount.toString()]),
-                    style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
+                Text(
+                  context.translate('sessions_count', [
+                    entry.activityCount.toString(),
+                  ]),
+                  style: TextStyle(
+                    color: colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
           ),
-          Text('${entry.totalDistanceKm.toStringAsFixed(1)} km',
-              style: TextStyle(
-                  color: colorScheme.onSurface, fontWeight: FontWeight.w900, fontSize: 16)),
+          Text(
+            '${entry.totalDistanceKm.toStringAsFixed(1)} km',
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
+          ),
         ],
       ),
     );
@@ -405,13 +658,20 @@ class _RankBadge extends StatelessWidget {
         gradient: medal != null
             ? LinearGradient(colors: [medal, medal.withValues(alpha: 0.6)])
             : null,
-        color: medal == null ? (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05)) : null,
+        color: medal == null
+            ? (isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : Colors.black.withValues(alpha: 0.05))
+            : null,
         shape: BoxShape.circle,
       ),
-      child: Text('$rank',
-          style: TextStyle(
-              color: medal != null ? Colors.black : theme.colorScheme.onSurface,
-              fontWeight: FontWeight.w900)),
+      child: Text(
+        '$rank',
+        style: TextStyle(
+          color: medal != null ? Colors.black : theme.colorScheme.onSurface,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 }
@@ -454,7 +714,9 @@ class _MatchingTabState extends State<_MatchingTab> {
 
   Future<void> _sendRequest(MatchSuggestion s) async {
     final messenger = ScaffoldMessenger.of(context);
-    final invitationSentToText = context.translate('invitation_sent_to', [s.displayName]);
+    final invitationSentToText = context.translate('invitation_sent_to', [
+      s.displayName,
+    ]);
     final errorText = context.translate('error');
     try {
       await _service.sendMatchRequest(s.userId);
@@ -467,15 +729,18 @@ class _MatchingTabState extends State<_MatchingTab> {
 
   Future<void> _respond(RunMatch m, bool accept) async {
     final messenger = ScaffoldMessenger.of(context);
-    final connectedWithText = context.translate('connected_with', [m.otherDisplayName]);
+    final connectedWithText = context.translate('connected_with', [
+      m.otherDisplayName,
+    ]);
     final invitationDeclinedText = context.translate('invitation_declined');
     final errorText = context.translate('error');
     try {
       await _service.respondToRequest(m.id, accept: accept);
-      messenger.showSnackBar(SnackBar(
-          content: Text(accept
-              ? connectedWithText
-              : invitationDeclinedText)));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(accept ? connectedWithText : invitationDeclinedText),
+        ),
+      );
       _refresh();
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('$errorText: $e')));
@@ -492,7 +757,12 @@ class _MatchingTabState extends State<_MatchingTab> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _errorView(context, context.translate('load_matching_error', [snapshot.error.toString()]));
+          return _errorView(
+            context,
+            context.translate('load_matching_error', [
+              snapshot.error.toString(),
+            ]),
+          );
         }
         final data = snapshot.data!;
         return RefreshIndicator(
@@ -500,12 +770,24 @@ class _MatchingTabState extends State<_MatchingTab> {
           child: ListView(
             children: [
               if (data.incoming.isNotEmpty) ...[
-                _sectionTitle(context, context.translate('pending_invitations', [data.incoming.length.toString()])),
-                ...data.incoming.map((m) => _IncomingCard(match: m, onRespond: _respond)),
+                _sectionTitle(
+                  context,
+                  context.translate('pending_invitations', [
+                    data.incoming.length.toString(),
+                  ]),
+                ),
+                ...data.incoming.map(
+                  (m) => _IncomingCard(match: m, onRespond: _respond),
+                ),
                 const SizedBox(height: 16),
               ],
               if (data.partners.isNotEmpty) ...[
-                _sectionTitle(context, context.translate('your_partners', [data.partners.length.toString()])),
+                _sectionTitle(
+                  context,
+                  context.translate('your_partners', [
+                    data.partners.length.toString(),
+                  ]),
+                ),
                 ...data.partners.map((m) => _PartnerCard(match: m)),
                 const SizedBox(height: 16),
               ],
@@ -513,16 +795,21 @@ class _MatchingTabState extends State<_MatchingTab> {
               const SizedBox(height: 4),
               Text(
                 context.translate('partner_suggestions_desc'),
-                style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 12),
               if (data.suggestions.isEmpty)
                 _emptyView(context, context.translate('no_suggestions_found'))
               else
-                ...data.suggestions.map((s) => _SuggestionCard(
-                      suggestion: s,
-                      onSend: () => _sendRequest(s),
-                    )),
+                ...data.suggestions.map(
+                  (s) => _SuggestionCard(
+                    suggestion: s,
+                    onSend: () => _sendRequest(s),
+                  ),
+                ),
               const SizedBox(height: 24),
             ],
           ),
@@ -536,7 +823,11 @@ class _MatchData {
   final List<RunMatch> incoming;
   final List<RunMatch> partners;
   final List<MatchSuggestion> suggestions;
-  _MatchData({required this.incoming, required this.partners, required this.suggestions});
+  _MatchData({
+    required this.incoming,
+    required this.partners,
+    required this.suggestions,
+  });
 }
 
 class _IncomingCard extends StatelessWidget {
@@ -550,7 +841,7 @@ class _IncomingCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: glassCard(
-          context: context,
+        context: context,
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
@@ -560,12 +851,21 @@ class _IncomingCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(match.otherDisplayName,
-                      style: TextStyle(
-                          color: colorScheme.onSurface, fontWeight: FontWeight.w800)),
+                  Text(
+                    match.otherDisplayName,
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   if (match.otherCity != null)
-                    Text(match.otherCity!,
-                        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
+                    Text(
+                      match.otherCity!,
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -575,7 +875,10 @@ class _IncomingCard extends StatelessWidget {
               onPressed: () => onRespond(match, true),
             ),
             IconButton(
-              icon: Icon(Icons.cancel, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+              icon: Icon(
+                Icons.cancel,
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              ),
               tooltip: context.translate('decline'),
               onPressed: () => onRespond(match, false),
             ),
@@ -596,7 +899,7 @@ class _PartnerCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: glassCard(
-          context: context,
+        context: context,
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
@@ -606,16 +909,29 @@ class _PartnerCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(match.otherDisplayName,
-                      style: TextStyle(
-                          color: colorScheme.onSurface, fontWeight: FontWeight.w800)),
+                  Text(
+                    match.otherDisplayName,
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   if (match.otherCity != null)
-                    Text(match.otherCity!,
-                        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
+                    Text(
+                      match.otherCity!,
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
                 ],
               ),
             ),
-            badgeLabel(context, context.translate('connected'), background: const Color(0xFF1F7A4D)),
+            badgeLabel(
+              context,
+              context.translate('connected'),
+              background: const Color(0xFF1F7A4D),
+            ),
           ],
         ),
       ),
@@ -635,7 +951,7 @@ class _SuggestionCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: glassCard(
-          context: context,
+        context: context,
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,14 +967,22 @@ class _SuggestionCard extends StatelessWidget {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(suggestion.displayName,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                    color: colorScheme.onSurface, fontWeight: FontWeight.w800)),
+                            child: Text(
+                              suggestion.displayName,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: colorScheme.onSurface,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
                           if (suggestion.sameCity) ...[
                             const SizedBox(width: 8),
-                            badgeLabel(context, context.translate('same_area'), background: const Color(0xFF2A3B6B)),
+                            badgeLabel(
+                              context,
+                              context.translate('same_area'),
+                              background: const Color(0xFF2A3B6B),
+                            ),
                           ],
                         ],
                       ),
@@ -668,9 +992,17 @@ class _SuggestionCard extends StatelessWidget {
                         children: [
                           if (suggestion.city != null)
                             _meta(context, Icons.place, suggestion.city!),
-                          if (pace != null) _meta(context, Icons.speed, '${_formatPace(pace)} /km'),
-                          _meta(context, Icons.straighten,
-                              '${suggestion.totalDistanceKm.toStringAsFixed(0)} km'),
+                          if (pace != null)
+                            _meta(
+                              context,
+                              Icons.speed,
+                              '${_formatPace(pace)} /km',
+                            ),
+                          _meta(
+                            context,
+                            Icons.straighten,
+                            '${suggestion.totalDistanceKm.toStringAsFixed(0)} km',
+                          ),
                         ],
                       ),
                     ],
@@ -678,10 +1010,16 @@ class _SuggestionCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (suggestion.bio != null && suggestion.bio!.trim().isNotEmpty) ...[
+            if (suggestion.bio != null &&
+                suggestion.bio!.trim().isNotEmpty) ...[
               const SizedBox(height: 10),
-              Text(suggestion.bio!,
-                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13)),
+              Text(
+                suggestion.bio!,
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                ),
+              ),
             ],
             const SizedBox(height: 12),
             SizedBox(
@@ -703,22 +1041,34 @@ class _SuggestionCard extends StatelessWidget {
 // ----- helpers dùng chung -----
 
 Widget _sectionTitle(BuildContext context, String text) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Text(text,
-          style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurface, fontSize: 16, fontWeight: FontWeight.w800)),
-    );
+  padding: const EdgeInsets.symmetric(vertical: 6),
+  child: Text(
+    text,
+    style: TextStyle(
+      color: Theme.of(context).colorScheme.onSurface,
+      fontSize: 16,
+      fontWeight: FontWeight.w800,
+    ),
+  ),
+);
 
 Widget _meta(BuildContext context, IconData icon, String text) {
   final colorScheme = Theme.of(context).colorScheme;
   return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
-        const SizedBox(width: 4),
-        Text(text, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12)),
-      ],
-    );
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(
+        icon,
+        size: 14,
+        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+      ),
+      const SizedBox(width: 4),
+      Text(
+        text,
+        style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+      ),
+    ],
+  );
 }
 
 Widget _avatar(String name) {
@@ -727,30 +1077,50 @@ Widget _avatar(String name) {
     width: 44,
     height: 44,
     alignment: Alignment.center,
-    decoration: const BoxDecoration(gradient: secondaryPulseGradient, shape: BoxShape.circle),
-    child: Text(initial,
-        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18)),
+    decoration: const BoxDecoration(
+      gradient: secondaryPulseGradient,
+      shape: BoxShape.circle,
+    ),
+    child: Text(
+      initial,
+      style: const TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w900,
+        fontSize: 18,
+      ),
+    ),
   );
 }
 
 Widget _errorView(BuildContext context, String message) => Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(message,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-      ),
-    );
+  child: Padding(
+    padding: const EdgeInsets.all(24),
+    child: Text(
+      message,
+      textAlign: TextAlign.center,
+      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+    ),
+  ),
+);
 
 Widget _emptyView(BuildContext context, String message) => Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 32),
-        child: Text(message, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7))),
+  child: Padding(
+    padding: const EdgeInsets.symmetric(vertical: 32),
+    child: Text(
+      message,
+      style: TextStyle(
+        color: Theme.of(
+          context,
+        ).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
       ),
-    );
+    ),
+  ),
+);
 
 String _formatPace(double paceDecimal) {
-  if (paceDecimal.isInfinite || paceDecimal.isNaN || paceDecimal <= 0) return '-:--';
+  if (paceDecimal.isInfinite || paceDecimal.isNaN || paceDecimal <= 0) {
+    return '-:--';
+  }
   final minutes = paceDecimal.floor();
   final seconds = ((paceDecimal - minutes) * 60).round();
   return '$minutes:${seconds.toString().padLeft(2, '0')}';

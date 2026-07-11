@@ -41,9 +41,14 @@ class SocialService {
 
   // ----- 4.2 Bảng xếp hạng -----
 
-  Future<List<LeaderboardEntry>> fetchLeaderboard({int limit = 50}) async {
-    final response = await _supabase.rpc('get_leaderboard', params: {'p_limit': limit});
-    return (response as List).map((e) => LeaderboardEntry.fromJson(e)).toList();
+  Future<LeaderboardSnapshot> fetchLeaderboard({int limit = 50}) async {
+    final response = await _supabase.rpc('get_leaderboard_snapshot', params: {'p_limit': limit});
+    return LeaderboardSnapshot.fromJson((response as Map).cast<String, dynamic>());
+  }
+
+  /// Thành tích chỉ xuất hiện với người khác sau khi chủ tài khoản tự bật.
+  Future<void> setLeaderboardVisibility(bool visible) {
+    return _supabase.from('profiles').update({'leaderboard_visible': visible}).eq('id', _uid);
   }
 
   // ----- 4.3 Ghép đôi bạn chạy -----

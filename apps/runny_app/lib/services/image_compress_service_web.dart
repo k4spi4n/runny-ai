@@ -28,23 +28,32 @@ class WebImageCompressService implements ImageCompressService {
       final blobParts = [jsArray].toJS;
       final blob = web.Blob(blobParts, web.BlobPropertyBag(type: mimeType));
 
-      // 2. Tạo URL đối tượng cho ảnh để HTMLImageElement tải
+      // 2. Tạo URL đối tượng cho ảnh để HTMLImageElement tải. Phải gắn các
+      // listener trước khi gán `src`: trên Safari iOS, ảnh từ Blob có thể tải
+      // xong ngay lập tức và sự kiện `load` sẽ bị bỏ lỡ nếu listener được gắn
+      // sau đó, khiến luồng upload kẹt ở trạng thái đang tối ưu.
       final url = web.URL.createObjectURL(blob);
       final img = web.document.createElement('img') as web.HTMLImageElement;
-      img.src = url;
-
-      // Đợi ảnh tải xong
       final loadCompleter = Completer<void>();
       img.onload = (() {
-        loadCompleter.complete();
+        if (!loadCompleter.isCompleted) {
+          loadCompleter.complete();
+        }
       }).toJS;
 
       img.onerror = ((web.Event event) {
-        loadCompleter.completeError('Không thể đọc dữ liệu ảnh trên trình duyệt.');
+        if (!loadCompleter.isCompleted) {
+          loadCompleter.completeError(
+            'Không thể đọc dữ liệu ảnh trên trình duyệt.',
+          );
+        }
       }).toJS;
+      img.src = url;
 
       try {
-        await loadCompleter.future;
+        // Tránh để giao diện kẹt vô thời hạn nếu trình duyệt không phát sự kiện
+        // khi giải mã một định dạng ảnh không được hỗ trợ (ví dụ một số HEIC).
+        await loadCompleter.future.timeout(const Duration(seconds: 15));
       } finally {
         web.URL.revokeObjectURL(url);
       }
@@ -70,7 +79,8 @@ class WebImageCompressService implements ImageCompressService {
       }
 
       // 4. Tạo Canvas để vẽ ảnh đã resize
-      final canvas = web.document.createElement('canvas') as web.HTMLCanvasElement;
+      final canvas =
+          web.document.createElement('canvas') as web.HTMLCanvasElement;
       canvas.width = width;
       canvas.height = height;
 
@@ -79,13 +89,19 @@ class WebImageCompressService implements ImageCompressService {
 
       // 5. Nén và xuất ra Blob với định dạng và chất lượng mong muốn
       // Groq và các API AI thích JPEG hoặc PNG. Ta mặc định chuyển đổi định dạng ảnh lớn về JPEG để nén tốt nhất
-      final outputMimeType = mimeType == 'image/png' ? 'image/png' : 'image/jpeg';
+      final outputMimeType = mimeType == 'image/png'
+          ? 'image/png'
+          : 'image/jpeg';
       final qualityVal = (quality / 100.0).toJS;
 
       final blobCompleter = Completer<web.Blob?>();
-      canvas.toBlob((web.Blob? resultBlob) {
-        blobCompleter.complete(resultBlob);
-      }.toJS, outputMimeType, qualityVal);
+      canvas.toBlob(
+        (web.Blob? resultBlob) {
+          blobCompleter.complete(resultBlob);
+        }.toJS,
+        outputMimeType,
+        qualityVal,
+      );
 
       final compressedBlob = await blobCompleter.future;
       if (compressedBlob == null) {
@@ -102,7 +118,9 @@ class WebImageCompressService implements ImageCompressService {
           final arrayBuffer = result as JSArrayBuffer;
           readerCompleter.complete(arrayBuffer.toDart.asUint8List());
         } else {
-          readerCompleter.completeError('Không thể chuyển đổi ảnh đã nén thành byte.');
+          readerCompleter.completeError(
+            'Không thể chuyển đổi ảnh đã nén thành byte.',
+          );
         }
       }).toJS;
 

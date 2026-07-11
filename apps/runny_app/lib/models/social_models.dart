@@ -65,6 +65,44 @@ class LeaderboardEntry {
   }
 }
 
+/// Dữ liệu bảng xếp hạng, kèm tiến độ riêng tư của người đang xem.
+///
+/// `personal` luôn có mặt ngay cả khi người dùng không công khai thành tích.
+class LeaderboardSnapshot {
+  final List<LeaderboardEntry> entries;
+  final double myDistanceKm;
+  final int myActivityCount;
+  final bool isVisible;
+  final bool isPro;
+  final int visibleRunnerCount;
+  final int? myRank;
+
+  const LeaderboardSnapshot({
+    required this.entries,
+    required this.myDistanceKm,
+    required this.myActivityCount,
+    required this.isVisible,
+    required this.isPro,
+    required this.visibleRunnerCount,
+    this.myRank,
+  });
+
+  factory LeaderboardSnapshot.fromJson(Map<String, dynamic> json) {
+    final personal = (json['personal'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return LeaderboardSnapshot(
+      entries: ((json['entries'] as List?) ?? const [])
+          .map((entry) => LeaderboardEntry.fromJson((entry as Map).cast<String, dynamic>()))
+          .toList(),
+      myDistanceKm: (personal['total_distance_km'] as num?)?.toDouble() ?? 0,
+      myActivityCount: (personal['activity_count'] as num?)?.toInt() ?? 0,
+      isVisible: personal['is_visible'] as bool? ?? false,
+      isPro: personal['is_pro'] as bool? ?? false,
+      visibleRunnerCount: (json['visible_runner_count'] as num?)?.toInt() ?? 0,
+      myRank: (personal['rank'] as num?)?.toInt(),
+    );
+  }
+}
+
 /// Một gợi ý bạn chạy.
 class MatchSuggestion {
   final String userId;

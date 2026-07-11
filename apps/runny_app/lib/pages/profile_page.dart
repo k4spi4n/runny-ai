@@ -6,9 +6,7 @@ import '../services/integration_service.dart';
 import '../services/social_service.dart';
 import '../services/subscription_service.dart';
 import '../services/entitlement_service.dart';
-import '../services/gemini_service.dart';
 import '../models/subscription_models.dart';
-import '../models/coach_persona.dart';
 import '../l10n/app_localizations.dart';
 import 'weight_tracking_page.dart';
 import 'subscription_page.dart';
@@ -38,18 +36,15 @@ class _ProfilePageState extends State<ProfilePage> {
   final _heightController = TextEditingController();
   final _maxHrController = TextEditingController();
   final _displayNameController = TextEditingController();
-  final _coachNameController = TextEditingController();
   final _cityController = TextEditingController();
   final _bioController = TextEditingController();
   final _preferredPaceController = TextEditingController();
 
   String? _gender;
-  String _coachPersona = CoachPersona.calm.id;
   String? _stravaId;
   String? _garminId;
   bool _lookingForPartner = false;
   bool _isSavingMatching = false;
-  bool _isSavingCoach = false;
   bool _isEditingName = false;
   bool _isSavingName = false;
   UserSubscription? _activeSubscription;
@@ -66,7 +61,6 @@ class _ProfilePageState extends State<ProfilePage> {
     _heightController.dispose();
     _maxHrController.dispose();
     _displayNameController.dispose();
-    _coachNameController.dispose();
     _cityController.dispose();
     _bioController.dispose();
     _preferredPaceController.dispose();
@@ -88,12 +82,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
       setState(() {
         _displayNameController.text = data['display_name'] ?? '';
-        _coachNameController.text = data['coach_name'] ?? 'Runny';
         _weightController.text = (data['weight_kg'] ?? '').toString();
         _heightController.text = (data['height_cm'] ?? '').toString();
         _maxHrController.text = (data['max_hr'] ?? '').toString();
         _gender = data['gender'];
-        _coachPersona = CoachPersona.byId(data['coach_persona'] as String?).id;
         _stravaId = data['strava_id'];
         _garminId = data['garmin_id'];
         _cityController.text = data['city'] ?? '';
@@ -220,45 +212,6 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } finally {
       if (mounted) setState(() => _isSavingName = false);
-    }
-  }
-
-  Future<void> _saveCoachSettings() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
-
-    final coachName = _coachNameController.text.trim();
-    if (coachName.isEmpty || coachName.length > 24) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.translate('coach_name_invalid'))),
-      );
-      return;
-    }
-
-    setState(() => _isSavingCoach = true);
-    try {
-      await _supabase
-          .from('profiles')
-          .update({
-            'coach_name': coachName,
-            'coach_persona': CoachPersona.byId(_coachPersona).id,
-          })
-          .eq('id', user.id);
-      GeminiService.clearCoachPreferenceCache();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.translate('coach_settings_saved'))),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${context.translate('error')}: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSavingCoach = false);
     }
   }
 
@@ -469,8 +422,6 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 24),
           _buildSubscriptionSection(context),
           const SizedBox(height: 24),
-          _buildCoachSection(context),
-          const SizedBox(height: 24),
           _buildMetricsSection(context),
           const SizedBox(height: 24),
           _buildIntegrationsSection(context),
@@ -614,132 +565,6 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
     );
-  }
-
-  Widget _buildCoachSection(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final selectedPersona = CoachPersona.byId(_coachPersona);
-
-    return glassCard(
-      context: context,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.psychology_alt, color: colorScheme.primary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  context.translate('coach_settings_title'),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            context.translate('coach_settings_desc'),
-            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _coachNameController,
-            maxLength: 24,
-            decoration: themedInputDecoration(
-              context,
-              context.translate('coach_name'),
-              icon: Icons.badge_outlined,
-              isRequired: true,
-            ).copyWith(counterText: ''),
-            style: TextStyle(color: colorScheme.onSurface),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            context.translate('coach_persona'),
-            style: TextStyle(
-              color: colorScheme.onSurface,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: CoachPersona.values.map((persona) {
-              final selected = persona.id == _coachPersona;
-              return ChoiceChip(
-                label: Text(context.translate(persona.labelKey)),
-                selected: selected,
-                avatar: Icon(
-                  _coachPersonaIcon(persona.id),
-                  size: 16,
-                  color: selected ? colorScheme.onPrimary : colorScheme.primary,
-                ),
-                onSelected: (_) => setState(() {
-                  _coachPersona = persona.id;
-                }),
-                labelStyle: TextStyle(
-                  color: selected
-                      ? colorScheme.onPrimary
-                      : colorScheme.onSurface,
-                  fontWeight: FontWeight.w700,
-                ),
-                selectedColor: colorScheme.primary,
-                backgroundColor: theme.brightness == Brightness.dark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: 0.04),
-                side: BorderSide(
-                  color: selected
-                      ? colorScheme.primary
-                      : colorScheme.outline.withValues(alpha: 0.16),
-                ),
-                showCheckmark: false,
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            context.translate(selectedPersona.descriptionKey),
-            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _isSavingCoach ? null : _saveCoachSettings,
-              style: primaryActionButton(context),
-              icon: _isSavingCoach
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.save_outlined, size: 18),
-              label: Text(context.translate('save_coach_settings')),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _coachPersonaIcon(String id) {
-    return switch (id) {
-      'disciplined' => Icons.flag_outlined,
-      'energetic' => Icons.bolt_outlined,
-      'scientific' => Icons.insights_outlined,
-      'concise' => Icons.checklist_outlined,
-      _ => Icons.spa_outlined,
-    };
   }
 
   void _showLogoutDialog(BuildContext context) {
