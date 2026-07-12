@@ -6,6 +6,7 @@ import '../models/shoe_models.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
 import '../services/weather_service.dart';
+import '../services/readiness_service.dart';
 import '../l10n/app_localizations.dart';
 import 'package:intl/intl.dart';
 import 'ai_coach_page.dart';
@@ -26,12 +27,45 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
   double? _activeTime;
   List<Shoe> _shoes = [];
   Shoe? _currentShoe;
+  int? _rpe;
+  bool _isSavingRecovery = false;
 
   @override
   void initState() {
     super.initState();
     _activity = widget.activity;
     _fetchShoeInfo();
+    _loadRecoveryFeedback();
+  }
+
+  Future<void> _loadRecoveryFeedback() async {
+    if (_activity.id == null) return;
+    try {
+      final feedback = await ReadinessService().getFeedback(_activity.id!);
+      if (mounted) setState(() => _rpe = feedback?.rpe);
+    } catch (_) {}
+  }
+
+  Future<void> _saveRpe(int value) async {
+    if (_activity.id == null) return;
+    setState(() {
+      _rpe = value;
+      _isSavingRecovery = true;
+    });
+    try {
+      await ReadinessService().saveFeedback(
+        activityId: _activity.id!,
+        rpe: value,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingRecovery = false);
+    }
   }
 
   Future<void> _updateActivityInfo({
@@ -360,7 +394,9 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               child: ResponsiveContent(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.symmetric(
-                    horizontal: MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0,
+                    horizontal: MediaQuery.of(context).size.width > 900
+                        ? 20.0
+                        : 16.0,
                     vertical: 20.0,
                   ),
                   child: Column(
@@ -382,7 +418,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              _formatStartEnd(_activity.startedAt, _activity.durationMin),
+                              _formatStartEnd(
+                                _activity.startedAt,
+                                _activity.durationMin,
+                              ),
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
@@ -393,6 +432,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                         ),
                       ),
                       _buildSummaryHeader(context),
+                      const SizedBox(height: 24),
+                      _buildRecoveryFeedbackCard(context),
                       const SizedBox(height: 24),
                       if (_activity.weatherSummary != null ||
                           _activity.temperatureC != null ||
@@ -474,14 +515,17 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                               Icon(
                                 Icons.download_done,
                                 size: 14,
-                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                                color: colorScheme.onSurfaceVariant.withValues(
+                                  alpha: 0.6,
+                                ),
                               ),
                               const SizedBox(width: 6),
                               Text(
                                 '${context.translate('imported_time')}: ${DateFormat('HH:mm dd/MM/yyyy').format(_activity.createdAt!)}',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                                  color: colorScheme.onSurfaceVariant
+                                      .withValues(alpha: 0.6),
                                 ),
                               ),
                             ],
@@ -495,6 +539,57 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRecoveryFeedbackCard(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return glassCard(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.sentiment_satisfied_alt, color: colors.primary),
+              const SizedBox(width: 8),
+              Text(
+                context.translate('post_run_feeling'),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              if (_isSavingRecovery)
+                const Padding(
+                  padding: EdgeInsets.only(left: 12),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            context.translate('rpe_hint'),
+            style: TextStyle(color: colors.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: List.generate(10, (index) {
+              final value = index + 1;
+              return ChoiceChip(
+                label: Text('$value'),
+                selected: _rpe == value,
+                onSelected: _isSavingRecovery ? null : (_) => _saveRpe(value),
+              );
+            }),
+          ),
+        ],
       ),
     );
   }
@@ -594,9 +689,13 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                         const SizedBox(width: 4),
                         GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () => _showAQIDialog(context, snapshot!.locationName),
+                          onTap: () =>
+                              _showAQIDialog(context, snapshot!.locationName),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
                             child: Icon(
                               Icons.error_outline,
                               size: 14,
@@ -938,7 +1037,9 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
     final startFmt = DateFormat('HH:mm');
     final endFmt = DateFormat('HH:mm');
     final dateFmt = DateFormat('dd/MM/yyyy');
-    if (start.year == end.year && start.month == end.month && start.day == end.day) {
+    if (start.year == end.year &&
+        start.month == end.month &&
+        start.day == end.day) {
       return '${startFmt.format(start)} - ${endFmt.format(end)} ${dateFmt.format(start)}';
     } else {
       return '${DateFormat('HH:mm dd/MM/yyyy').format(start)} - ${DateFormat('HH:mm dd/MM/yyyy').format(end)}';
@@ -958,7 +1059,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             Expanded(
               child: Text(
                 context.translate('aqi_info_title'),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -970,7 +1074,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             if (locationName != null && locationName.isNotEmpty) ...[
               Text(
                 context.translate('aqi_monitoring_station'),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -981,12 +1088,19 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             ],
             Text(
               '${context.translate('aqi_warning_title')}:',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               context.translate('aqi_warning_content'),
-              style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 13,
+              ),
             ),
           ],
         ),

@@ -20,6 +20,9 @@ import '../models/workout_models.dart';
 import '../services/weather_service.dart';
 import '../services/gemini_service.dart';
 import '../services/dashboard_layout.dart';
+import '../services/readiness_service.dart';
+import '../models/readiness_models.dart';
+import '../widgets/readiness_components.dart';
 import '../services/integration_service.dart';
 import '../services/strava_redirect.dart';
 import '../services/entitlement_service.dart';
@@ -164,7 +167,10 @@ class _DashboardPageState extends State<DashboardPage> {
       SnackBar(content: Text(context.translate('strava_connecting'))),
     );
     try {
-      final imported = await _integrationService.exchangeStravaCode(redirect.code, redirect.state);
+      final imported = await _integrationService.exchangeStravaCode(
+        redirect.code,
+        redirect.state,
+      );
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(
@@ -503,6 +509,7 @@ class _OverviewContentState extends State<OverviewContent> {
   late Future<WeatherSnapshot?> _weatherFuture;
   late Future<String?> _displayNameFuture;
   Future<String?>? _insightFuture;
+  late Future<ReadinessSnapshot> _readinessFuture;
   String? _insightLang;
 
   @override
@@ -510,6 +517,7 @@ class _OverviewContentState extends State<OverviewContent> {
     super.initState();
     _weatherFuture = _fetchLatestWeather();
     _displayNameFuture = _fetchDisplayName();
+    _readinessFuture = ReadinessService().getSnapshot();
   }
 
   /// Tạo (một lần cho mỗi ngôn ngữ) future lấy nhận xét AI về hiệu suất.
@@ -644,6 +652,7 @@ class _OverviewContentState extends State<OverviewContent> {
       _weatherFuture = _fetchLatestWeather();
       _insightFuture = null;
       _insightLang = null;
+      _readinessFuture = ReadinessService().getSnapshot();
     });
   }
 
@@ -852,6 +861,8 @@ class _OverviewContentState extends State<OverviewContent> {
     int crossAxisCount,
   ) {
     switch (key) {
+      case DashboardLayout.readiness:
+        return _buildReadinessSection(context, theme, colorScheme);
       case DashboardLayout.nutrition:
         return _buildNutritionSection(context, theme, colorScheme);
       case DashboardLayout.performance:
@@ -867,6 +878,40 @@ class _OverviewContentState extends State<OverviewContent> {
         return _buildTodaySchedule(context, theme, colorScheme);
     }
     return null;
+  }
+
+  Widget _buildReadinessSection(
+    BuildContext context,
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
+    return FutureBuilder<ReadinessSnapshot>(
+      future: _readinessFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError || !snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+        return ReadinessCard(
+          snapshot: snapshot.data!,
+          onCheckin: () async {
+            final current = await ReadinessService().getTodayCheckin();
+            if (!context.mounted) return;
+            final saved = await showRecoveryCheckinSheet(
+              context,
+              initial: current,
+            );
+            if (saved == true && mounted) {
+              setState(
+                () => _readinessFuture = ReadinessService().getSnapshot(),
+              );
+            }
+          },
+        );
+      },
+    );
   }
 
   /// Mục "Lịch tập hôm nay": hiển thị các buổi tập theo lịch của ngày hôm nay.
@@ -934,9 +979,7 @@ class _OverviewContentState extends State<OverviewContent> {
             else
               ...workouts.map(
                 (w) => Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 6,
-                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
                   child: glassCard(
                     context: context,
                     padding: EdgeInsets.zero,
@@ -1362,18 +1405,25 @@ class _OverviewContentState extends State<OverviewContent> {
                                     ),
                                     child: Text(
                                       'AQI ${weather.aqi ?? '--'} - ${weather.aqiLabel}',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: weather.aqiColor,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: weather.aqiColor,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                     ),
                                   ),
                                   const SizedBox(width: 4),
                                   GestureDetector(
                                     behavior: HitTestBehavior.opaque,
-                                    onTap: () => _showAQIDialog(context, weather.locationName),
+                                    onTap: () => _showAQIDialog(
+                                      context,
+                                      weather.locationName,
+                                    ),
                                     child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 2,
+                                      ),
                                       child: Icon(
                                         Icons.error_outline,
                                         size: 14,
@@ -1529,9 +1579,7 @@ class _OverviewContentState extends State<OverviewContent> {
                   );
 
                   return Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     child: glassCard(
                       context: context,
                       padding: EdgeInsets.zero,
@@ -1580,24 +1628,34 @@ class _OverviewContentState extends State<OverviewContent> {
                             Builder(
                               builder: (context) {
                                 final extraMetrics = [
-                                  if (activity.avgHr != null) '${activity.avgHr} bpm',
-                                  if (activity.avgCadence != null) '${activity.avgCadence} spm',
+                                  if (activity.avgHr != null)
+                                    '${activity.avgHr} bpm',
+                                  if (activity.avgCadence != null)
+                                    '${activity.avgCadence} spm',
                                 ];
-                                final extraStr = extraMetrics.isNotEmpty ? ' • ${extraMetrics.join(" • ")}' : '';
+                                final extraStr = extraMetrics.isNotEmpty
+                                    ? ' • ${extraMetrics.join(" • ")}'
+                                    : '';
                                 return Text(
                                   '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr$extraStr',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                                  style: TextStyle(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
                                 );
-                              }
+                              },
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              DateFormat('HH:mm dd/MM/yyyy').format(activity.startedAt),
+                              DateFormat(
+                                'HH:mm dd/MM/yyyy',
+                              ).format(activity.startedAt),
                               style: TextStyle(
                                 fontSize: 11,
-                                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+                                color: colorScheme.onSurfaceVariant.withValues(
+                                  alpha: 0.75,
+                                ),
                               ),
                             ),
                           ],
@@ -1623,50 +1681,48 @@ class _OverviewContentState extends State<OverviewContent> {
           ),
           const SizedBox(height: 12),
           Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _ActionChip(
-                  text: context.translate('import_activity'),
-                  icon: const Icon(
-                    Icons.cloud_upload,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                  onTap: _openImportActivity,
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _ActionChip(
+                text: context.translate('import_activity'),
+                icon: const Icon(
+                  Icons.cloud_upload,
+                  color: Colors.white,
+                  size: 18,
                 ),
-                _ActionChip(
-                  text: context.translate('training_plan'),
-                  icon: const Icon(
-                    Icons.calendar_month,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const TrainingPlanPage(),
-                      ),
-                    );
-                  },
+                onTap: _openImportActivity,
+              ),
+              _ActionChip(
+                text: context.translate('training_plan'),
+                icon: const Icon(
+                  Icons.calendar_month,
+                  color: Colors.white,
+                  size: 18,
                 ),
-                _ActionChip(
-                  text: context.translate('ai_coach'),
-                  icon: const HugeIcon(
-                    icon: HugeIcons.strokeRoundedChatBot,
-                    color: Colors.white,
-                    size: 18,
-                  ),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const AICoachPage()),
-                    );
-                  },
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const TrainingPlanPage()),
+                  );
+                },
+              ),
+              _ActionChip(
+                text: context.translate('ai_coach'),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedChatBot,
+                  color: Colors.white,
+                  size: 18,
                 ),
-              ],
-            ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AICoachPage()),
+                  );
+                },
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
         ],
       ),
@@ -1699,7 +1755,10 @@ class _OverviewContentState extends State<OverviewContent> {
             Expanded(
               child: Text(
                 context.translate('aqi_info_title'),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -1711,7 +1770,10 @@ class _OverviewContentState extends State<OverviewContent> {
             if (locationName != null && locationName.isNotEmpty) ...[
               Text(
                 context.translate('aqi_monitoring_station'),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -1722,12 +1784,19 @@ class _OverviewContentState extends State<OverviewContent> {
             ],
             Text(
               '${context.translate('aqi_warning_title')}:',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               context.translate('aqi_warning_content'),
-              style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 13,
+              ),
             ),
           ],
         ),

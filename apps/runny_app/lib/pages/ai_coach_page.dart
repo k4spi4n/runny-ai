@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
@@ -13,6 +14,7 @@ import '../services/chat_service.dart';
 import '../services/speech_service.dart';
 import '../services/nutrition_service.dart';
 import '../services/weather_service.dart';
+import '../services/readiness_service.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/paywall.dart';
 import '../services/paywall_exception.dart';
@@ -135,6 +137,7 @@ class _AICoachPageState extends State<AICoachPage> {
           .eq('id', user.id);
       GeminiService.clearCoachPreferenceCache();
       if (mounted) {
+        setState(() {});
         Navigator.of(context).pop();
         _showToast(context.translate('coach_settings_saved'));
       }
@@ -325,6 +328,24 @@ class _AICoachPageState extends State<AICoachPage> {
     );
     if (attachmentBlock.isNotEmpty) {
       prompt = '$attachmentBlock\n\n$prompt';
+    }
+
+    // Readiness is a shared AI tool: only fetch it when the question concerns
+    // fatigue, pain, recovery, rest, load, or changing the training schedule.
+    final lowerForReadiness = text.toLowerCase();
+    final readinessIntent = RegExp(
+      r'readiness|hồi phục|mệt|đau|nghỉ|rpe|tải tập|giảm|dời|đổi lịch|recovery|fatigue|sore|rest|load|reschedule',
+    ).hasMatch(lowerForReadiness);
+    if (readinessIntent) {
+      try {
+        final readiness = await ReadinessService().getSnapshot();
+        prompt =
+            '''CÔNG CỤ READINESS (dữ liệu hiện tại): điểm ${readiness.score}/100, trạng thái ${readiness.status}, tải 7 ngày ${readiness.acuteLoad.toStringAsFixed(0)}, tải nền 28 ngày ${readiness.chronicLoad.toStringAsFixed(0)}, ACWR ${readiness.acwr?.toStringAsFixed(2) ?? 'chưa đủ dữ liệu'}, cờ đau bất thường ${readiness.painFlag ? 'CÓ' : 'không'}. ${readiness.painFlag ? 'Không đề xuất điều chỉnh lịch; khuyên nghỉ và tìm tư vấn y tế phù hợp.' : 'Nếu khuyến nghị giảm/dời lịch, nói rõ người dùng cần xác nhận trong tab Lịch tập.'}
+
+$prompt''';
+      } catch (e) {
+        debugPrint('Readiness tool error: $e');
+      }
     }
 
     // Save user message
@@ -877,13 +898,14 @@ class _AICoachPageState extends State<AICoachPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
+    final coachName = _coachNameController.text.trim();
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: widget.embedded ? Colors.transparent : null,
       appBar: AppBar(
         title: Text(
-          context.translate('ai_coach'),
+          coachName.isEmpty ? 'Runny' : coachName,
           style: TextStyle(color: colorScheme.onSurface),
         ),
         backgroundColor: Colors.transparent,
@@ -897,7 +919,10 @@ class _AICoachPageState extends State<AICoachPage> {
         actions: [
           IconButton(
             onPressed: _showCoachSettings,
-            icon: Icon(Icons.tune_outlined, color: colorScheme.onSurface),
+            icon: Icon(
+              LucideIcons.user_round_pen,
+              color: colorScheme.onSurface,
+            ),
             tooltip: context.translate('coach_settings_title'),
           ),
           IconButton(

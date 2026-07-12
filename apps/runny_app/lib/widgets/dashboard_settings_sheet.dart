@@ -24,6 +24,8 @@ class DashboardSettingsSheet extends StatelessWidget {
 
   String _sectionLabel(BuildContext context, String key) {
     switch (key) {
+      case DashboardLayout.readiness:
+        return context.translate('readiness');
       case DashboardLayout.nutrition:
         return context.translate('nutrition_status');
       case DashboardLayout.performance:
@@ -39,6 +41,8 @@ class DashboardSettingsSheet extends StatelessWidget {
 
   IconData _sectionIcon(String key) {
     switch (key) {
+      case DashboardLayout.readiness:
+        return Icons.favorite_outline;
       case DashboardLayout.nutrition:
         return Icons.restaurant;
       case DashboardLayout.performance:
@@ -73,7 +77,9 @@ class DashboardSettingsSheet extends StatelessWidget {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                      color: colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.3,
+                      ),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -116,8 +122,9 @@ class DashboardSettingsSheet extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest
-                              .withValues(alpha: 0.4),
+                          color: colorScheme.surfaceContainerHighest.withValues(
+                            alpha: 0.4,
+                          ),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Row(
@@ -137,8 +144,9 @@ class DashboardSettingsSheet extends StatelessWidget {
                               size: 20,
                               color: visible
                                   ? colorScheme.primary
-                                  : colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.5),
+                                  : colorScheme.onSurfaceVariant.withValues(
+                                      alpha: 0.5,
+                                    ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(

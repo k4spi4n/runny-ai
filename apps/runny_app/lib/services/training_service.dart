@@ -6,6 +6,7 @@ import '../models/workout_models.dart';
 import '../models/run_reminder_model.dart';
 import 'gemini_service.dart';
 import 'notification_service.dart';
+import 'readiness_service.dart';
 
 /// Ném ra khi chưa có buổi tập nào hoàn thành (gắn hoạt động thực tế) — HLV AI
 /// cần ít nhất một buổi để căn cứ tinh chỉnh lịch.
@@ -122,10 +123,10 @@ class TrainingService {
   Future<void> completeScheduledWorkout({
     required String workoutId,
     required String activityId,
-  }) => _supabase.rpc('complete_scheduled_workout', params: {
-        'p_workout_id': workoutId,
-        'p_activity_id': activityId,
-      });
+  }) => _supabase.rpc(
+    'complete_scheduled_workout',
+    params: {'p_workout_id': workoutId, 'p_activity_id': activityId},
+  );
 
   void _ensureGeminiReady() {
     if (!_gemini.isConfigured) {
@@ -238,7 +239,10 @@ class TrainingService {
     }
 
     // Match pattern like "6 AM", "6PM", "06:00 PM"
-    final amPm = RegExp(r'^([0-1]?[0-9])(:[0-5][0-9])?\s*(am|pm)$', caseSensitive: false);
+    final amPm = RegExp(
+      r'^([0-1]?[0-9])(:[0-5][0-9])?\s*(am|pm)$',
+      caseSensitive: false,
+    );
     final match = amPm.firstMatch(s);
     if (match != null) {
       var hour = int.parse(match.group(1)!);
@@ -257,7 +261,10 @@ class TrainingService {
     if (lower.contains('sáng') || lower.contains('morning')) {
       return '06:00:00';
     }
-    if (lower.contains('chiều') || lower.contains('tối') || lower.contains('afternoon') || lower.contains('evening')) {
+    if (lower.contains('chiều') ||
+        lower.contains('tối') ||
+        lower.contains('afternoon') ||
+        lower.contains('evening')) {
       return '18:00:00';
     }
 
@@ -643,10 +650,7 @@ class TrainingService {
       try {
         await _supabase
             .from('training_schedules')
-            .update({
-              'status': 'failed',
-              'error_message': e.toString(),
-            })
+            .update({'status': 'failed', 'error_message': e.toString()})
             .eq('id', scheduleId);
       } catch (_) {
         // Bỏ qua: không thể đánh dấu thất bại thì trang sẽ vẫn thấy 'generating'.
@@ -695,6 +699,12 @@ class TrainingService {
         .eq('user_id', user.id)
         .order('started_at', ascending: false)
         .limit(5);
+    String readinessContext = 'Dữ liệu readiness chưa sẵn sàng.';
+    try {
+      final readiness = await ReadinessService().getSnapshot();
+      readinessContext =
+          'Readiness: ${readiness.score}/100 (${readiness.status}); tải 7 ngày ${readiness.acuteLoad.toStringAsFixed(0)}, tải nền 28 ngày ${readiness.chronicLoad.toStringAsFixed(0)}, ACWR ${readiness.acwr?.toStringAsFixed(2) ?? 'chưa đủ dữ liệu'}, đau bất thường: ${readiness.painFlag ? 'có' : 'không'}. ${readiness.painFlag ? 'KHÔNG tạo bài chạy; ưu tiên nghỉ và khuyên tìm tư vấn y tế phù hợp.' : 'Nếu readiness thấp hoặc caution, giảm cường độ và xen ngày hồi phục.'}';
+    } catch (_) {}
 
     // Truy vấn các buổi tập do người dùng tự đặt trong lịch đang hoạt động (active) mà sắp tới (ngày >= ngày bắt đầu).
     final activeSchedule = await _supabase
@@ -823,6 +833,7 @@ Ngày bắt đầu: ${_dateOnly(startDate)} (${_weekdayVi(startDate)})
 $durationConstraint
 Thông tin thể trạng: Giới tính ${_genderLabel(profile['gender'])}, Cân nặng ${profile['weight_kg']}kg, Chiều cao ${profile['height_cm']}cm, BMI ${profile['bmi']}, Nhịp tim tối đa ${profile['max_hr'] ?? 'chưa rõ'} bpm.
 Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseActivities(recentActivities)}
+$readinessContext
 $manualWorkoutsSection
 ''';
 
@@ -1015,6 +1026,14 @@ $manualWorkoutsSection
     _ensureGeminiReady();
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('User not logged in');
+    final readiness = await ReadinessService().getSnapshot();
+    if (readiness.painFlag) {
+      return const PlanAdjustmentProposal(
+        summary:
+            'Bạn đang báo đau bất thường. Hãy nghỉ tập, theo dõi triệu chứng và tìm tư vấn y tế phù hợp trước khi điều chỉnh lịch.',
+        adjustments: [],
+      );
+    }
 
     final activeSchedule = await _supabase
         .from('training_schedules')
@@ -1105,6 +1124,7 @@ Phản hồi của bạn PHẢI là một đối tượng JSON:
         '''
 Thời gian hiện tại: ${_dateTimeFullStr(DateTime.now())}
 Lịch tập hiện tại: ${activeSchedule['title']}
+Readiness hiện tại: ${readiness.score}/100 (${readiness.status}); tải 7 ngày ${readiness.acuteLoad.toStringAsFixed(0)}, tải nền 28 ngày ${readiness.chronicLoad.toStringAsFixed(0)}, ACWR ${readiness.acwr?.toStringAsFixed(2) ?? 'chưa đủ dữ liệu'}. Khi readiness thấp/caution hoặc ACWR cao, ưu tiên giảm quãng đường hoặc dời buổi AI để có ngày hồi phục.
 Các buổi đã hoàn thành (kế hoạch vs thực tế):
 $completedSummary
 

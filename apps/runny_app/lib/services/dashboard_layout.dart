@@ -9,12 +9,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// mới, tập trung vào hoạt động gần đây và nhận xét AI.
 class DashboardLayout extends ChangeNotifier {
   static const String nutrition = 'nutrition';
+  static const String readiness = 'readiness';
   static const String performance = 'performance';
   static const String aiInsight = 'ai_insight';
   static const String todaySchedule = 'today_schedule';
 
   /// Tất cả mục có thể cấu hình (dùng để lọc dữ liệu cũ/không hợp lệ).
   static const List<String> allKeys = [
+    readiness,
     nutrition,
     performance,
     aiInsight,
@@ -24,12 +26,19 @@ class DashboardLayout extends ChangeNotifier {
   // Mặc định: nhận xét AI lên đầu, kế đến là lịch tập hôm nay; dinh dưỡng và
   // tổng quan hiệu suất bị ẩn cho gọn với người dùng mới.
   static const List<String> _defaultOrder = [
+    readiness,
     aiInsight,
     todaySchedule,
     nutrition,
     performance,
   ];
-  static const List<String> _defaultHidden = [nutrition, performance];
+  // Readiness đang ở giai đoạn thử nghiệm: người dùng chỉ thấy sau khi chủ
+  // động bật trong Tùy chỉnh dashboard.
+  static const List<String> _defaultHidden = [
+    readiness,
+    nutrition,
+    performance,
+  ];
 
   static const String _orderKey = 'dash_section_order';
   static const String _hiddenKey = 'dash_section_hidden';
@@ -63,6 +72,11 @@ class DashboardLayout extends ChangeNotifier {
       }
       if (savedHidden != null) {
         _hidden = savedHidden.where(allKeys.contains).toSet();
+        // Cấu hình cũ được tạo trước readiness chưa thể hiện ý định bật thử
+        // nghiệm này, nên giữ nó ẩn thay vì làm dashboard hiện thêm mục mới.
+        if (savedOrder == null || !savedOrder.contains(readiness)) {
+          _hidden.add(readiness);
+        }
       }
     } catch (_) {
       // Lỗi đọc prefs -> giữ mặc định.
