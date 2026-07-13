@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/nutrition_service.dart';
 import '../widgets/food_recognition_panel.dart';
 import '../widgets/nutrition_components.dart';
+import '../widgets/nutrition_goal_sheet.dart';
 import '../models/nutrition_models.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
@@ -71,83 +72,102 @@ class _NutritionPageState extends State<NutritionPage> {
           if (nutritionService.isLoading && nutritionService.logs.isEmpty)
             const Center(child: CircularProgressIndicator())
           else
-          SafeArea(
-            child: RefreshIndicator(
-              onRefresh: () => nutritionService.refresh(),
-              child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.symmetric(
-                horizontal: widget.embedded
-                    ? 0.0
-                    : (MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0),
-                vertical: 16.0,
-              ),
-              child: Column(
-                children: [
-                  NutritionOverviewCard(summary: summary),
-                  const SizedBox(height: 16),
-                  MacroTrackingCard(summary: summary),
-                  const SizedBox(height: 16),
-                  const WeightSummaryCard(),
-                  const SizedBox(height: 24),
-                  MealSection(
-                    title: l10n.translate('breakfast'),
-                    logs: nutritionService.getLogsForMealType(
-                      MealType.breakfast,
-                      _selectedDate,
-                    ),
-                    onAdd: () => _showAddFoodModal(context, MealType.breakfast),
-                    onAISuggest: () => _showAISuggestionsModal(
-                      context,
-                      MealType.breakfast,
-                      summary,
-                    ),
+            SafeArea(
+              child: RefreshIndicator(
+                onRefresh: () => nutritionService.refresh(),
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: widget.embedded
+                        ? 0.0
+                        : (MediaQuery.of(context).size.width > 900
+                              ? 20.0
+                              : 16.0),
+                    vertical: 16.0,
                   ),
-                  MealSection(
-                    title: l10n.translate('lunch'),
-                    logs: nutritionService.getLogsForMealType(
-                      MealType.lunch,
-                      _selectedDate,
-                    ),
-                    onAdd: () => _showAddFoodModal(context, MealType.lunch),
-                    onAISuggest: () => _showAISuggestionsModal(
-                      context,
-                      MealType.lunch,
-                      summary,
-                    ),
+                  child: Column(
+                    children: [
+                      NutritionOverviewCard(
+                        summary: summary,
+                        onEditGoal: () => _showNutritionGoalSheet(
+                          context,
+                          nutritionService,
+                          summary.goal,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      MacroTrackingCard(summary: summary),
+                      const SizedBox(height: 16),
+                      const WeightSummaryCard(),
+                      const SizedBox(height: 24),
+                      MealSection(
+                        title: l10n.translate('breakfast'),
+                        logs: nutritionService.getLogsForMealType(
+                          MealType.breakfast,
+                          _selectedDate,
+                        ),
+                        onAdd: () =>
+                            _showAddFoodModal(context, MealType.breakfast),
+                        onAISuggest: () => _showAISuggestionsModal(
+                          context,
+                          MealType.breakfast,
+                          summary,
+                        ),
+                        onEdit: (log) => _showEditMealLogModal(context, log),
+                        onDelete: (log) => _confirmDeleteMealLog(context, log),
+                      ),
+                      MealSection(
+                        title: l10n.translate('lunch'),
+                        logs: nutritionService.getLogsForMealType(
+                          MealType.lunch,
+                          _selectedDate,
+                        ),
+                        onAdd: () => _showAddFoodModal(context, MealType.lunch),
+                        onAISuggest: () => _showAISuggestionsModal(
+                          context,
+                          MealType.lunch,
+                          summary,
+                        ),
+                        onEdit: (log) => _showEditMealLogModal(context, log),
+                        onDelete: (log) => _confirmDeleteMealLog(context, log),
+                      ),
+                      MealSection(
+                        title: l10n.translate('dinner'),
+                        logs: nutritionService.getLogsForMealType(
+                          MealType.dinner,
+                          _selectedDate,
+                        ),
+                        onAdd: () =>
+                            _showAddFoodModal(context, MealType.dinner),
+                        onAISuggest: () => _showAISuggestionsModal(
+                          context,
+                          MealType.dinner,
+                          summary,
+                        ),
+                        onEdit: (log) => _showEditMealLogModal(context, log),
+                        onDelete: (log) => _confirmDeleteMealLog(context, log),
+                      ),
+                      MealSection(
+                        title: l10n.translate('snack'),
+                        logs: nutritionService.getLogsForMealType(
+                          MealType.snack,
+                          _selectedDate,
+                        ),
+                        onAdd: () => _showAddFoodModal(context, MealType.snack),
+                        onAISuggest: () => _showAISuggestionsModal(
+                          context,
+                          MealType.snack,
+                          summary,
+                        ),
+                        onEdit: (log) => _showEditMealLogModal(context, log),
+                        onDelete: (log) => _confirmDeleteMealLog(context, log),
+                      ),
+                      const SizedBox(height: 40),
+                    ],
                   ),
-                  MealSection(
-                    title: l10n.translate('dinner'),
-                    logs: nutritionService.getLogsForMealType(
-                      MealType.dinner,
-                      _selectedDate,
-                    ),
-                    onAdd: () => _showAddFoodModal(context, MealType.dinner),
-                    onAISuggest: () => _showAISuggestionsModal(
-                      context,
-                      MealType.dinner,
-                      summary,
-                    ),
-                  ),
-                  MealSection(
-                    title: l10n.translate('snack'),
-                    logs: nutritionService.getLogsForMealType(
-                      MealType.snack,
-                      _selectedDate,
-                    ),
-                    onAdd: () => _showAddFoodModal(context, MealType.snack),
-                    onAISuggest: () => _showAISuggestionsModal(
-                      context,
-                      MealType.snack,
-                      summary,
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                ],
-              ),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -177,6 +197,57 @@ class _NutritionPageState extends State<NutritionPage> {
     );
   }
 
+  void _showEditMealLogModal(BuildContext context, MealLog log) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _EditMealLogView(log: log),
+    );
+  }
+
+  Future<void> _confirmDeleteMealLog(BuildContext context, MealLog log) async {
+    if (log.id == null) return;
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.translate('delete_food_title')),
+        content: Text(
+          context.translate('delete_food_confirmation', [log.foodName]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.translate('cancel')),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(context.translate('delete')),
+          ),
+        ],
+      ),
+    );
+    if (shouldDelete != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await context.read<NutritionService>().deleteMealLog(log.id!);
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.translate('meal_deleted'))),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $error')),
+        );
+      }
+    }
+  }
+
   void _showAISuggestionsModal(
     BuildContext context,
     MealType mealType,
@@ -188,6 +259,24 @@ class _NutritionPageState extends State<NutritionPage> {
       backgroundColor: Colors.transparent,
       builder: (context) =>
           _AISuggestionsView(mealType: mealType, summary: summary),
+    );
+  }
+
+  void _showNutritionGoalSheet(
+    BuildContext context,
+    NutritionService nutritionService,
+    NutritionGoal goal,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: false,
+      builder: (_) => NutritionGoalSheet(
+        goal: goal,
+        weightKg: nutritionService.currentWeightKg,
+        targetWeightKg: nutritionService.targetWeightKg,
+        onSave: nutritionService.setGoal,
+      ),
     );
   }
 }
@@ -368,12 +457,19 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
           ),
         ),
         const SizedBox(height: 12),
-        _numberField(_caloriesCtrl, '${l10n.translate('calories')} (kcal)', isRequired: true),
+        _numberField(
+          _caloriesCtrl,
+          '${l10n.translate('calories')} (kcal)',
+          isRequired: true,
+        ),
         const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: _numberField(_proteinCtrl, '${l10n.translate('protein')} (g)'),
+              child: _numberField(
+                _proteinCtrl,
+                '${l10n.translate('protein')} (g)',
+              ),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -397,7 +493,11 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
     );
   }
 
-  Widget _numberField(TextEditingController controller, String label, {bool isRequired = false}) {
+  Widget _numberField(
+    TextEditingController controller,
+    String label, {
+    bool isRequired = false,
+  }) {
     return TextField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -449,21 +549,25 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
   Future<void> _addExistingFood(MealLog source) async {
     final nutritionService = context.read<NutritionService>();
     final messenger = ScaffoldMessenger.of(context);
-    final successMessage = context.translate('meal_added_log', [source.foodName]);
+    final successMessage = context.translate('meal_added_log', [
+      source.foodName,
+    ]);
     final errorPrefix = context.translate('error');
     try {
-      await nutritionService.addMealLog(MealLog(
-        userId: Supabase.instance.client.auth.currentUser?.id ?? '',
-        foodName: source.foodName,
-        calories: source.calories,
-        protein: source.protein,
-        carbs: source.carbs,
-        fat: source.fat,
-        amount: source.amount,
-        unit: source.unit,
-        mealType: widget.mealType,
-        consumedAt: _consumedAtForSelectedDate(),
-      ));
+      await nutritionService.addMealLog(
+        MealLog(
+          userId: Supabase.instance.client.auth.currentUser?.id ?? '',
+          foodName: source.foodName,
+          calories: source.calories,
+          protein: source.protein,
+          carbs: source.carbs,
+          fat: source.fat,
+          amount: source.amount,
+          unit: source.unit,
+          mealType: widget.mealType,
+          consumedAt: _consumedAtForSelectedDate(),
+        ),
+      );
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(content: Text(successMessage), backgroundColor: Colors.green),
@@ -472,7 +576,10 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('$errorPrefix: $e'), backgroundColor: Colors.redAccent),
+        SnackBar(
+          content: Text('$errorPrefix: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
   }
@@ -480,7 +587,9 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
   Future<void> _addCustomFood() async {
     final messenger = ScaffoldMessenger.of(context);
     final name = _customNameCtrl.text.trim();
-    final calories = double.tryParse(_caloriesCtrl.text.trim().replaceAll(',', '.'));
+    final calories = double.tryParse(
+      _caloriesCtrl.text.trim().replaceAll(',', '.'),
+    );
 
     if (name.isEmpty || calories == null || calories <= 0) {
       messenger.showSnackBar(
@@ -502,18 +611,20 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
     final successMessage = context.translate('meal_added_log', [name]);
     final errorPrefix = context.translate('error');
     try {
-      await nutritionService.addMealLog(MealLog(
-        userId: Supabase.instance.client.auth.currentUser?.id ?? '',
-        foodName: name,
-        calories: calories,
-        protein: parse(_proteinCtrl),
-        carbs: parse(_carbsCtrl),
-        fat: parse(_fatCtrl),
-        amount: 1,
-        unit: unit,
-        mealType: widget.mealType,
-        consumedAt: _consumedAtForSelectedDate(),
-      ));
+      await nutritionService.addMealLog(
+        MealLog(
+          userId: Supabase.instance.client.auth.currentUser?.id ?? '',
+          foodName: name,
+          calories: calories,
+          protein: parse(_proteinCtrl),
+          carbs: parse(_carbsCtrl),
+          fat: parse(_fatCtrl),
+          amount: 1,
+          unit: unit,
+          mealType: widget.mealType,
+          consumedAt: _consumedAtForSelectedDate(),
+        ),
+      );
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(content: Text(successMessage), backgroundColor: Colors.green),
@@ -522,7 +633,10 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('$errorPrefix: $e'), backgroundColor: Colors.redAccent),
+        SnackBar(
+          content: Text('$errorPrefix: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
   }
@@ -554,6 +668,227 @@ class _AddFoodQuickViewState extends State<_AddFoodQuickView> {
       Navigator.pop(context);
     }
   }
+}
+
+class _EditMealLogView extends StatefulWidget {
+  final MealLog log;
+
+  const _EditMealLogView({required this.log});
+
+  @override
+  State<_EditMealLogView> createState() => _EditMealLogViewState();
+}
+
+class _EditMealLogViewState extends State<_EditMealLogView> {
+  late final TextEditingController _name;
+  late final TextEditingController _calories;
+  late final TextEditingController _protein;
+  late final TextEditingController _carbs;
+  late final TextEditingController _fat;
+  late final TextEditingController _amount;
+  late final TextEditingController _unit;
+  late MealType _mealType;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final log = widget.log;
+    _name = TextEditingController(text: log.foodName);
+    _calories = TextEditingController(text: _format(log.calories));
+    _protein = TextEditingController(text: _format(log.protein));
+    _carbs = TextEditingController(text: _format(log.carbs));
+    _fat = TextEditingController(text: _format(log.fat));
+    _amount = TextEditingController(text: _format(log.amount));
+    _unit = TextEditingController(text: log.unit);
+    _mealType = log.mealType;
+  }
+
+  String _format(double value) => value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toString();
+
+  double? _number(TextEditingController controller) =>
+      double.tryParse(controller.text.trim().replaceAll(',', '.'));
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _calories.dispose();
+    _protein.dispose();
+    _carbs.dispose();
+    _fat.dispose();
+    _amount.dispose();
+    _unit.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final calories = _number(_calories);
+    final protein = _number(_protein);
+    final carbs = _number(_carbs);
+    final fat = _number(_fat);
+    final amount = _number(_amount);
+    final name = _name.text.trim();
+    final unit = _unit.text.trim();
+    if (name.isEmpty ||
+        unit.isEmpty ||
+        calories == null ||
+        protein == null ||
+        carbs == null ||
+        fat == null ||
+        amount == null ||
+        calories <= 0 ||
+        protein < 0 ||
+        carbs < 0 ||
+        fat < 0 ||
+        amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.translate('food_edit_invalid'))),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      await context.read<NutritionService>().updateMealLog(
+        MealLog(
+          id: widget.log.id,
+          userId: widget.log.userId,
+          foodName: name,
+          calories: calories,
+          protein: protein,
+          carbs: carbs,
+          fat: fat,
+          amount: amount,
+          unit: unit,
+          mealType: _mealType,
+          consumedAt: widget.log.consumedAt,
+        ),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.translate('meal_updated'))),
+      );
+      Navigator.pop(context);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context;
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          24,
+          24,
+          24,
+          MediaQuery.viewInsetsOf(context).bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.translate('edit_food'),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 20),
+            _field(_name, l10n.translate('food_name'), text: true),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<MealType>(
+              initialValue: _mealType,
+              decoration: InputDecoration(
+                labelText: l10n.translate('meal_type'),
+                border: const OutlineInputBorder(),
+              ),
+              items: MealType.values
+                  .map(
+                    (type) => DropdownMenuItem(
+                      value: type,
+                      child: Text(l10n.translate(type.name)),
+                    ),
+                  )
+                  .toList(),
+              onChanged: _isSaving
+                  ? null
+                  : (type) {
+                      if (type != null) setState(() => _mealType = type);
+                    },
+            ),
+            const SizedBox(height: 12),
+            _field(_calories, '${l10n.translate('calories')} (kcal)'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _field(_protein, '${l10n.translate('protein')} (g)'),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _field(_carbs, '${l10n.translate('carbs')} (g)'),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: _field(_fat, '${l10n.translate('fat')} (g)')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _field(_amount, l10n.translate('amount'))),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _field(_unit, l10n.translate('unit'), text: true),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _isSaving ? null : _save,
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(l10n.translate('save')),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _field(
+    TextEditingController controller,
+    String label, {
+    bool text = false,
+  }) => TextField(
+    controller: controller,
+    keyboardType: text
+        ? TextInputType.text
+        : const TextInputType.numberWithOptions(decimal: true),
+    textCapitalization: text
+        ? TextCapitalization.sentences
+        : TextCapitalization.none,
+    decoration: InputDecoration(
+      labelText: label,
+      border: const OutlineInputBorder(),
+    ),
+  );
 }
 
 class _AISuggestionsView extends StatefulWidget {
@@ -601,6 +936,7 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
       The user's daily goals and current progress:
       - Daily target calories: ${widget.summary.goal.dailyCalories} kcal
       - Calories consumed so far: ${widget.summary.caloriesIn} kcal
+      - Calories still available in the food target: ${widget.summary.caloriesRemaining} kcal
       - Calories burned through exercise: ${widget.summary.caloriesOut} kcal
       - Current protein: ${widget.summary.protein.toStringAsFixed(1)}g (target: ${widget.summary.goal.targetProteinGrams.toStringAsFixed(1)}g)
       - Current carbs: ${widget.summary.carbs.toStringAsFixed(1)}g (target: ${widget.summary.goal.targetCarbsGrams.toStringAsFixed(1)}g)
@@ -742,7 +1078,9 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
                     Expanded(
                       child: Text(
                         'AI Gợi ý $mealName',
-                        style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

@@ -7,6 +7,7 @@ import '../services/training_service.dart';
 import '../services/paywall_exception.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/paywall.dart';
+import '../widgets/training_calendar_heatmap.dart';
 import 'create_training_plan_page.dart';
 import 'manual_workout_page.dart';
 import 'ai_coach_page.dart';
@@ -431,6 +432,13 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     ),
                   ),
                   const SizedBox(height: 22),
+                  TrainingCalendarHeatmap(
+                    workouts: _workouts
+                        .map(_toTrainingCalendarEntry)
+                        .whereType<TrainingCalendarEntry>()
+                        .toList(),
+                  ),
+                  const SizedBox(height: 22),
                   if (allCompleted)
                     _buildCompletionBanner(context)
                   else ...[
@@ -555,6 +563,26 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         ],
       ),
     );
+  }
+
+  TrainingCalendarEntry? _toTrainingCalendarEntry(
+    Map<String, dynamic> workout,
+  ) {
+    final rawDate = workout['date']?.toString();
+    final date = rawDate == null ? null : DateTime.tryParse(rawDate);
+    if (date == null) return null;
+    return TrainingCalendarEntry(
+      date: DateUtils.dateOnly(date),
+      status: workout['status']?.toString() ?? 'planned',
+      title: workout['title']?.toString() ?? context.translate('workout'),
+      targetDistanceKm: _asDouble(workout['target_distance_km']),
+      targetDurationMin: _asDouble(workout['target_duration_min']),
+    );
+  }
+
+  double? _asDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
   }
 
   void _askWarmUp(Map<String, dynamic> workout) {
@@ -971,8 +999,11 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
 
   Future<void> _rescheduleWorkout(Map<String, dynamic> workout) async {
     final currentDate = DateTime.parse(workout['date'] as String);
-    final firstDate = DateTime.now().subtract(const Duration(days: 365));
-    final lastDate = DateTime.now().add(const Duration(days: 365));
+    // Buổi AI đã lỡ ngày phải được đặt lại từ hôm nay trở đi. Dùng ngày thuần
+    // (00:00) để DatePicker không so sánh lệch với giờ hiện tại.
+    final today = DateUtils.dateOnly(DateTime.now());
+    final firstDate = today;
+    final lastDate = today.add(const Duration(days: 365));
     final initialDate = currentDate.isBefore(firstDate)
         ? firstDate
         : currentDate.isAfter(lastDate)
@@ -987,6 +1018,23 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     );
 
     if (selectedDate == null || !mounted) return;
+
+    final dayShift = selectedDate
+        .difference(DateUtils.dateOnly(currentDate))
+        .inDays;
+    final hasFollowingWorkout = _workouts.any(
+      (candidate) =>
+          candidate['id'] != workout['id'] &&
+          (candidate['status'] == 'planned' ||
+              candidate['status'] == 'rescheduled') &&
+          DateTime.parse(
+            candidate['date'] as String,
+          ).isAfter(DateUtils.dateOnly(currentDate)),
+    );
+    final shiftFollowingWorkouts = dayShift == 0 || !hasFollowingWorkout
+        ? false
+        : await _confirmShiftFollowingWorkouts(dayShift);
+    if (!mounted) return;
 
     final reminder = _runReminders[workout['id']];
     final startTime = _parseWorkoutTime(workout['start_time']?.toString());
@@ -1003,7 +1051,32 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       workoutAt: workoutAt,
       leadMinutes: reminder?.leadMinutes ?? 10,
       enabled: reminder?.enabled ?? false,
+      shiftFollowingWorkouts: shiftFollowingWorkouts,
     );
+  }
+
+  Future<bool> _confirmShiftFollowingWorkouts(int dayShift) async {
+    final days = dayShift.abs().toString();
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(context.translate('reschedule_following_title')),
+            content: Text(
+              context.translate('reschedule_following_description', [days]),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: Text(context.translate('reschedule_only_this')),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text(context.translate('reschedule_move_following')),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   /// Đổi ngày buổi tập và giờ nhắc trong cùng một thao tác.
@@ -1012,25 +1085,43 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     required DateTime workoutAt,
     required int leadMinutes,
     required bool enabled,
+    bool shiftFollowingWorkouts = false,
   }) async {
-    final newDate = DateFormat('yyyy-MM-dd').format(workoutAt);
-    final newStartTime = DateFormat('HH:mm:ss').format(workoutAt);
     setState(() => _isLoading = true);
     try {
-      await _supabase
-          .from('scheduled_workouts')
-          .update({
-            'date': newDate,
-            'start_time': newStartTime,
-          })
-          .eq('id', workout['id']);
-      await _reminderService.saveReminder(
+      final rescheduledWorkouts = await _trainingService.rescheduleWorkout(
         workoutId: workout['id'] as String,
-        workoutTitle: workout['title']?.toString() ?? '',
         workoutAt: workoutAt,
-        leadMinutes: leadMinutes,
-        enabled: enabled,
+        shiftFollowingWorkouts: shiftFollowingWorkouts,
       );
+
+      // Không tự tạo nhắc lịch khi người dùng chỉ đổi ngày buổi tập. Chỉ đồng
+      // bộ các nhắc lịch đã có, gồm cả các buổi được dời theo; lỗi quyền/thông
+      // báo không được làm thao tác đổi ngày thất bại sau khi DB đã cập nhật.
+      final workoutsById = {
+        for (final scheduledWorkout in _workouts)
+          scheduledWorkout['id'] as String: scheduledWorkout,
+      };
+      for (final rescheduled in rescheduledWorkouts) {
+        final reminder = _runReminders[rescheduled.workoutId];
+        if (reminder == null) continue;
+        final isSelectedWorkout = rescheduled.workoutId == workout['id'];
+        final scheduledWorkout =
+            workoutsById[rescheduled.workoutId] ?? workout;
+        try {
+          await _reminderService.saveReminder(
+            workoutId: rescheduled.workoutId,
+            workoutTitle: scheduledWorkout['title']?.toString() ?? '',
+            workoutAt: rescheduled.workoutAt,
+            leadMinutes: isSelectedWorkout ? leadMinutes : reminder.leadMinutes,
+            enabled: isSelectedWorkout ? enabled : reminder.enabled,
+          );
+        } catch (e) {
+          debugPrint(
+            'Failed to update run reminder after rescheduling: $e',
+          );
+        }
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.translate('reschedule_success'))),

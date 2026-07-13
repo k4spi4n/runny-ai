@@ -56,6 +56,15 @@ class _LegacyManualMetadata {
   const _LegacyManualMetadata({this.startTime, this.workoutType, this.notes});
 }
 
+/// A workout whose date was changed while rescheduling a plan.  The page uses
+/// this to keep any existing local notification aligned with the stored date.
+class RescheduledWorkout {
+  const RescheduledWorkout({required this.workoutId, required this.workoutAt});
+
+  final String workoutId;
+  final DateTime workoutAt;
+}
+
 class TrainingService {
   final SupabaseClient _supabase = Supabase.instance.client;
   final GeminiService _gemini = GeminiService();
@@ -128,6 +137,105 @@ class TrainingService {
     params: {'p_workout_id': workoutId, 'p_activity_id': activityId},
   );
 
+  /// Đặt lại một buổi chưa hoàn thành vào một ngày khác.
+  ///
+  /// Một buổi AI đã lỡ ngày vẫn phải trở thành buổi `planned` sau khi người
+  /// dùng chọn ngày mới; nếu giữ trạng thái cũ (`rescheduled`/`skipped`) thì
+  /// giao diện sẽ không nhận nó là buổi tập kế tiếp. Đồng thời nới khoảng ngày
+  /// của kế hoạch khi ngày mới nằm sau ngày kết thúc mà AI đã tạo. Khi được
+  /// chọn, các buổi `planned`/`rescheduled` phía sau sẽ cùng dời một khoảng.
+  Future<List<RescheduledWorkout>> rescheduleWorkout({
+    required String workoutId,
+    required DateTime workoutAt,
+    bool shiftFollowingWorkouts = false,
+  }) async {
+    final workout = await _supabase
+        .from('scheduled_workouts')
+        .select('id, schedule_id, status, date')
+        .eq('id', workoutId)
+        .single();
+
+    if (workout['status'] == 'completed') {
+      throw StateError('Completed workouts cannot be rescheduled');
+    }
+
+    final originalDate = DateTime.parse(workout['date'] as String);
+    final dayShift = workoutAt
+        .difference(
+          DateTime(originalDate.year, originalDate.month, originalDate.day),
+        )
+        .inDays;
+    final rescheduledWorkouts = <RescheduledWorkout>[
+      RescheduledWorkout(workoutId: workoutId, workoutAt: workoutAt),
+    ];
+
+    if (shiftFollowingWorkouts && dayShift != 0) {
+      final followingWorkouts = List<Map<String, dynamic>>.from(
+        await _supabase
+            .from('scheduled_workouts')
+            .select('id, date, start_time')
+            .eq('schedule_id', workout['schedule_id'])
+            .gt('date', _dateOnly(originalDate))
+            .inFilter('status', ['planned', 'rescheduled']),
+      );
+
+      final shiftedWorkouts = followingWorkouts.map((followingWorkout) {
+        final followingDate = DateTime.parse(
+          followingWorkout['date'] as String,
+        );
+        final shiftedDate = followingDate.add(Duration(days: dayShift));
+        return RescheduledWorkout(
+          workoutId: followingWorkout['id'] as String,
+          workoutAt: _withStartTime(
+            shiftedDate,
+            followingWorkout['start_time']?.toString(),
+          ),
+        );
+      }).toList();
+
+      await Future.wait(
+        shiftedWorkouts.map((shiftedWorkout) async {
+          await _supabase
+              .from('scheduled_workouts')
+              .update({
+                'date': _dateOnly(shiftedWorkout.workoutAt),
+                'status': 'planned',
+              })
+              .eq('id', shiftedWorkout.workoutId);
+        }),
+      );
+      rescheduledWorkouts.addAll(shiftedWorkouts);
+    }
+
+    await _supabase
+        .from('scheduled_workouts')
+        .update({
+          'date': _dateOnly(workoutAt),
+          'start_time':
+              '${workoutAt.hour.toString().padLeft(2, '0')}:${workoutAt.minute.toString().padLeft(2, '0')}:00',
+          'status': 'planned',
+        })
+        .eq('id', workoutId);
+
+    final schedule = await _supabase
+        .from('training_schedules')
+        .select()
+        .eq('id', workout['schedule_id'])
+        .maybeSingle();
+    if (schedule != null) {
+      final affectedDates = rescheduledWorkouts
+          .map((rescheduled) => rescheduled.workoutAt)
+          .toList()
+        ..sort();
+      await _expandScheduleRangeIfNeeded(
+        schedule: schedule,
+        earliestWorkoutDate: affectedDates.first,
+        latestWorkoutDate: affectedDates.last,
+      );
+    }
+    return rescheduledWorkouts;
+  }
+
   void _ensureGeminiReady() {
     if (!_gemini.isConfigured) {
       throw Exception('OPENROUTER_API_KEY not found in .env');
@@ -135,6 +243,19 @@ class TrainingService {
   }
 
   String _dateOnly(DateTime d) => d.toIso8601String().split('T')[0];
+
+  DateTime _withStartTime(DateTime date, String? rawTime) {
+    final parts = rawTime?.split(':') ?? const <String>[];
+    final hour = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 0 : 0;
+    final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      hour.clamp(0, 23).toInt(),
+      minute.clamp(0, 59).toInt(),
+    );
+  }
 
   String _cleanText(String value) => value.trim();
 
@@ -362,7 +483,8 @@ class TrainingService {
 
   Future<void> _expandScheduleRangeIfNeeded({
     required Map<String, dynamic> schedule,
-    required DateTime workoutDate,
+    required DateTime earliestWorkoutDate,
+    DateTime? latestWorkoutDate,
   }) async {
     final currentStart = schedule['start_date'] == null
         ? null
@@ -370,13 +492,14 @@ class TrainingService {
     final currentEnd = schedule['end_date'] == null
         ? null
         : DateTime.tryParse(schedule['end_date'] as String);
+    final latest = latestWorkoutDate ?? earliestWorkoutDate;
 
     final updates = <String, dynamic>{};
-    if (currentStart == null || workoutDate.isBefore(currentStart)) {
-      updates['start_date'] = _dateOnly(workoutDate);
+    if (currentStart == null || earliestWorkoutDate.isBefore(currentStart)) {
+      updates['start_date'] = _dateOnly(earliestWorkoutDate);
     }
-    if (currentEnd == null || workoutDate.isAfter(currentEnd)) {
-      updates['end_date'] = _dateOnly(workoutDate);
+    if (currentEnd == null || latest.isAfter(currentEnd)) {
+      updates['end_date'] = _dateOnly(latest);
     }
     if (updates.isNotEmpty) {
       await _supabase
@@ -430,7 +553,7 @@ class TrainingService {
 
     await _expandScheduleRangeIfNeeded(
       schedule: schedule,
-      workoutDate: input.date,
+      earliestWorkoutDate: input.date,
     );
   }
 
@@ -475,7 +598,7 @@ class TrainingService {
         .single();
     await _expandScheduleRangeIfNeeded(
       schedule: schedule,
-      workoutDate: input.date,
+      earliestWorkoutDate: input.date,
     );
 
     // Cập nhật nhắc nhở nếu có để tránh lệch lịch khi sửa đổi buổi tập thủ công

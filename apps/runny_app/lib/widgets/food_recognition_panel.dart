@@ -12,6 +12,7 @@ import '../services/paywall_exception.dart';
 import '../theme/app_theme.dart';
 import '../l10n/app_localizations.dart';
 import 'paywall.dart';
+import 'device_permission_dialog.dart';
 import 'ui_components.dart';
 
 class FoodRecognitionPanel extends StatefulWidget {
@@ -50,6 +51,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
   bool _isSaving = false;
   bool _isCompressing = false;
   bool _didSetDefaultUnit = false;
+  bool _hasConfirmedCameraAccess = false;
   String? _errorMessage;
   int? _originalSize;
   int? _compressedSize;
@@ -116,6 +118,19 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
   }
 
   Future<void> _captureImage() async {
+    if (!_hasConfirmedCameraAccess) {
+      final confirmed = await showDevicePermissionDialog(
+        context,
+        icon: Icons.photo_camera_outlined,
+        title: context.translate('camera_permission_title'),
+        message: context.translate('camera_permission_hint'),
+        cancelLabel: context.translate('not_now'),
+        confirmLabel: context.translate('request_camera_permission'),
+      );
+      if (!confirmed || !mounted) return;
+      _hasConfirmedCameraAccess = true;
+    }
+
     try {
       final image = await _imagePicker.pickImage(
         source: ImageSource.camera,
@@ -148,6 +163,7 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
         _isCompressing = false;
       });
     } catch (e) {
+      _hasConfirmedCameraAccess = false;
       setState(() {
         _errorMessage = context.translate('food_camera_error');
         _isCompressing = false;
@@ -247,7 +263,9 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: (_isAnalyzing || _isCompressing) ? null : _pickImageFile,
+                onPressed: (_isAnalyzing || _isCompressing)
+                    ? null
+                    : _pickImageFile,
                 icon: const Icon(Icons.upload_file),
                 label: Text(context.translate('upload_photo')),
               ),
@@ -255,7 +273,9 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
             const SizedBox(width: 12),
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: (_isAnalyzing || _isCompressing || kIsWeb) ? null : _captureImage,
+                onPressed: (_isAnalyzing || _isCompressing || kIsWeb)
+                    ? null
+                    : _captureImage,
                 icon: const Icon(Icons.photo_camera),
                 label: Text(context.translate('capture_photo')),
               ),
@@ -293,11 +313,16 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
               child: Image.memory(_imageBytes!, fit: BoxFit.cover),
             ),
           ),
-          if (_originalSize != null && _compressedSize != null && _compressedSize! < _originalSize!) ...[
+          if (_originalSize != null &&
+              _compressedSize != null &&
+              _compressedSize! < _originalSize!) ...[
             const SizedBox(height: 8),
             Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: colorScheme.primaryContainer.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
@@ -318,7 +343,8 @@ class _FoodRecognitionPanelState extends State<FoodRecognitionPanel> {
                       context.translate('image_optimized_size', [
                         _formatBytes(_originalSize!),
                         _formatBytes(_compressedSize!),
-                        ((1 - _compressedSize! / _originalSize!) * 100).toStringAsFixed(0)
+                        ((1 - _compressedSize! / _originalSize!) * 100)
+                            .toStringAsFixed(0),
                       ]),
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: colorScheme.primary,

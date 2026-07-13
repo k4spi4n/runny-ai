@@ -10,8 +10,13 @@ import 'ui_components.dart';
 
 class NutritionOverviewCard extends StatelessWidget {
   final DailyNutritionSummary summary;
+  final VoidCallback? onEditGoal;
 
-  const NutritionOverviewCard({super.key, required this.summary});
+  const NutritionOverviewCard({
+    super.key,
+    required this.summary,
+    this.onEditGoal,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,25 +28,40 @@ class NutritionOverviewCard extends StatelessWidget {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.translate('daily_goal'),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          l10n.translate('daily_goal'),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        if (onEditGoal != null) ...[
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.tune, size: 19),
+                            tooltip: l10n.translate('edit_nutrition_goal'),
+                            onPressed: onEditGoal,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${summary.caloriesIn.toInt()} / ${summary.goal.dailyCalories.toInt()} kcal',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
+                    const SizedBox(height: 4),
+                    Text(
+                      '${summary.caloriesIn.toInt()} / ${summary.goal.dailyCalories.toInt()} kcal',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               _buildCircularProgress(context),
             ],
@@ -60,15 +80,21 @@ class NutritionOverviewCard extends StatelessWidget {
               ),
               _buildStatItem(
                 context,
-                l10n.translate('calories_out'),
+                l10n.translate('calories_burned_running'),
                 summary.caloriesOut.toInt().toString(),
                 AppTheme.secondary,
               ),
               _buildStatItem(
                 context,
-                l10n.translate('calories_left'),
-                summary.caloriesLeft.toInt().toString(),
-                AppTheme.success,
+                summary.isOverCalories
+                    ? l10n.translate('calories_over')
+                    : l10n.translate('calories_left'),
+                (summary.isOverCalories
+                        ? summary.caloriesOver
+                        : summary.caloriesRemaining)
+                    .toInt()
+                    .toString(),
+                summary.isOverCalories ? AppTheme.error : AppTheme.success,
               ),
             ],
           ),
@@ -91,15 +117,15 @@ class NutritionOverviewCard extends StatelessWidget {
               context,
             ).colorScheme.outline.withValues(alpha: 0.1),
             valueColor: AlwaysStoppedAnimation<Color>(
-              summary.calorieCompletion > 1.0
-                  ? AppTheme.error
-                  : AppTheme.primary,
+              summary.isOverCalories ? AppTheme.error : AppTheme.primary,
             ),
             strokeCap: StrokeCap.round,
           ),
           Center(
             child: Text(
-              '${(summary.calorieCompletion * 100).toInt()}%',
+              summary.isOverCalories
+                  ? '${(summary.caloriesOver).toInt()}+'
+                  : '${(summary.calorieCompletion * 100).toInt()}%',
               style: GoogleFonts.lexend(
                 fontWeight: FontWeight.w700,
                 fontSize: 16,
@@ -195,6 +221,7 @@ class MacroTrackingCard extends StatelessWidget {
     double target,
     Color color,
   ) {
+    final isOver = current > target;
     final progress = (current / target).clamp(0.0, 1.0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,7 +243,9 @@ class MacroTrackingCard extends StatelessWidget {
             value: progress,
             minHeight: 10,
             backgroundColor: color.withValues(alpha: 0.1),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              isOver ? AppTheme.error : color,
+            ),
           ),
         ),
       ],
@@ -229,6 +258,8 @@ class MealSection extends StatelessWidget {
   final List<MealLog> logs;
   final VoidCallback onAdd;
   final VoidCallback onAISuggest;
+  final ValueChanged<MealLog> onEdit;
+  final ValueChanged<MealLog> onDelete;
 
   const MealSection({
     super.key,
@@ -236,6 +267,8 @@ class MealSection extends StatelessWidget {
     required this.logs,
     required this.onAdd,
     required this.onAISuggest,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   @override
@@ -346,7 +379,14 @@ class MealSection extends StatelessWidget {
           ),
           if (logs.isNotEmpty) ...[
             const SizedBox(height: 16),
-            ...logs.map((log) => _buildMealTile(context, log)),
+            ...logs.map(
+              (log) => _buildMealTile(
+                context,
+                log,
+                onEdit: () => onEdit(log),
+                onDelete: () => onDelete(log),
+              ),
+            ),
           ] else
             const SizedBox(height: 2),
         ],
@@ -354,7 +394,12 @@ class MealSection extends StatelessWidget {
     );
   }
 
-  Widget _buildMealTile(BuildContext context, MealLog log) {
+  Widget _buildMealTile(
+    BuildContext context,
+    MealLog log, {
+    required VoidCallback onEdit,
+    required VoidCallback onDelete,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -402,11 +447,57 @@ class MealSection extends StatelessWidget {
               color: AppTheme.primary,
             ),
           ),
+          const SizedBox(width: 4),
+          PopupMenuButton<_MealLogAction>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: context.translate('meal_actions'),
+            onSelected: (action) {
+              switch (action) {
+                case _MealLogAction.edit:
+                  onEdit();
+                  break;
+                case _MealLogAction.delete:
+                  onDelete();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: _MealLogAction.edit,
+                child: Row(
+                  children: [
+                    const Icon(Icons.edit_outlined, size: 18),
+                    const SizedBox(width: 10),
+                    Text(context.translate('edit')),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: _MealLogAction.delete,
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.delete_outline,
+                      size: 18,
+                      color: AppTheme.error,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      context.translate('delete'),
+                      style: const TextStyle(color: AppTheme.error),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
+
+enum _MealLogAction { edit, delete }
 
 /// Thẻ tóm tắt "Quản lý cân nặng" nhúng trong trang Dinh dưỡng: hiển thị cân
 /// nặng hiện tại + tiến trình mục tiêu ở dạng gọn, kèm nút mở màn hình

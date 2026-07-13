@@ -31,6 +31,7 @@ import '../services/notification_navigation_service.dart';
 import '../widgets/paywall.dart';
 import '../widgets/dashboard_settings_sheet.dart';
 import '../widgets/pwa_install_button.dart';
+import '../widgets/weather_location_placeholder.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
@@ -56,6 +57,9 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 0;
+  // Giữ các tab người dùng đã mở trong widget tree. Nhờ vậy, các tác vụ bất
+  // đồng bộ như chat HLV AI vẫn tiếp tục khi người dùng chuyển sang tab khác.
+  final Set<int> _visitedPageIndexes = {0};
   bool _isRailHovered = false;
   final GlobalKey<_OverviewContentState> _overviewKey =
       GlobalKey<_OverviewContentState>();
@@ -67,6 +71,14 @@ class _DashboardPageState extends State<DashboardPage> {
   final DashboardLayout _dashboardLayout = DashboardLayout();
   final IntegrationService _integrationService = IntegrationService();
 
+  void _selectPage(int index) {
+    if (_selectedIndex == index) return;
+    setState(() {
+      _selectedIndex = index;
+      _visitedPageIndexes.add(index);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -76,8 +88,8 @@ class _DashboardPageState extends State<DashboardPage> {
       OverviewContent(
         key: _overviewKey,
         layout: _dashboardLayout,
-        onViewAllActivities: () => setState(() => _selectedIndex = 4),
-        onViewTrainingPlan: () => setState(() => _selectedIndex = 1),
+        onViewAllActivities: () => _selectPage(4),
+        onViewTrainingPlan: () => _selectPage(1),
       ),
       const TrainingPlanPage(embedded: true),
       const AICoachPage(embedded: true),
@@ -87,9 +99,7 @@ class _DashboardPageState extends State<DashboardPage> {
       const ProfilePage(),
     ];
 
-    // Request location on entry to ensure weather can be fetched.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _requestLocationOnEntry();
       _handleStravaRedirect();
       _handlePaymentRedirectAndEntitlement();
       flushPendingRunReminderNavigation();
@@ -263,15 +273,6 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Future<void> _requestLocationOnEntry() async {
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      await Geolocator.requestPermission();
-      // If permission is granted, OverviewContent will fetch weather on its own
-      // or the user can manually trigger it.
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -364,8 +365,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           ? Colors.white.withValues(alpha: 0.05)
                           : Colors.black.withValues(alpha: 0.03),
                       selectedIndex: _selectedIndex,
-                      onDestinationSelected: (index) =>
-                          setState(() => _selectedIndex = index),
+                      onDestinationSelected: _selectPage,
                       labelType: NavigationRailLabelType.none,
                       destinations: List.generate(navItems.length, (index) {
                         final item = navItems[index];
@@ -390,7 +390,22 @@ class _DashboardPageState extends State<DashboardPage> {
                       horizontal: isDesktop ? 20.0 : 16.0,
                       vertical: 20.0,
                     ),
-                    child: ResponsiveContent(child: _pages[_selectedIndex]),
+                    child: ResponsiveContent(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          for (var index = 0; index < _pages.length; index++)
+                            if (_visitedPageIndexes.contains(index))
+                              Offstage(
+                                offstage: index != _selectedIndex,
+                                child: TickerMode(
+                                  enabled: index == _selectedIndex,
+                                  child: _pages[index],
+                                ),
+                              ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -418,7 +433,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           final item = navItems[index];
 
                           return GestureDetector(
-                            onTap: () => setState(() => _selectedIndex = index),
+                            onTap: () => _selectPage(index),
                             behavior: HitTestBehavior.opaque,
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
@@ -507,6 +522,7 @@ class OverviewContent extends StatefulWidget {
 
 class _OverviewContentState extends State<OverviewContent> {
   late Future<WeatherSnapshot?> _weatherFuture;
+  LocationPermission? _locationPermission;
   late Future<String?> _displayNameFuture;
   Future<String?>? _insightFuture;
   late Future<ReadinessSnapshot> _readinessFuture;
@@ -515,7 +531,8 @@ class _OverviewContentState extends State<OverviewContent> {
   @override
   void initState() {
     super.initState();
-    _weatherFuture = _fetchLatestWeather();
+    _weatherFuture = Future.value(null);
+    _loadWeatherIfLocationAllowed();
     _displayNameFuture = _fetchDisplayName();
     _readinessFuture = ReadinessService().getSnapshot();
   }
@@ -640,20 +657,50 @@ class _OverviewContentState extends State<OverviewContent> {
     return context.translate(key, [displayName]);
   }
 
-  Future<void> _retryWeather({bool forceRequest = false}) async {
+  bool _hasLocationPermission(LocationPermission? permission) {
+    return permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse;
+  }
+
+  /// Kiểm tra quyền đã có nhưng tuyệt đối không hiển thị hộp thoại hệ thống.
+  /// Người dùng chỉ được hỏi quyền sau khi bấm nút ở placeholder.
+  Future<void> _loadWeatherIfLocationAllowed() async {
+    final permission = await Geolocator.checkPermission();
+    if (!mounted) return;
     setState(() {
-      _weatherFuture = _fetchLatestWeather(forceRequest: forceRequest);
+      _locationPermission = permission;
+      if (_hasLocationPermission(permission)) {
+        _weatherFuture = _fetchLatestWeather();
+      }
     });
+  }
+
+  Future<void> _requestLocationForWeather() async {
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (!mounted) return;
+    setState(() {
+      _locationPermission = permission;
+      _weatherFuture = _hasLocationPermission(permission)
+          ? _fetchLatestWeather()
+          : Future.value(null);
+    });
+  }
+
+  Future<void> _retryWeather() async {
+    await _loadWeatherIfLocationAllowed();
   }
 
   void refreshActivityData() {
     if (!mounted) return;
     setState(() {
-      _weatherFuture = _fetchLatestWeather();
       _insightFuture = null;
       _insightLang = null;
       _readinessFuture = ReadinessService().getSnapshot();
     });
+    _loadWeatherIfLocationAllowed();
   }
 
   Future<void> _openImportActivity() async {
@@ -667,7 +714,7 @@ class _OverviewContentState extends State<OverviewContent> {
     }
   }
 
-  Future<Position?> _getCurrentPosition({bool forceRequest = false}) async {
+  Future<Position?> _getCurrentPosition() async {
     final enabled = await Geolocator.isLocationServiceEnabled();
     if (!enabled) {
       debugPrint('Location services are disabled.');
@@ -675,10 +722,6 @@ class _OverviewContentState extends State<OverviewContent> {
     }
 
     var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied || forceRequest) {
-      permission = await Geolocator.requestPermission();
-    }
-
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       debugPrint('Location permissions are denied: $permission');
@@ -712,56 +755,24 @@ class _OverviewContentState extends State<OverviewContent> {
     }
   }
 
-  Future<WeatherSnapshot?> _fetchLatestWeather({
-    bool forceRequest = false,
-  }) async {
-    Object? lastError;
+  Future<WeatherSnapshot?> _fetchLatestWeather() async {
     try {
-      final position = await _getCurrentPosition(forceRequest: forceRequest);
+      final position = await _getCurrentPosition();
       if (position != null) {
         final weatherService = WeatherService();
         return await weatherService.fetchWeatherSnapshot(
           lat: position.latitude,
           lon: position.longitude,
         );
-      } else {
-        lastError = 'weather_location_error';
       }
     } catch (e) {
       debugPrint('Weather fetch error: $e');
       if (e.toString().contains('503')) {
-        lastError = 'weather_server_error';
-      } else {
-        lastError = e;
+        throw 'weather_server_error';
       }
+      rethrow;
     }
-
-    try {
-      final response = await Supabase.instance.client
-          .from('activities')
-          .select('start_lat, start_lon, weather_json')
-          .order('started_at', ascending: false)
-          .limit(1);
-
-      if (response.isNotEmpty) {
-        final activity = response.first;
-        final weatherJson = activity['weather_json'];
-        if (weatherJson is Map<String, dynamic>) {
-          return WeatherSnapshot.fromJson(weatherJson);
-        }
-
-        final lat = (activity['start_lat'] as num?)?.toDouble();
-        final lon = (activity['start_lon'] as num?)?.toDouble();
-        if (lat != null && lon != null) {
-          final weatherService = WeatherService();
-          return await weatherService.fetchWeatherSnapshot(lat: lat, lon: lon);
-        }
-      }
-    } catch (e) {
-      debugPrint('Weather fallback error: $e');
-    }
-
-    throw lastError;
+    throw 'weather_location_error';
   }
 
   Future<List<Activity>> _fetchLatestActivities() async {
@@ -1281,6 +1292,12 @@ class _OverviewContentState extends State<OverviewContent> {
                       child: FutureBuilder<WeatherSnapshot?>(
                         future: _weatherFuture,
                         builder: (context, snapshot) {
+                          if (!_hasLocationPermission(_locationPermission)) {
+                            return WeatherLocationPlaceholder(
+                              onRequestLocation: _requestLocationForWeather,
+                            );
+                          }
+
                           if (snapshot.connectionState ==
                               ConnectionState.waiting) {
                             return const SizedBox(
@@ -1315,20 +1332,6 @@ class _OverviewContentState extends State<OverviewContent> {
                                 Wrap(
                                   spacing: 8,
                                   children: [
-                                    OutlinedButton.icon(
-                                      onPressed: () =>
-                                          _retryWeather(forceRequest: true),
-                                      icon: const Icon(
-                                        Icons.location_on,
-                                        size: 16,
-                                      ),
-                                      label: Text(
-                                        context.translate('allow_location'),
-                                      ),
-                                      style: OutlinedButton.styleFrom(
-                                        visualDensity: VisualDensity.compact,
-                                      ),
-                                    ),
                                     TextButton.icon(
                                       onPressed: () => _retryWeather(),
                                       icon: const Icon(Icons.refresh, size: 16),

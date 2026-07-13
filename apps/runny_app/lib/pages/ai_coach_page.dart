@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -16,6 +17,7 @@ import '../services/nutrition_service.dart';
 import '../services/weather_service.dart';
 import '../services/readiness_service.dart';
 import '../widgets/ui_components.dart';
+import '../widgets/device_permission_dialog.dart';
 import '../widgets/paywall.dart';
 import '../services/paywall_exception.dart';
 import '../models/workout_models.dart';
@@ -59,9 +61,12 @@ class _AICoachPageState extends State<AICoachPage> {
   final TextEditingController _coachNameController = TextEditingController();
   String? _greetingText;
   bool _isLoading = false;
+  bool _showLongWaitNotice = false;
+  Timer? _longWaitTimer;
   // Đang nhận phản hồi streaming (chữ chạy dần trong bong bóng cuối).
   bool _isStreaming = false;
   bool _isRecording = false;
+  bool _hasConfirmedMicrophoneAccess = false;
   String _coachPersona = CoachPersona.calm.id;
   String _baseText = '';
   Activity? _contextActivity;
@@ -285,7 +290,9 @@ class _AICoachPageState extends State<AICoachPage> {
     setState(() {
       _messages.add({'role': 'user', 'content': text});
       _isLoading = true;
+      _showLongWaitNotice = false;
     });
+    _startLongWaitTimer();
     _controller.clear();
     _scrollToBottom();
 
@@ -401,6 +408,7 @@ $prompt''';
                 });
                 assistantIndex = _messages.length - 1;
                 _isLoading = false; // token đầu tiên -> tắt spinner chờ
+                _cancelLongWaitTimer();
               } else {
                 _messages[assistantIndex!]['content'] = buffer.toString();
               }
@@ -432,12 +440,28 @@ $prompt''';
       });
       await _chatService.saveMessage('assistant', errorMsg);
     } finally {
+      _cancelLongWaitTimer();
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _showLongWaitNotice = false;
         });
       }
     }
+  }
+
+  void _startLongWaitTimer() {
+    _longWaitTimer?.cancel();
+    _longWaitTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted && _isLoading) {
+        setState(() => _showLongWaitNotice = true);
+      }
+    });
+  }
+
+  void _cancelLongWaitTimer() {
+    _longWaitTimer?.cancel();
+    _longWaitTimer = null;
   }
 
   void _sendSuggestedQuestion(String question) {
@@ -613,10 +637,13 @@ $prompt''';
     if (attachments.contains(_ChatAttachment.nutrition) &&
         nutritionSummary != null) {
       final s = nutritionSummary;
+      final calorieStatus = s.isOverCalories
+          ? 'vượt ${s.caloriesOver.toStringAsFixed(0)} kcal'
+          : 'còn lại ${s.caloriesRemaining.toStringAsFixed(0)} kcal';
       buffer.writeln(
         '• Dinh dưỡng hôm nay: nạp ${s.caloriesIn.toStringAsFixed(0)} kcal, '
         'tiêu hao ${s.caloriesOut.toStringAsFixed(0)} kcal, '
-        'còn lại ${s.caloriesLeft.toStringAsFixed(0)} kcal '
+        '$calorieStatus '
         '(mục tiêu ${s.goal.dailyCalories.toStringAsFixed(0)} kcal); '
         'P ${s.protein.toStringAsFixed(0)}g / C ${s.carbs.toStringAsFixed(0)}g '
         '/ F ${s.fat.toStringAsFixed(0)}g.',
@@ -799,6 +826,7 @@ $prompt''';
 
   @override
   void dispose() {
+    _cancelLongWaitTimer();
     _controller.removeListener(_handlePromptChanged);
     _speech.cancel();
     _controller.dispose();
@@ -823,7 +851,7 @@ $prompt''';
 
   // ----- Speech-to-Text (Issue #29) -----
 
-  void _toggleRecording() {
+  Future<void> _toggleRecording() async {
     if (_isRecording) {
       _speech.stop();
       return;
@@ -831,6 +859,18 @@ $prompt''';
     if (!_speech.isSupported) {
       _showToast('Trình duyệt không hỗ trợ nhập liệu bằng giọng nói.');
       return;
+    }
+    if (!_hasConfirmedMicrophoneAccess) {
+      final confirmed = await showDevicePermissionDialog(
+        context,
+        icon: Icons.mic_none_outlined,
+        title: context.translate('microphone_permission_title'),
+        message: context.translate('microphone_permission_hint'),
+        cancelLabel: context.translate('not_now'),
+        confirmLabel: context.translate('request_microphone_permission'),
+      );
+      if (!confirmed || !mounted) return;
+      _hasConfirmedMicrophoneAccess = true;
     }
     _baseText = _controller.text;
     setState(() => _isRecording = true);
@@ -850,6 +890,9 @@ $prompt''';
       },
       onError: (code) {
         if (!mounted) return;
+        if (code == 'not-allowed' || code == 'service-not-allowed') {
+          _hasConfirmedMicrophoneAccess = false;
+        }
         setState(() => _isRecording = false);
         _showToast(_mapSpeechError(code));
       },
@@ -1003,8 +1046,22 @@ $prompt''';
                 if (_isLoading)
                   Padding(
                     padding: const EdgeInsets.all(8),
-                    child: CircularProgressIndicator(
-                      color: colorScheme.primary,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(color: colorScheme.primary),
+                        if (_showLongWaitNotice) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            context.translate('ai_coach_long_wait_notice'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 if (_contextActivity != null)

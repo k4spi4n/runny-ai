@@ -10,7 +10,7 @@ import '../models/workout_models.dart';
 /// thao tác xem theo ngày trên giao diện diễn ra tức thì.
 class NutritionService extends ChangeNotifier {
   NutritionService({SupabaseClient? supabase})
-      : _supabase = supabase ?? Supabase.instance.client {
+    : _supabase = supabase ?? Supabase.instance.client {
     _sessionUserId = _supabase.auth.currentUser?.id;
     _authSubscription = _supabase.auth.onAuthStateChange.listen((state) {
       final nextUserId = state.session?.user.id;
@@ -32,6 +32,8 @@ class NutritionService extends ChangeNotifier {
   static const double _kcalPerKm = 60;
 
   NutritionGoal? _currentGoal;
+  double? _currentWeightKg;
+  double? _targetWeightKg;
   List<MealLog> _logs = [];
   List<Activity> _activities = [];
   bool _isLoading = false;
@@ -39,6 +41,8 @@ class NutritionService extends ChangeNotifier {
   String? _error;
 
   NutritionGoal? get currentGoal => _currentGoal;
+  double? get currentWeightKg => _currentWeightKg;
+  double? get targetWeightKg => _targetWeightKg;
   List<MealLog> get logs => _logs;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -47,6 +51,8 @@ class NutritionService extends ChangeNotifier {
 
   void _resetForSession() {
     _currentGoal = null;
+    _currentWeightKg = null;
+    _targetWeightKg = null;
     _logs = [];
     _activities = [];
     _isLoading = false;
@@ -108,6 +114,21 @@ class NutritionService extends ChangeNotifier {
           .map((e) => Activity.fromJson(e as Map<String, dynamic>))
           .toList();
 
+      // Cân nặng giúp đưa ra điểm xuất phát hợp lý cho mục tiêu macro. Không
+      // để việc thiếu profile làm hỏng toàn bộ nhật ký dinh dưỡng.
+      try {
+        final profile = await _supabase
+            .from('profiles')
+            .select('weight_kg, target_weight_kg')
+            .eq('id', uid)
+            .maybeSingle();
+        _currentWeightKg = (profile?['weight_kg'] as num?)?.toDouble();
+        _targetWeightKg = (profile?['target_weight_kg'] as num?)?.toDouble();
+      } catch (_) {
+        _currentWeightKg = null;
+        _targetWeightKg = null;
+      }
+
       _loaded = true;
     } catch (e) {
       _error = e.toString();
@@ -148,7 +169,8 @@ class NutritionService extends ChangeNotifier {
       protein: totalProtein,
       carbs: totalCarbs,
       fat: totalFat,
-      goal: _currentGoal ??
+      goal:
+          _currentGoal ??
           NutritionGoal(userId: _uid ?? 'guest', dailyCalories: 2000),
     );
   }
@@ -173,8 +195,34 @@ class NutritionService extends ChangeNotifier {
   }
 
   Future<void> deleteMealLog(String id) async {
-    await _supabase.from('meal_logs').delete().eq('id', id);
+    final uid = _uid;
+    if (uid == null) throw Exception('Chưa đăng nhập');
+    await _supabase.from('meal_logs').delete().eq('id', id).eq('user_id', uid);
     _logs.removeWhere((log) => log.id == id);
+    notifyListeners();
+  }
+
+  /// Cập nhật một món đã ghi nhận. Luôn giữ user hiện tại ở server, không tin
+  /// vào user_id đi kèm object từ giao diện.
+  Future<void> updateMealLog(MealLog log) async {
+    final uid = _uid;
+    final id = log.id;
+    if (uid == null) throw Exception('Chưa đăng nhập');
+    if (id == null) throw Exception('Không tìm thấy món ăn cần cập nhật');
+
+    final payload = log.toJson()
+      ..remove('id')
+      ..['user_id'] = uid;
+    final updated = await _supabase
+        .from('meal_logs')
+        .update(payload)
+        .eq('id', id)
+        .eq('user_id', uid)
+        .select()
+        .single();
+    final replacement = MealLog.fromJson(updated);
+    final index = _logs.indexWhere((item) => item.id == id);
+    if (index >= 0) _logs[index] = replacement;
     notifyListeners();
   }
 
@@ -214,11 +262,13 @@ class NutritionService extends ChangeNotifier {
 
   List<MealLog> getLogsForMealType(MealType type, DateTime date) {
     return _logs
-        .where((log) =>
-            log.mealType == type &&
-            log.consumedAt.year == date.year &&
-            log.consumedAt.month == date.month &&
-            log.consumedAt.day == date.day)
+        .where(
+          (log) =>
+              log.mealType == type &&
+              log.consumedAt.year == date.year &&
+              log.consumedAt.month == date.month &&
+              log.consumedAt.day == date.day,
+        )
         .toList();
   }
 
