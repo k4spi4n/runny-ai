@@ -17,9 +17,20 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _passwordFocusNode = FocusNode();
   bool _isLoading = false;
   late bool _isSignUp = widget.initialIsSignUp;
   String? _pendingConfirmationEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordFocusNode.addListener(_onPasswordFocusChanged);
+  }
+
+  void _onPasswordFocusChanged() {
+    if (mounted) setState(() {});
+  }
 
   Future<void> _handleAuth() async {
     setState(() => _isLoading = true);
@@ -182,6 +193,9 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
+    _passwordFocusNode
+      ..removeListener(_onPasswordFocusChanged)
+      ..dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -253,9 +267,11 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final hasPassword = _passwordController.text.isNotEmpty;
     final canSubmit =
-        !_isSignUp ||
-        PasswordRequirementsChecklist.isValid(_passwordController.text);
+        hasPassword &&
+        (!_isSignUp ||
+            PasswordRequirementsChecklist.isValid(_passwordController.text));
 
     return Scaffold(
       body: Stack(
@@ -339,6 +355,7 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 16),
                         TextField(
                           controller: _passwordController,
+                          focusNode: _passwordFocusNode,
                           decoration: themedInputDecoration(
                             context,
                             context.translate('password'),
@@ -353,12 +370,20 @@ class _LoginPageState extends State<LoginPage> {
                             color: isDark ? Colors.white : Colors.black87,
                           ),
                           inputFormatters: [UnsignedTextInputFormatter()],
-                          onChanged: _isSignUp ? (_) => setState(() {}) : null,
+                          onChanged: (_) => setState(() {}),
                         ),
-                        if (_isSignUp && _passwordController.text.isNotEmpty)
-                          PasswordRequirementsChecklist(
-                            password: _passwordController.text,
-                          ),
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOut,
+                          alignment: Alignment.topCenter,
+                          child:
+                              _isSignUp &&
+                                  (_passwordFocusNode.hasFocus || hasPassword)
+                              ? PasswordRequirementsChecklist(
+                                  password: _passwordController.text,
+                                )
+                              : const SizedBox.shrink(),
+                        ),
                         const SizedBox(height: 24),
                         GradientButton(
                           onPressed: _isLoading || !canSubmit
