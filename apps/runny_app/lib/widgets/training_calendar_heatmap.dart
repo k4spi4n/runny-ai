@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../l10n/app_localizations.dart';
 
-/// Dữ liệu tối giản để biểu diễn một buổi tập trong lịch nhiệt theo tháng.
+/// Dữ liệu tối giản để biểu diễn một buổi tập hoặc hoạt động chạy trong lịch.
 class TrainingCalendarEntry {
   const TrainingCalendarEntry({
     required this.date,
@@ -20,37 +20,47 @@ class TrainingCalendarEntry {
   final String title;
   final double? targetDistanceKm;
   final double? targetDurationMin;
-
-  int get loadLevel {
-    final distance = targetDistanceKm ?? 0;
-    final duration = targetDurationMin ?? 0;
-    if (distance >= 16 || duration >= 100) return 4;
-    if (distance >= 10 || duration >= 60) return 3;
-    if (distance >= 5 || duration >= 30) return 2;
-    return 1;
-  }
 }
 
-/// Một lịch tháng gọn như heatmap, nhưng ưu tiên tải tập và tiến độ runner.
-class TrainingCalendarHeatmap extends StatelessWidget {
+/// Tổng quan lịch tập theo tháng, dùng cùng màu trạng thái với lịch chi tiết.
+class TrainingCalendarHeatmap extends StatefulWidget {
   const TrainingCalendarHeatmap({
     super.key,
     required this.workouts,
+    required this.totalPlanWorkouts,
+    required this.completedPlanWorkouts,
     this.month,
   });
 
   final List<TrainingCalendarEntry> workouts;
+  final int totalPlanWorkouts;
+  final int completedPlanWorkouts;
   final DateTime? month;
+
+  @override
+  State<TrainingCalendarHeatmap> createState() =>
+      _TrainingCalendarHeatmapState();
+}
+
+class _TrainingCalendarHeatmapState extends State<TrainingCalendarHeatmap> {
+  late DateTime _visibleMonth = _monthStart(widget.month ?? DateTime.now());
+
+  @override
+  void didUpdateWidget(covariant TrainingCalendarHeatmap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.month != null && widget.month != oldWidget.month) {
+      _visibleMonth = _monthStart(widget.month!);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final selectedMonth = month ?? DateTime.now();
-    final firstDay = DateTime(selectedMonth.year, selectedMonth.month);
-    final lastDay = DateTime(selectedMonth.year, selectedMonth.month + 1, 0);
+    final firstDay = _visibleMonth;
+    final lastDay = DateTime(firstDay.year, firstDay.month + 1, 0);
     final locale = Localizations.localeOf(context).toLanguageTag();
-    final monthWorkouts = workouts
+    final monthWorkouts = widget.workouts
         .where(
           (workout) =>
               workout.date.year == firstDay.year &&
@@ -104,10 +114,34 @@ class TrainingCalendarHeatmap extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      DateFormat('MMMM yyyy', locale).format(firstDay),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                    InkWell(
+                      key: const ValueKey('training_calendar_month_picker'),
+                      onTap: _pickMonth,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 3,
+                          horizontal: 2,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              DateFormat('MMMM yyyy', locale).format(firstDay),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                                decoration: TextDecoration.underline,
+                                decorationColor: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            Icon(
+                              Icons.expand_more_rounded,
+                              color: colorScheme.onSurfaceVariant,
+                              size: 16,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -168,12 +202,34 @@ class TrainingCalendarHeatmap extends StatelessWidget {
               );
             },
           ),
+          if (widget.totalPlanWorkouts > 0) ...[
+            const SizedBox(height: 16),
+            _PlanProgress(
+              completedWorkouts: widget.completedPlanWorkouts,
+              totalWorkouts: widget.totalPlanWorkouts,
+            ),
+          ],
           const SizedBox(height: 14),
-          _CalendarLegend(),
+          const _CalendarLegend(),
         ],
       ),
     );
   }
+
+  Future<void> _pickMonth() async {
+    final selection = await showDatePicker(
+      context: context,
+      initialDate: _visibleMonth,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
+      helpText: context.translate('training_calendar_pick_month'),
+    );
+    if (selection != null && mounted) {
+      setState(() => _visibleMonth = _monthStart(selection));
+    }
+  }
+
+  static DateTime _monthStart(DateTime date) => DateTime(date.year, date.month);
 }
 
 class _WeekdayHeader extends StatelessWidget {
@@ -218,23 +274,9 @@ class _CalendarDay extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isToday = DateUtils.isSameDay(date, DateTime.now());
-    final isCompleted =
-        entries.isNotEmpty &&
-        entries.every((entry) => entry.status == 'completed');
-    final isSkipped =
-        entries.isNotEmpty &&
-        entries.every((entry) => entry.status == 'skipped');
-    final level = entries.isEmpty
-        ? 0
-        : entries
-              .fold<int>(0, (total, entry) => total + entry.loadLevel)
-              .clamp(1, 4);
-    final fill = _fillColor(
-      colorScheme: colorScheme,
-      level: level,
-      isCompleted: isCompleted,
-      isSkipped: isSkipped,
-    );
+    final status = _statusFor(entries);
+    final fill = _fillColor(status);
+    final foreground = status == 'completed' ? Colors.black87 : Colors.white;
     final dateText = DateFormat(
       'EEE, d MMM',
       Localizations.localeOf(context).toLanguageTag(),
@@ -254,7 +296,9 @@ class _CalendarDay extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: fill,
+            color:
+                fill ??
+                colorScheme.surfaceContainerHighest.withValues(alpha: 0.38),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isToday
@@ -274,34 +318,20 @@ class _CalendarDay extends StatelessWidget {
                   child: Text(
                     '${date.day}',
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: level >= 3 && !isSkipped
-                          ? Colors.white
-                          : colorScheme.onSurface,
+                      color: fill == null ? colorScheme.onSurface : foreground,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
               ),
-              if (isCompleted)
-                const Align(
-                  alignment: Alignment.bottomRight,
-                  child: Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(
-                      Icons.check_rounded,
-                      color: Colors.white,
-                      size: 14,
-                    ),
-                  ),
-                )
-              else if (isSkipped)
+              if (status != null)
                 Align(
                   alignment: Alignment.bottomRight,
                   child: Padding(
                     padding: const EdgeInsets.all(4),
                     child: Icon(
-                      Icons.remove_rounded,
-                      color: colorScheme.onSurfaceVariant,
+                      _statusIcon(status),
+                      color: foreground,
                       size: 14,
                     ),
                   ),
@@ -313,25 +343,106 @@ class _CalendarDay extends StatelessWidget {
     );
   }
 
-  Color _fillColor({
-    required ColorScheme colorScheme,
-    required int level,
-    required bool isCompleted,
-    required bool isSkipped,
-  }) {
-    if (level == 0) {
-      return colorScheme.surfaceContainerHighest.withValues(alpha: 0.38);
+  String? _statusFor(List<TrainingCalendarEntry> entries) {
+    if (entries.isEmpty) return null;
+    const priority = ['completed', 'rescheduled', 'planned', 'skipped'];
+    for (final status in priority) {
+      if (entries.any((entry) => entry.status == status)) return status;
     }
-    if (isSkipped) {
-      return colorScheme.surfaceContainerHighest.withValues(alpha: 0.72);
+    return 'planned';
+  }
+
+  Color? _fillColor(String? status) {
+    switch (status) {
+      case 'completed':
+        return Colors.greenAccent;
+      case 'rescheduled':
+        return Colors.orangeAccent;
+      case 'planned':
+        return const Color(0xFF4A82FF);
+      case 'skipped':
+        return Colors.grey;
+      default:
+        return null;
     }
-    final base = isCompleted ? const Color(0xFF1DAA77) : colorScheme.primary;
-    const opacities = [0.0, 0.24, 0.42, 0.66, 0.9];
-    return base.withValues(alpha: opacities[level]);
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case 'completed':
+        return Icons.check_circle;
+      case 'rescheduled':
+        return Icons.update;
+      case 'skipped':
+        return Icons.pause_circle;
+      default:
+        return Icons.directions_run;
+    }
+  }
+}
+
+class _PlanProgress extends StatelessWidget {
+  const _PlanProgress({
+    required this.completedWorkouts,
+    required this.totalWorkouts,
+  });
+
+  final int completedWorkouts;
+  final int totalWorkouts;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final progress = (completedWorkouts / totalWorkouts)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    return Column(
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.directions_run,
+              color: const Color(0xFF4A82FF),
+              size: 18,
+            ),
+            const SizedBox(width: 7),
+            Text(
+              context.translate('workout_progress', [
+                completedWorkouts.toString(),
+                totalWorkouts.toString(),
+              ]),
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const Spacer(),
+            Text(
+              '${(progress * 100).round()}%',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(99),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 8,
+            color: const Color(0xFF4A82FF),
+            backgroundColor: colorScheme.surfaceContainerHighest,
+          ),
+        ),
+      ],
+    );
   }
 }
 
 class _CalendarLegend extends StatelessWidget {
+  const _CalendarLegend();
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -344,23 +455,27 @@ class _CalendarLegend extends StatelessWidget {
       runSpacing: 8,
       children: [
         _LegendItem(
-          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.38),
-          label: context.translate('training_calendar_rest'),
+          color: const Color(0xFF4A82FF),
+          icon: Icons.directions_run,
+          label: context.translate('status_planned'),
           style: textStyle,
         ),
         _LegendItem(
-          color: colorScheme.primary.withValues(alpha: 0.3),
-          label: context.translate('training_calendar_light'),
+          color: Colors.orangeAccent,
+          icon: Icons.update,
+          label: context.translate('status_rescheduled'),
           style: textStyle,
         ),
         _LegendItem(
-          color: colorScheme.primary.withValues(alpha: 0.9),
-          label: context.translate('training_calendar_heavy'),
+          color: Colors.greenAccent,
+          icon: Icons.check_circle,
+          label: context.translate('status_completed'),
           style: textStyle,
         ),
         _LegendItem(
-          color: const Color(0xFF1DAA77).withValues(alpha: 0.76),
-          label: context.translate('training_calendar_completed'),
+          color: Colors.grey,
+          icon: Icons.pause_circle,
+          label: context.translate('status_skipped'),
           style: textStyle,
         ),
       ],
@@ -369,9 +484,15 @@ class _CalendarLegend extends StatelessWidget {
 }
 
 class _LegendItem extends StatelessWidget {
-  const _LegendItem({required this.color, required this.label, this.style});
+  const _LegendItem({
+    required this.color,
+    required this.icon,
+    required this.label,
+    this.style,
+  });
 
   final Color color;
+  final IconData icon;
   final String label;
   final TextStyle? style;
 
@@ -381,12 +502,10 @@ class _LegendItem extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(3),
-          ),
+          width: 18,
+          height: 18,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          child: Icon(icon, color: Colors.black87, size: 12),
         ),
         const SizedBox(width: 5),
         Text(label, style: style),
@@ -396,9 +515,9 @@ class _LegendItem extends StatelessWidget {
 }
 
 @Preview(
-  name: 'Training calendar heatmap',
+  name: 'Training calendar overview',
   group: 'Training',
-  size: Size(430, 470),
+  size: Size(430, 520),
 )
 Widget trainingCalendarHeatmapPreview() {
   final today = DateTime.now();
@@ -415,6 +534,8 @@ Widget trainingCalendarHeatmapPreview() {
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: TrainingCalendarHeatmap(
+          totalPlanWorkouts: 8,
+          completedPlanWorkouts: 3,
           workouts: [
             TrainingCalendarEntry(
               date: today.subtract(const Duration(days: 3)),
@@ -430,7 +551,7 @@ Widget trainingCalendarHeatmapPreview() {
             ),
             TrainingCalendarEntry(
               date: today.add(const Duration(days: 5)),
-              status: 'planned',
+              status: 'rescheduled',
               title: 'Long run',
               targetDistanceKm: 18,
             ),

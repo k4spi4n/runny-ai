@@ -44,6 +44,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   bool _isLoading = true;
   Map<String, dynamic>? _activeSchedule;
   List<Map<String, dynamic>> _workouts = [];
+  List<Map<String, dynamic>> _unlinkedActivities = [];
   Map<String, RunReminder> _runReminders = {};
 
   @override
@@ -96,16 +97,25 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         }
       }
       Map<String, RunReminder> reminders = {};
+      List<Map<String, dynamic>> unlinkedActivities = [];
       if (workouts.isNotEmpty) {
         reminders = await _reminderService.remindersForWorkouts(
           workouts.map((w) => w['id'] as String).toList(),
         );
+        try {
+          unlinkedActivities = await _fetchUnlinkedActivities();
+        } catch (e) {
+          // Hoạt động chưa liên kết chỉ làm giàu heatmap; không để lỗi tải chúng
+          // làm toàn bộ kế hoạch đang hiển thị bị lỗi.
+          debugPrint('Error fetching unlinked activities for calendar: $e');
+        }
       }
 
       if (mounted) {
         setState(() {
           _activeSchedule = schedule;
           _workouts = workouts;
+          _unlinkedActivities = unlinkedActivities;
           _runReminders = reminders;
         });
       }
@@ -212,9 +222,6 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     final completedWorkouts = _workouts
         .where((w) => w['status'] == 'completed')
         .length;
-    final completionRate = _workouts.isEmpty
-        ? 0
-        : ((completedWorkouts / _workouts.length) * 100).round();
     final allCompleted = _workouts.every((w) => w['status'] == 'completed');
     // Buổi tập tiếp theo = buổi 'planned' gần nhất; nếu đã hoàn thành hết thì không dùng tới.
     final Map<String, dynamic> nextWorkout = _workouts.firstWhere(
@@ -336,107 +343,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  glassCard(
-                    context: context,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          context.translate('plan_details'),
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.fitness_center_rounded,
-                                      color: colorScheme.primary,
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      context.translate('workout'),
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.onSurface,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Text(
-                                  context.translate('workout_progress', [
-                                    completedWorkouts.toString(),
-                                    _workouts.length.toString(),
-                                  ]),
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            _GradientProgressBar(
-                              progress: _workouts.isEmpty
-                                  ? 0.0
-                                  : completedWorkouts / _workouts.length,
-                              gradient: secondaryPulseGradient,
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle_rounded,
-                                      color: colorScheme.primary,
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      context.translate('completed'),
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.onSurface,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Text(
-                                  '$completionRate%',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            _GradientProgressBar(
-                              progress: completionRate / 100.0,
-                              gradient: accentPulseGradient,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 22),
                   TrainingCalendarHeatmap(
-                    workouts: _workouts
-                        .map(_toTrainingCalendarEntry)
-                        .whereType<TrainingCalendarEntry>()
-                        .toList(),
+                    workouts: _calendarEntries,
+                    totalPlanWorkouts: _workouts.length,
+                    completedPlanWorkouts: completedWorkouts,
                   ),
                   const SizedBox(height: 22),
                   if (allCompleted)
@@ -577,6 +487,40 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       title: workout['title']?.toString() ?? context.translate('workout'),
       targetDistanceKm: _asDouble(workout['target_distance_km']),
       targetDurationMin: _asDouble(workout['target_duration_min']),
+    );
+  }
+
+  List<TrainingCalendarEntry> get _calendarEntries => [
+    ..._workouts
+        .map(_toTrainingCalendarEntry)
+        .whereType<TrainingCalendarEntry>(),
+    ..._unlinkedActivities
+        .map(_toActivityCalendarEntry)
+        .whereType<TrainingCalendarEntry>(),
+  ];
+
+  TrainingCalendarEntry? _toActivityCalendarEntry(
+    Map<String, dynamic> activity,
+  ) {
+    final rawStartedAt = activity['started_at']?.toString();
+    final startedAt = rawStartedAt == null
+        ? null
+        : DateTime.tryParse(rawStartedAt)?.toLocal();
+    if (startedAt == null) return null;
+    final distance = _asDouble(activity['distance_km']);
+    final duration = _asDouble(activity['duration_min']);
+    if (distance == null || distance <= 0) {
+      return null;
+    }
+    final name = activity['name']?.toString() ?? activity['notes']?.toString();
+    return TrainingCalendarEntry(
+      date: DateUtils.dateOnly(startedAt),
+      status: 'completed',
+      title: name?.isNotEmpty == true
+          ? name!
+          : '${distance.toStringAsFixed(1)} km',
+      targetDistanceKm: distance,
+      targetDurationMin: duration,
     );
   }
 
@@ -2071,59 +2015,6 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
       default:
         return context.translate('reminder_before_minutes', ['$minutes']);
     }
-  }
-}
-
-class _GradientProgressBar extends StatelessWidget {
-  final double progress;
-  final Gradient gradient;
-
-  const _GradientProgressBar({
-    required this.progress,
-    required this.gradient,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      height: 10,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.08)
-            : Colors.black.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final maxWidth = constraints.maxWidth;
-          final progressWidth = maxWidth * progress.clamp(0.0, 1.0);
-          return Align(
-            alignment: Alignment.centerLeft,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 500),
-              curve: Curves.easeOut,
-              width: progressWidth,
-              height: 10,
-              decoration: BoxDecoration(
-                gradient: gradient,
-                borderRadius: BorderRadius.circular(5),
-                boxShadow: [
-                  BoxShadow(
-                    color: gradient.colors.first.withValues(alpha: 0.35),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
   }
 }
 
