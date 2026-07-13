@@ -4,6 +4,7 @@ import 'package:flutter/widget_previews.dart';
 import 'package:intl/intl.dart';
 
 import '../l10n/app_localizations.dart';
+import 'ui_components.dart';
 
 /// Dữ liệu tối giản để biểu diễn một buổi tập hoặc hoạt động chạy trong lịch.
 class TrainingCalendarEntry {
@@ -76,141 +77,244 @@ class _TrainingCalendarHeatmapState extends State<TrainingCalendarHeatmap> {
       workoutsByDay.putIfAbsent(day, () => []).add(workout);
     }
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surface.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.48),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return glassCard(
+      context: context,
+      padding: EdgeInsets.zero,
+      child: Stack(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: colorScheme.primary.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  Icons.calendar_month_rounded,
-                  color: colorScheme.primary,
-                  size: 21,
+          Positioned(
+            top: -70,
+            right: -55,
+            child: Container(
+              width: 180,
+              height: 180,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    colorScheme.primary.withValues(alpha: 0.2),
+                    colorScheme.primary.withValues(alpha: 0),
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      context.translate('training_calendar_title'),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    InkWell(
-                      key: const ValueKey('training_calendar_month_picker'),
-                      onTap: _pickMonth,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 3,
-                          horizontal: 2,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+            ),
+          ),
+          Positioned(
+            bottom: -95,
+            left: -60,
+            child: Container(
+              width: 210,
+              height: 210,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    colorScheme.secondary.withValues(alpha: 0.14),
+                    colorScheme.secondary.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stackSummary = constraints.maxWidth < 340;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
                           children: [
-                            Text(
-                              DateFormat('MMMM yyyy', locale).format(firstDay),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                                decoration: TextDecoration.underline,
-                                decorationColor: colorScheme.onSurfaceVariant,
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                gradient: secondaryPulseGradient,
+                                borderRadius: BorderRadius.circular(15),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF4A82FF,
+                                    ).withValues(alpha: 0.28),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 7),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.calendar_month_rounded,
+                                color: Colors.white,
+                                size: 21,
                               ),
                             ),
-                            const SizedBox(width: 2),
-                            Icon(
-                              Icons.expand_more_rounded,
-                              color: colorScheme.onSurfaceVariant,
-                              size: 16,
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    context.translate(
+                                      'training_calendar_title',
+                                    ),
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w900),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Container(
+                                    decoration: _innerGlassDecoration(
+                                      context,
+                                      borderRadius: BorderRadius.circular(10),
+                                      showShadow: false,
+                                    ),
+                                    child: InkWell(
+                                      key: const ValueKey(
+                                        'training_calendar_month_picker',
+                                      ),
+                                      onTap: _pickMonth,
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 5,
+                                          horizontal: 8,
+                                        ),
+                                        child: FittedBox(
+                                          alignment: Alignment.centerLeft,
+                                          fit: BoxFit.scaleDown,
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                DateFormat(
+                                                  'MMMM yyyy',
+                                                  locale,
+                                                ).format(firstDay),
+                                                style: theme.textTheme.bodySmall
+                                                    ?.copyWith(
+                                                      color: colorScheme
+                                                          .onSurfaceVariant,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                              ),
+                                              const SizedBox(width: 3),
+                                              Icon(
+                                                Icons.expand_more_rounded,
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
+                                                size: 16,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                            if (!stackSummary) ...[
+                              const SizedBox(width: 8),
+                              _CalendarSummary(
+                                workoutCount: monthWorkouts.length,
+                                completedCount: completedCount,
+                              ),
+                            ],
                           ],
                         ),
-                      ),
-                    ),
-                  ],
+                        if (stackSummary) ...[
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: _CalendarSummary(
+                              workoutCount: monthWorkouts.length,
+                              completedCount: completedCount,
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
                 ),
-              ),
-              Text(
-                context.translate('training_calendar_summary', [
-                  monthWorkouts.length.toString(),
-                  completedCount.toString(),
-                ]),
-                textAlign: TextAlign.end,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const spacing = 5.0;
-              final cellWidth = ((constraints.maxWidth - (spacing * 6)) / 7)
-                  .clamp(0.0, 48.0);
-              final calendarWidth = (cellWidth * 7) + (spacing * 6);
-              final cells = <Widget>[];
-              for (var index = 0; index < firstDay.weekday - 1; index++) {
-                cells.add(SizedBox(width: cellWidth, height: cellWidth));
-              }
-              for (var day = 1; day <= lastDay.day; day++) {
-                final date = DateTime(firstDay.year, firstDay.month, day);
-                cells.add(
-                  _CalendarDay(
-                    date: date,
-                    entries: workoutsByDay[date] ?? const [],
-                    size: cellWidth,
+                const SizedBox(height: 16),
+                _GlassSurface(
+                  key: const ValueKey('training_calendar_grid_glass'),
+                  padding: const EdgeInsets.all(12),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      const spacing = 5.0;
+                      final cellWidth =
+                          ((constraints.maxWidth - (spacing * 6)) / 7).clamp(
+                            0.0,
+                            48.0,
+                          );
+                      final calendarWidth = (cellWidth * 7) + (spacing * 6);
+                      final cells = <Widget>[];
+                      for (
+                        var index = 0;
+                        index < firstDay.weekday - 1;
+                        index++
+                      ) {
+                        cells.add(
+                          SizedBox(width: cellWidth, height: cellWidth),
+                        );
+                      }
+                      for (var day = 1; day <= lastDay.day; day++) {
+                        final date = DateTime(
+                          firstDay.year,
+                          firstDay.month,
+                          day,
+                        );
+                        cells.add(
+                          _CalendarDay(
+                            date: date,
+                            entries: workoutsByDay[date] ?? const [],
+                            size: cellWidth,
+                          ),
+                        );
+                      }
+                      return Align(
+                        alignment: Alignment.center,
+                        child: SizedBox(
+                          width: calendarWidth,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _WeekdayHeader(
+                                languageCode: Localizations.localeOf(
+                                  context,
+                                ).languageCode,
+                              ),
+                              const SizedBox(height: 7),
+                              Wrap(
+                                spacing: spacing,
+                                runSpacing: spacing,
+                                children: cells,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                );
-              }
-              return SizedBox(
-                width: calendarWidth,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _WeekdayHeader(
-                      languageCode: Localizations.localeOf(
-                        context,
-                      ).languageCode,
-                    ),
-                    const SizedBox(height: 7),
-                    Wrap(
-                      spacing: spacing,
-                      runSpacing: spacing,
-                      children: cells,
-                    ),
-                  ],
                 ),
-              );
-            },
-          ),
-          if (widget.totalPlanWorkouts > 0) ...[
-            const SizedBox(height: 16),
-            _PlanProgress(
-              completedWorkouts: widget.completedPlanWorkouts,
-              totalWorkouts: widget.totalPlanWorkouts,
+                if (widget.totalPlanWorkouts > 0) ...[
+                  const SizedBox(height: 12),
+                  _GlassSurface(
+                    padding: const EdgeInsets.all(12),
+                    child: _PlanProgress(
+                      completedWorkouts: widget.completedPlanWorkouts,
+                      totalWorkouts: widget.totalPlanWorkouts,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                const _CalendarLegend(),
+              ],
             ),
-          ],
-          const SizedBox(height: 14),
-          const _CalendarLegend(),
+          ),
         ],
       ),
     );
@@ -230,6 +334,98 @@ class _TrainingCalendarHeatmapState extends State<TrainingCalendarHeatmap> {
   }
 
   static DateTime _monthStart(DateTime date) => DateTime(date.year, date.month);
+}
+
+BoxDecoration _innerGlassDecoration(
+  BuildContext context, {
+  required BorderRadius borderRadius,
+  bool showShadow = true,
+}) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  return BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: isDark
+          ? [
+              Colors.white.withValues(alpha: 0.12),
+              Colors.white.withValues(alpha: 0.045),
+            ]
+          : [
+              Colors.white.withValues(alpha: 0.88),
+              Colors.white.withValues(alpha: 0.5),
+            ],
+    ),
+    borderRadius: borderRadius,
+    border: Border.all(
+      color: isDark
+          ? Colors.white.withValues(alpha: 0.15)
+          : Colors.white.withValues(alpha: 0.72),
+      width: 1,
+    ),
+    boxShadow: showShadow
+        ? [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.13 : 0.055),
+              blurRadius: 14,
+              offset: const Offset(0, 7),
+            ),
+          ]
+        : null,
+  );
+}
+
+class _GlassSurface extends StatelessWidget {
+  const _GlassSurface({super.key, required this.child, required this.padding});
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding,
+      decoration: _innerGlassDecoration(
+        context,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _CalendarSummary extends StatelessWidget {
+  const _CalendarSummary({
+    required this.workoutCount,
+    required this.completedCount,
+  });
+
+  final int workoutCount;
+  final int completedCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: _innerGlassDecoration(
+        context,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        context.translate('training_calendar_summary', [
+          workoutCount.toString(),
+          completedCount.toString(),
+        ]),
+        textAlign: TextAlign.end,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
 }
 
 class _WeekdayHeader extends StatelessWidget {
@@ -296,18 +492,45 @@ class _CalendarDay extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color:
-                fill ??
-                colorScheme.surfaceContainerHighest.withValues(alpha: 0.38),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: fill == null
+                  ? [
+                      Colors.white.withValues(
+                        alpha: theme.brightness == Brightness.dark ? 0.07 : 0.5,
+                      ),
+                      colorScheme.surfaceContainerHighest.withValues(
+                        alpha: theme.brightness == Brightness.dark
+                            ? 0.18
+                            : 0.32,
+                      ),
+                    ]
+                  : [
+                      fill.withValues(alpha: 0.96),
+                      Color.lerp(fill, Colors.black, 0.14)!,
+                    ],
+            ),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isToday
                   ? colorScheme.primary
                   : entries.isEmpty
-                  ? colorScheme.outlineVariant.withValues(alpha: 0.3)
-                  : Colors.transparent,
+                  ? Colors.white.withValues(
+                      alpha: theme.brightness == Brightness.dark ? 0.09 : 0.62,
+                    )
+                  : Colors.white.withValues(alpha: 0.2),
               width: isToday ? 1.8 : 1,
             ),
+            boxShadow: fill == null
+                ? null
+                : [
+                    BoxShadow(
+                      color: fill.withValues(alpha: 0.22),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: Stack(
             children: [
@@ -406,16 +629,20 @@ class _PlanProgress extends StatelessWidget {
               size: 18,
             ),
             const SizedBox(width: 7),
-            Text(
-              context.translate('workout_progress', [
-                completedWorkouts.toString(),
-                totalWorkouts.toString(),
-              ]),
-              style: Theme.of(
-                context,
-              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+            Expanded(
+              child: Text(
+                context.translate('workout_progress', [
+                  completedWorkouts.toString(),
+                  totalWorkouts.toString(),
+                ]),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
             Text(
               '${(progress * 100).round()}%',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
@@ -498,26 +725,50 @@ class _LegendItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 18,
-          height: 18,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          child: Icon(icon, color: Colors.black87, size: 12),
-        ),
-        const SizedBox(width: 5),
-        Text(label, style: style),
-      ],
+    final iconColor = color.computeLuminance() > 0.58
+        ? Colors.black87
+        : Colors.white;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: _innerGlassDecoration(
+        context,
+        borderRadius: BorderRadius.circular(99),
+        showShadow: false,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 19,
+            height: 19,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: color.withValues(alpha: 0.28), blurRadius: 6),
+              ],
+            ),
+            child: Icon(icon, color: iconColor, size: 12),
+          ),
+          const SizedBox(width: 6),
+          Text(label, style: style),
+        ],
+      ),
     );
   }
 }
 
 @Preview(
-  name: 'Training calendar overview',
+  name: 'Training calendar glass - Light',
   group: 'Training',
-  size: Size(430, 520),
+  size: Size(430, 620),
+  brightness: Brightness.light,
+)
+@Preview(
+  name: 'Training calendar glass - Dark',
+  group: 'Training',
+  size: Size(430, 620),
+  brightness: Brightness.dark,
 )
 Widget trainingCalendarHeatmapPreview() {
   final today = DateTime.now();
@@ -530,32 +781,47 @@ Widget trainingCalendarHeatmapPreview() {
       GlobalCupertinoLocalizations.delegate,
     ],
     supportedLocales: const [Locale('en'), Locale('vi')],
+    theme: ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4A82FF)),
+    ),
+    darkTheme: ThemeData(
+      brightness: Brightness.dark,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFF4A82FF),
+        brightness: Brightness.dark,
+      ),
+    ),
     home: Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: TrainingCalendarHeatmap(
-          totalPlanWorkouts: 8,
-          completedPlanWorkouts: 3,
-          workouts: [
-            TrainingCalendarEntry(
-              date: today.subtract(const Duration(days: 3)),
-              status: 'completed',
-              title: 'Easy run',
-              targetDistanceKm: 6,
+      body: Builder(
+        builder: (context) => DecoratedBox(
+          decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: TrainingCalendarHeatmap(
+              totalPlanWorkouts: 8,
+              completedPlanWorkouts: 3,
+              workouts: [
+                TrainingCalendarEntry(
+                  date: today.subtract(const Duration(days: 3)),
+                  status: 'completed',
+                  title: 'Easy run',
+                  targetDistanceKm: 6,
+                ),
+                TrainingCalendarEntry(
+                  date: today.add(const Duration(days: 2)),
+                  status: 'planned',
+                  title: 'Tempo run',
+                  targetDurationMin: 50,
+                ),
+                TrainingCalendarEntry(
+                  date: today.add(const Duration(days: 5)),
+                  status: 'rescheduled',
+                  title: 'Long run',
+                  targetDistanceKm: 18,
+                ),
+              ],
             ),
-            TrainingCalendarEntry(
-              date: today.add(const Duration(days: 2)),
-              status: 'planned',
-              title: 'Tempo run',
-              targetDurationMin: 50,
-            ),
-            TrainingCalendarEntry(
-              date: today.add(const Duration(days: 5)),
-              status: 'rescheduled',
-              title: 'Long run',
-              targetDistanceKm: 18,
-            ),
-          ],
+          ),
         ),
       ),
     ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../widgets/password_requirements_checklist.dart';
 import '../widgets/ui_components.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/unsigned_text_input_formatter.dart';
@@ -28,9 +29,12 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
   Future<void> _submit() async {
     final password = _passwordController.text.trim();
-    if (password.length < 6) {
+    if (!PasswordRequirementsChecklist.isValid(password)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.translate('password_too_short'))),
+        SnackBar(
+          content: Text(context.translate('password_requirements_error')),
+          backgroundColor: Colors.redAccent,
+        ),
       );
       return;
     }
@@ -106,10 +110,21 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                           color: isDark ? Colors.white : Colors.black87,
                         ),
                         inputFormatters: [UnsignedTextInputFormatter()],
+                        onChanged: (_) => setState(() {}),
                       ),
+                      if (_passwordController.text.isNotEmpty)
+                        PasswordRequirementsChecklist(
+                          password: _passwordController.text,
+                        ),
                       const SizedBox(height: 24),
                       GradientButton(
-                        onPressed: _isLoading ? null : _submit,
+                        onPressed:
+                            _isLoading ||
+                                !PasswordRequirementsChecklist.isValid(
+                                  _passwordController.text,
+                                )
+                            ? null
+                            : _submit,
                         child: _isLoading
                             ? const SizedBox(
                                 height: 20,

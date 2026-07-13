@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/ui_components.dart';
+import '../widgets/password_requirements_checklist.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/unsigned_text_input_formatter.dart';
 
@@ -24,6 +25,16 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
     try {
       if (_isSignUp) {
+        if (!PasswordRequirementsChecklist.isValid(_passwordController.text)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.translate('password_requirements_error')),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          return;
+        }
+
         final email = _emailController.text.trim();
 
         // Pre-check phía server: chặn email sai định dạng / dùng-một-lần trước khi
@@ -93,9 +104,14 @@ class _LoginPageState extends State<LoginPage> {
         final notConfirmed =
             e.message.toLowerCase().contains('not confirmed') ||
             e.message.toLowerCase().contains('not been confirmed');
+        final message = notConfirmed
+            ? context.translate('email_not_confirmed')
+            : !_isSignUp
+            ? context.translate('invalid_login_credentials')
+            : e.message;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.message),
+            content: Text(message),
             backgroundColor: Colors.redAccent,
             action: notConfirmed
                 ? SnackBarAction(
@@ -237,6 +253,9 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final canSubmit =
+        !_isSignUp ||
+        PasswordRequirementsChecklist.isValid(_passwordController.text);
 
     return Scaffold(
       body: Stack(
@@ -334,10 +353,17 @@ class _LoginPageState extends State<LoginPage> {
                             color: isDark ? Colors.white : Colors.black87,
                           ),
                           inputFormatters: [UnsignedTextInputFormatter()],
+                          onChanged: _isSignUp ? (_) => setState(() {}) : null,
                         ),
+                        if (_isSignUp && _passwordController.text.isNotEmpty)
+                          PasswordRequirementsChecklist(
+                            password: _passwordController.text,
+                          ),
                         const SizedBox(height: 24),
                         GradientButton(
-                          onPressed: _isLoading ? null : _handleAuth,
+                          onPressed: _isLoading || !canSubmit
+                              ? null
+                              : _handleAuth,
                           child: _isLoading
                               ? const SizedBox(
                                   height: 20,

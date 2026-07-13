@@ -32,6 +32,7 @@ import '../widgets/paywall.dart';
 import '../widgets/dashboard_settings_sheet.dart';
 import '../widgets/pwa_install_button.dart';
 import '../widgets/weather_location_placeholder.dart';
+import '../widgets/recent_activities_empty_state.dart';
 import '../l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
@@ -1563,15 +1564,7 @@ class _OverviewContentState extends State<OverviewContent> {
                 return const Center(child: CircularProgressIndicator());
               }
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: Center(
-                    child: Text(
-                      context.translate('no_activities_yet'),
-                      style: TextStyle(color: colorScheme.onSurfaceVariant),
-                    ),
-                  ),
-                );
+                return const RecentActivitiesEmptyState();
               }
 
               final activities = snapshot.data!;
