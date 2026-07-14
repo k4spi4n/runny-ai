@@ -42,8 +42,15 @@ void main() {
           TrainingCalendarEntry(
             date: DateTime(2026, 7, 3),
             status: 'completed',
-            title: 'Unlinked recorded run',
+            title: 'Completed scheduled run',
             targetDistanceKm: 7,
+          ),
+          TrainingCalendarEntry(
+            date: DateTime(2026, 7, 3),
+            status: 'activity',
+            title: 'Recorded activity',
+            targetDistanceKm: 7,
+            isActivity: true,
           ),
           TrainingCalendarEntry(
             date: DateTime(2026, 7, 12),
@@ -94,6 +101,13 @@ void main() {
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
     expect(
       find.descendant(
+        of: find.byKey(const ValueKey('training_calendar_day_2026-07-03')),
+        matching: find.byIcon(Icons.directions_run),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
         of: find.byKey(const ValueKey('training_calendar_day_2026-07-12')),
         matching: find.byIcon(Icons.directions_run),
       ),
@@ -115,9 +129,22 @@ void main() {
 
     expect(find.text('Next workout'), findsOneWidget);
     expect(find.text('Final workout'), findsOneWidget);
+    expect(find.text('Recorded activity'), findsOneWidget);
+    expect(find.text('Rescheduled'), findsNothing);
+    expect(find.byIcon(Icons.update), findsNothing);
+    expect(
+      tester.getTopLeft(find.text('Recorded activity')).dy,
+      lessThan(
+        tester
+            .getTopLeft(
+              find.byKey(const ValueKey('training_calendar_grid_glass')),
+            )
+            .dy,
+      ),
+    );
   });
 
-  testWidgets('opens the month picker from the month label', (tester) async {
+  testWidgets('moves between months with arrow buttons', (tester) async {
     await tester.runAsync(() async {
       await tester.pumpWidget(
         buildSubject([
@@ -131,17 +158,20 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    expect(find.byType(TrainingCalendarHeatmap), findsOneWidget);
-    final picker = find.byKey(
-      const ValueKey('training_calendar_month_picker'),
+    final nextMonth = find.byKey(
+      const ValueKey('training_calendar_next_month'),
       skipOffstage: false,
     );
-    expect(picker, findsOneWidget);
-    await tester.ensureVisible(picker);
-    await tester.tap(picker);
+    await tester.ensureVisible(nextMonth);
+    await tester.tap(nextMonth);
     await tester.pumpAndSettle();
+    expect(find.text('August 2026'), findsOneWidget);
 
-    expect(find.byType(DatePickerDialog), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('training_calendar_previous_month')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('July 2026'), findsOneWidget);
   });
 
   testWidgets('selects and clears a calendar day', (tester) async {
@@ -179,5 +209,52 @@ void main() {
     await tester.pump();
     expect(selectedDate, isNull);
     expect(selectionChanges, 2);
+  });
+
+  testWidgets('uses two columns only when the available width is wide', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    Widget buildLayout(double width) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: width,
+              child: const TrainingPlanResponsiveLayout(
+                calendar: SizedBox(key: ValueKey('calendar')),
+                focus: SizedBox(key: ValueKey('focus')),
+                details: SizedBox(key: ValueKey('details')),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildLayout(720));
+    expect(
+      find.byKey(const ValueKey('training_plan_narrow_layout')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('training_plan_wide_layout')),
+      findsNothing,
+    );
+
+    await tester.pumpWidget(buildLayout(1100));
+    expect(
+      find.byKey(const ValueKey('training_plan_wide_layout')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('training_plan_narrow_layout')),
+      findsNothing,
+    );
   });
 }

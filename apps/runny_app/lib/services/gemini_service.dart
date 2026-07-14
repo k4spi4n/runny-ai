@@ -4,18 +4,18 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'ai_http_stream.dart';
+import '../models/ai_coach_tool_models.dart';
 import '../models/coach_persona.dart';
 import 'paywall_exception.dart';
 
 class GeminiService {
+  static const String _coachGroqModel = 'openai/gpt-oss-120b';
   final String _modelName;
   final List<String> _modelList;
   static _CoachPreference? _cachedCoachPreference;
 
   GeminiService()
-    : _modelName =
-          dotenv.env['OPENROUTER_MODEL'] ??
-          'meta-llama/llama-3.3-70b-instruct:free',
+    : _modelName = dotenv.env['OPENROUTER_MODEL'] ?? 'openai/gpt-oss-120b',
       _modelList = _parseModels(dotenv.env['OPENROUTER_MODELS']) {
     debugPrint(
       'GeminiService: Using Supabase Edge Function AI proxy (Groq primary, Cerebras/OpenRouter fallback).',
@@ -73,7 +73,7 @@ class GeminiService {
   }
 
   Future<void> _addCoachPersonaMessage(
-    List<Map<String, String>> messages,
+    List<Map<String, dynamic>> messages,
   ) async {
     final preference = await _loadCoachPreference();
     messages.insert(0, {
@@ -82,7 +82,9 @@ class GeminiService {
           'Bạn là ${preference.coachName}, HLV chạy bộ AI cá nhân của người dùng. '
           'Tính cách huấn luyện: ${preference.persona.promptDescription} '
           'Có thể dùng Markdown đơn giản để câu trả lời dễ đọc. '
-          'Không tự nhận là bác sĩ, không chẩn đoán bệnh, không ép tập quá sức.',
+          'Không tự nhận là bác sĩ, không chẩn đoán bệnh, không ép tập quá sức. '
+          'Khi bàn về dữ liệu buổi tập hoặc bữa ăn cụ thể, hãy dùng tool đọc dữ liệu thay vì đoán. '
+          'Khi người dùng muốn sửa, chỉ dùng tool tạo đề xuất và nói rõ thay đổi chưa được lưu cho tới khi họ xác nhận trên thẻ tương tác.',
     });
   }
 
@@ -123,7 +125,7 @@ class GeminiService {
     bool includeCoachPersona = false,
   }) async {
     try {
-      final messages = <Map<String, String>>[];
+      final messages = <Map<String, dynamic>>[];
 
       if (history != null) {
         for (final m in history) {
@@ -188,6 +190,152 @@ class GeminiService {
     }
   }
 
+  /// Hoàn tất một lượt chat có OpenAI-compatible function tools. Các tool đọc
+  /// được thực thi ở client bằng session Supabase hiện tại; tool chỉnh sửa chỉ
+  /// trả về [CoachInteractiveAction] để UI yêu cầu người dùng xác nhận.
+  Future<CoachTurnResult> generateCoachTurn(
+    String prompt, {
+    List<Map<String, dynamic>>? history,
+    required List<Map<String, dynamic>> tools,
+    required Future<CoachToolExecution> Function(
+      String name,
+      Map<String, dynamic> arguments,
+    )
+    executeTool,
+  }) async {
+    final messages = <Map<String, dynamic>>[];
+    if (history != null) {
+      for (final item in history) {
+        final role = item['role'] == 'model'
+            ? 'assistant'
+            : (item['role'] as String? ?? 'user');
+        if (role != 'user' && role != 'assistant' && role != 'system') {
+          continue;
+        }
+        messages.add({
+          'role': role,
+          'content': item['content'] as String? ?? '',
+        });
+      }
+    }
+    messages.add({'role': 'user', 'content': prompt});
+    await _addCoachPersonaMessage(messages);
+
+    final actions = <CoachInteractiveAction>[];
+    try {
+      // Một lượt thường là: đọc dữ liệu -> đề xuất -> giải thích. Giới hạn để
+      // tránh model lặp tool vô tận nếu provider trả kết quả bất thường.
+      for (var round = 0; round < 5; round++) {
+        final response = await Supabase.instance.client.functions.invoke(
+          'openrouter',
+          body: {
+            ..._modelPayload,
+            'provider_preference': 'groq',
+            'preferred_model': _coachGroqModel,
+            'messages': messages,
+            'tools': tools,
+            'tool_choice': 'auto',
+          },
+        );
+        if (response.status != 200) {
+          if (PaywallException.isUpgradeSignal(
+            response.status,
+            response.data,
+          )) {
+            throw PaywallException(_errorFromData(response.data));
+          }
+          throw Exception(_errorFromData(response.data));
+        }
+
+        final decoded = response.data is String
+            ? jsonDecode(response.data as String)
+            : response.data;
+        final choices = decoded is Map ? decoded['choices'] as List? : null;
+        if (choices == null || choices.isEmpty) {
+          throw Exception('Phản hồi tool của HLV không đúng định dạng.');
+        }
+        final rawMessage = (choices.first as Map)['message'];
+        if (rawMessage is! Map) {
+          throw Exception('Phản hồi tool của HLV thiếu message.');
+        }
+        final message = Map<String, dynamic>.from(rawMessage);
+        final content = message['content'] as String? ?? '';
+        final rawCalls = message['tool_calls'] as List?;
+        if (rawCalls == null || rawCalls.isEmpty) {
+          return CoachTurnResult(
+            content: content.trim().isEmpty
+                ? (actions.isEmpty
+                      ? 'Mình chưa có đủ dữ liệu để trả lời.'
+                      : 'Mình đã tạo đề xuất bên dưới. Thay đổi chỉ được lưu khi bạn xác nhận.')
+                : content,
+            actions: actions,
+          );
+        }
+
+        // Provider cần nhận lại nguyên tool_calls trong message assistant để
+        // ghép đúng tool_call_id ở vòng tiếp theo.
+        messages.add({
+          'role': 'assistant',
+          'content': content,
+          'tool_calls': rawCalls,
+        });
+        for (final rawCall in rawCalls) {
+          if (rawCall is! Map) continue;
+          CoachToolExecution execution;
+          CoachToolCall call;
+          try {
+            call = CoachToolCall.fromJson(Map<String, dynamic>.from(rawCall));
+            execution = await executeTool(call.name, call.arguments);
+          } catch (e) {
+            final raw = Map<String, dynamic>.from(rawCall);
+            call = CoachToolCall(
+              id: raw['id'] as String? ?? '',
+              name: '',
+              arguments: const {},
+              raw: raw,
+            );
+            execution = CoachToolExecution(
+              output: {'error': 'Không thể thực thi tool: $e'},
+            );
+          }
+          if (execution.action != null) {
+            final action = execution.action!;
+            final existingIndex = actions.indexWhere(
+              (item) =>
+                  item.kind == action.kind && item.targetId == action.targetId,
+            );
+            if (existingIndex < 0) {
+              actions.add(action);
+            } else {
+              actions[existingIndex] = action;
+            }
+          }
+          messages.add({
+            'role': 'tool',
+            'tool_call_id': call.id,
+            'name': call.name,
+            'content': jsonEncode(execution.output),
+          });
+        }
+      }
+      return CoachTurnResult(
+        content: actions.isEmpty
+            ? 'HLV chưa thể hoàn tất yêu cầu tool. Vui lòng thử diễn đạt cụ thể hơn.'
+            : 'Mình đã chuẩn bị đề xuất bên dưới. Hãy kiểm tra trước khi xác nhận.',
+        actions: actions,
+      );
+    } catch (e) {
+      debugPrint('AI coach tool call failed: $e');
+      if (e is FunctionException) {
+        if (PaywallException.isUpgradeSignal(e.status, e.details)) {
+          throw PaywallException(_extractError(e));
+        }
+        throw Exception(_extractError(e));
+      }
+      rethrow;
+    }
+  }
+
   /// Phiên bản streaming của [generateResponse]: gọi thẳng Edge Function
   /// `openrouter` với `stream: true` và phát từng đoạn văn bản (`delta.content`)
   /// ngay khi tới, để UI hiển thị chữ chạy dần thay vì đợi phản hồi đầy đủ.
@@ -200,7 +348,7 @@ class GeminiService {
     List<Map<String, String>>? history,
     bool includeCoachPersona = false,
   }) async* {
-    final messages = <Map<String, String>>[];
+    final messages = <Map<String, dynamic>>[];
     if (history != null) {
       for (final m in history) {
         final role = m['role'] == 'model' ? 'assistant' : (m['role'] ?? 'user');

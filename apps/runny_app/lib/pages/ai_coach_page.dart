@@ -12,10 +12,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/training_service.dart';
 import '../services/gemini_service.dart';
 import '../services/chat_service.dart';
+import '../services/ai_coach_tool_service.dart';
 import '../services/speech_service.dart';
 import '../services/nutrition_service.dart';
 import '../services/weather_service.dart';
 import '../services/readiness_service.dart';
+import '../services/run_reminder_service.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/device_permission_dialog.dart';
 import '../widgets/paywall.dart';
@@ -24,6 +26,7 @@ import '../models/workout_models.dart';
 import '../models/nutrition_models.dart';
 import '../models/weight_models.dart';
 import '../models/coach_persona.dart';
+import '../models/ai_coach_tool_models.dart';
 import '../l10n/app_localizations.dart';
 
 /// Các loại dữ liệu người dùng có thể đính kèm cho HLV AI phân tích kèm câu hỏi.
@@ -56,16 +59,17 @@ class _AICoachPageState extends State<AICoachPage> {
   final ChatService _chatService = ChatService();
   final SpeechService _speech = SpeechService();
   final WeatherService _weatherService = WeatherService();
-  final List<Map<String, String>> _messages = [];
+  final AICoachToolService _coachToolService = AICoachToolService();
+  final RunReminderService _runReminderService = RunReminderService();
+  final List<Map<String, dynamic>> _messages = [];
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _coachNameController = TextEditingController();
   String? _greetingText;
   bool _isLoading = false;
   bool _showLongWaitNotice = false;
   Timer? _longWaitTimer;
-  // Đang nhận phản hồi streaming (chữ chạy dần trong bong bóng cuối).
-  bool _isStreaming = false;
   bool _isRecording = false;
+  final Set<int> _processingActionIndexes = <int>{};
   bool _hasConfirmedMicrophoneAccess = false;
   String _coachPersona = CoachPersona.calm.id;
   String _baseText = '';
@@ -267,8 +271,8 @@ class _AICoachPageState extends State<AICoachPage> {
   void _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    // Chặn gửi chồng khi đang chờ/đang stream phản hồi trước đó.
-    if (_isLoading || _isStreaming) return;
+    // Chặn gửi chồng khi đang chờ phản hồi trước đó.
+    if (_isLoading) return;
 
     if (!_geminiService.isConfigured) {
       setState(() {
@@ -359,13 +363,25 @@ $prompt''';
     await _chatService.saveMessage('user', text);
 
     try {
-      // Check if user is asking for a plan (localized keywords)
+      // Chỉ mở luồng tạo kế hoạch mới khi người dùng thực sự yêu cầu tạo. Các
+      // câu hỏi xem/sửa lịch hiện có phải đi qua tool để có thẻ xác nhận.
       final lowercaseText = text.toLowerCase();
-      bool isRequestingPlan =
+      final mentionsPlan =
           lowercaseText.contains('lịch tập') ||
           lowercaseText.contains('kế hoạch') ||
           lowercaseText.contains('training plan') ||
           lowercaseText.contains('schedule');
+      final asksToCreate =
+          lowercaseText.contains('tạo') ||
+          lowercaseText.contains('lập') ||
+          lowercaseText.contains('xây dựng') ||
+          lowercaseText.contains('create') ||
+          lowercaseText.contains('make me') ||
+          lowercaseText.contains('build');
+      final asksToEdit = RegExp(
+        r'sửa|đổi|dời|chỉnh|giảm|tăng|update|edit|change|move|reschedule',
+      ).hasMatch(lowercaseText);
+      final isRequestingPlan = mentionsPlan && asksToCreate && !asksToEdit;
 
       if (isRequestingPlan) {
         // Tạo kế hoạch là tính năng cao cấp: chặn sớm với tier free (UX).
@@ -383,50 +399,56 @@ $prompt''';
         });
         await _chatService.saveMessage('assistant', planCreatedTranslation);
       } else {
-        // Streaming: phát từng đoạn văn bản ngay khi tới để chữ chạy dần, người
-        // dùng không phải đợi phản hồi đầy đủ.
+        // Tool-aware completion: model có thể tự lấy workout/meal hiện có và
+        // tạo đề xuất, nhưng không có tool nào được phép ghi dữ liệu trực tiếp.
         final allHistory = _messages.sublist(0, _messages.length - 1);
         final history = allHistory.length <= 30
             ? allHistory
             : allHistory.sublist(allHistory.length - 30);
-        final buffer = StringBuffer();
-        int? assistantIndex; // vị trí bong bóng trả lời (tạo khi có token đầu)
-        setState(() => _isStreaming = true);
-        try {
-          await for (final chunk in _geminiService.streamResponse(
-            prompt,
-            history: history,
-            includeCoachPersona: true,
-          )) {
-            buffer.write(chunk);
-            if (!mounted) return;
-            setState(() {
-              if (assistantIndex == null) {
-                _messages.add({
-                  'role': 'assistant',
-                  'content': buffer.toString(),
-                });
-                assistantIndex = _messages.length - 1;
-                _isLoading = false; // token đầu tiên -> tắt spinner chờ
-                _cancelLongWaitTimer();
-              } else {
-                _messages[assistantIndex!]['content'] = buffer.toString();
-              }
+        final result = await _geminiService.generateCoachTurn(
+          prompt,
+          history: history,
+          tools: AICoachToolService.definitions,
+          executeTool: _coachToolService.execute,
+        );
+        final savedReply = await _chatService.saveMessage(
+          'assistant',
+          result.content,
+        );
+        if (!mounted) return;
+        setState(() {
+          _messages.add({
+            'role': 'assistant',
+            'content': result.content,
+            if (savedReply?['id'] != null) 'id': savedReply!['id'],
+          });
+        });
+
+        for (final action in result.actions) {
+          final metadata = {'interactive_action': action.toJson()};
+          final cardText = context.translate(
+            action.kind == 'workout_update'
+                ? 'coach_workout_proposal'
+                : 'coach_meal_proposal',
+            [action.title],
+          );
+          final savedCard = await _chatService.saveMessage(
+            'assistant',
+            cardText,
+            metadata: metadata,
+          );
+          if (!mounted) return;
+          setState(() {
+            _messages.add({
+              'role': 'assistant',
+              'content': cardText,
+              'metadata': metadata,
+              if (savedCard?['id'] != null) 'id': savedCard!['id'],
             });
-            _scrollToBottom();
-          }
-        } catch (e) {
-          // Chưa nhận được token nào -> để catch ngoài hiển thị lỗi/paywall như cũ.
-          if (buffer.isEmpty) rethrow;
-          // Đã có nội dung một phần: giữ lại, coi như kết thúc sớm.
-          debugPrint('AI stream ended early: $e');
-        } finally {
-          if (mounted) setState(() => _isStreaming = false);
+          });
         }
-        final full = buffer.toString();
-        if (full.isNotEmpty) {
-          await _chatService.saveMessage('assistant', full);
-        }
+        _cancelLongWaitTimer();
+        _scrollToBottom();
       }
     } on PaywallException catch (e) {
       // Hết quyền (vd hết trial) ngay khi gọi: mở luồng nâng cấp thay vì báo lỗi.
@@ -465,7 +487,7 @@ $prompt''';
   }
 
   void _sendSuggestedQuestion(String question) {
-    if (_isLoading || _isStreaming) return;
+    if (_isLoading) return;
     _controller.text = question;
     _controller.selection = TextSelection.collapsed(offset: question.length);
     _sendMessage();
@@ -824,6 +846,131 @@ $prompt''';
     }
   }
 
+  CoachInteractiveAction? _interactiveActionAt(int messageIndex) {
+    if (messageIndex < 0 || messageIndex >= _messages.length) return null;
+    final metadata = _messages[messageIndex]['metadata'];
+    if (metadata is! Map || metadata['interactive_action'] is! Map) return null;
+    try {
+      return CoachInteractiveAction.fromJson(
+        Map<String, dynamic>.from(metadata['interactive_action'] as Map),
+      );
+    } catch (e) {
+      debugPrint('Invalid interactive coach action: $e');
+      return null;
+    }
+  }
+
+  Future<void> _applyInteractiveAction(int messageIndex) async {
+    final action = _interactiveActionAt(messageIndex);
+    if (action == null || !action.isPending) return;
+    final nutritionService = context.read<NutritionService>();
+    setState(() => _processingActionIndexes.add(messageIndex));
+    try {
+      DateTime? rescheduledAt;
+      if (action.kind == 'workout_update' &&
+          (action.changes.containsKey('date') ||
+              action.changes.containsKey('start_time'))) {
+        rescheduledAt = _workoutDateTimeForAction(action);
+        await _trainingService.rescheduleWorkout(
+          workoutId: action.targetId,
+          workoutAt: rescheduledAt,
+        );
+      }
+      await _coachToolService.applyAction(action);
+      final updatedAction = action.copyWith(status: 'applied');
+      final metadata = {'interactive_action': updatedAction.toJson()};
+      if (!mounted) return;
+      setState(() => _messages[messageIndex]['metadata'] = metadata);
+
+      // Đồng bộ reminder local/DB sau khi ngày hoặc giờ buổi tập đổi. Đây là
+      // best-effort: buổi tập đã được lưu thành công không bị rollback chỉ vì
+      // thiết bị từ chối quyền thông báo.
+      if (rescheduledAt != null) {
+        try {
+          final reminders = await _runReminderService.remindersForWorkouts([
+            action.targetId,
+          ]);
+          final reminder = reminders[action.targetId];
+          if (reminder != null) {
+            await _runReminderService.saveReminder(
+              workoutId: action.targetId,
+              workoutTitle: action.changes['title']?.toString() ?? action.title,
+              workoutAt: rescheduledAt,
+              leadMinutes: reminder.leadMinutes,
+              enabled: reminder.enabled,
+            );
+          }
+        } catch (e) {
+          debugPrint('Coach reminder sync failed: $e');
+        }
+      }
+      if (action.kind == 'meal_update') await nutritionService.refresh();
+
+      final messageId = _messages[messageIndex]['id'] as String?;
+      if (messageId != null) {
+        try {
+          await _chatService.updateMessageMetadata(messageId, metadata);
+        } catch (e) {
+          // Dữ liệu đích đã được cập nhật; giữ card ở trạng thái applied để
+          // tránh người dùng bấm lại và chỉ log lỗi persistence của lịch sử.
+          debugPrint('Coach action metadata persistence failed: $e');
+        }
+      }
+      if (!mounted) return;
+      _showToast(context.translate('coach_change_applied'));
+    } catch (e) {
+      if (mounted) {
+        _showToast('${context.translate('error_occurred')}: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _processingActionIndexes.remove(messageIndex));
+      }
+    }
+  }
+
+  DateTime _workoutDateTimeForAction(CoachInteractiveAction action) {
+    final dateText =
+        action.changes['date']?.toString() ?? action.before['date']?.toString();
+    final date = dateText == null ? null : DateTime.tryParse(dateText);
+    if (date == null) throw const FormatException('Ngày tập không hợp lệ.');
+    final timeText =
+        action.changes['start_time']?.toString() ??
+        action.before['start_time']?.toString() ??
+        '06:00';
+    final parts = timeText.split(':');
+    final hour = int.tryParse(parts.first);
+    final minute = parts.length > 1 ? int.tryParse(parts[1]) : 0;
+    if (hour == null || minute == null || hour > 23 || minute > 59) {
+      throw const FormatException('Giờ tập không hợp lệ.');
+    }
+    return DateTime(date.year, date.month, date.day, hour, minute);
+  }
+
+  Future<void> _cancelInteractiveAction(int messageIndex) async {
+    final action = _interactiveActionAt(messageIndex);
+    if (action == null || !action.isPending) return;
+    final updatedAction = action.copyWith(status: 'cancelled');
+    final metadata = {'interactive_action': updatedAction.toJson()};
+    final messageId = _messages[messageIndex]['id'] as String?;
+    if (messageId != null) {
+      await _chatService.updateMessageMetadata(messageId, metadata);
+    }
+    if (!mounted) return;
+    setState(() => _messages[messageIndex]['metadata'] = metadata);
+  }
+
+  void _discussInteractiveAction(int messageIndex) {
+    final action = _interactiveActionAt(messageIndex);
+    if (action == null) return;
+    _controller.text = context.translate('coach_discuss_prompt', [
+      action.title,
+    ]);
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
+  }
+
   @override
   void dispose() {
     _cancelLongWaitTimer();
@@ -836,7 +983,7 @@ $prompt''';
   }
 
   /// Cuộn xuống cuối danh sách sau khung hình kế tiếp (dùng khi có tin nhắn mới
-  /// hoặc khi bong bóng streaming dài ra).
+  /// hoặc khi HLV thêm thẻ đề xuất tương tác).
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -999,10 +1146,17 @@ $prompt''';
                         _messages.length + (_greetingText != null ? 1 : 0),
                     itemBuilder: (context, index) {
                       final hasGreeting = _greetingText != null;
+                      final messageIndex = index - (hasGreeting ? 1 : 0);
                       final msg = hasGreeting && index == 0
-                          ? {'role': 'assistant', 'content': _greetingText!}
-                          : _messages[index - (hasGreeting ? 1 : 0)];
+                          ? <String, dynamic>{
+                              'role': 'assistant',
+                              'content': _greetingText!,
+                            }
+                          : _messages[messageIndex];
                       final isUser = msg['role'] == 'user';
+                      final hasInteractiveAction =
+                          msg['metadata'] is Map &&
+                          (msg['metadata'] as Map)['interactive_action'] is Map;
                       return Align(
                         alignment: isUser
                             ? Alignment.centerRight
@@ -1011,7 +1165,9 @@ $prompt''';
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           padding: const EdgeInsets.all(12),
                           constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.75,
+                            maxWidth:
+                                MediaQuery.of(context).size.width *
+                                (hasInteractiveAction ? 0.9 : 0.75),
                           ),
                           decoration: BoxDecoration(
                             color: isUser
@@ -1037,6 +1193,7 @@ $prompt''';
                             context,
                             content: msg['content']!,
                             isUser: isUser,
+                            messageIndex: messageIndex,
                           ),
                         ),
                       );
@@ -1195,6 +1352,7 @@ $prompt''';
     BuildContext context, {
     required String content,
     required bool isUser,
+    required int messageIndex,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -1205,20 +1363,190 @@ $prompt''';
       return Text(content, style: baseStyle);
     }
 
-    return MarkdownBody(
-      data: content,
-      selectable: true,
-      styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-        p: baseStyle,
-        strong: baseStyle?.copyWith(fontWeight: FontWeight.w700),
-        em: baseStyle?.copyWith(fontStyle: FontStyle.italic),
-        listBullet: baseStyle,
-        code: baseStyle?.copyWith(
-          fontFamily: 'monospace',
-          backgroundColor: colorScheme.surface.withValues(alpha: 0.45),
+    final action = _interactiveActionAt(messageIndex);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MarkdownBody(
+          data: content,
+          selectable: true,
+          styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+            p: baseStyle,
+            strong: baseStyle?.copyWith(fontWeight: FontWeight.w700),
+            em: baseStyle?.copyWith(fontStyle: FontStyle.italic),
+            listBullet: baseStyle,
+            code: baseStyle?.copyWith(
+              fontFamily: 'monospace',
+              backgroundColor: colorScheme.surface.withValues(alpha: 0.45),
+            ),
+          ),
         ),
+        if (action != null) ...[
+          const SizedBox(height: 10),
+          _buildInteractiveActionCard(context, action, messageIndex),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildInteractiveActionCard(
+    BuildContext context,
+    CoachInteractiveAction action,
+    int messageIndex,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    final processing = _processingActionIndexes.contains(messageIndex);
+    final statusColor = switch (action.status) {
+      'applied' => Colors.green,
+      'cancelled' => colors.outline,
+      _ => colors.primary,
+    };
+    return Container(
+      key: ValueKey('coach_action_${action.kind}_${action.targetId}'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                action.kind == 'workout_update'
+                    ? LucideIcons.calendar_sync
+                    : LucideIcons.utensils,
+                size: 18,
+                color: statusColor,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  action.title,
+                  style: TextStyle(
+                    color: colors.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              _ActionStatusChip(status: action.status, color: statusColor),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...action.changes.entries.map((entry) {
+            final oldValue = action.before[entry.key];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 96,
+                    child: Text(
+                      _coachFieldLabel(context, entry.key),
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          if (oldValue != null)
+                            TextSpan(
+                              text: '${_coachValue(oldValue)}  →  ',
+                              style: TextStyle(
+                                color: colors.onSurfaceVariant,
+                                decoration: TextDecoration.lineThrough,
+                              ),
+                            ),
+                          TextSpan(
+                            text: _coachValue(entry.value),
+                            style: TextStyle(
+                              color: colors.onSurface,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (action.isPending) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: processing
+                      ? null
+                      : () => _applyInteractiveAction(messageIndex),
+                  icon: processing
+                      ? const SizedBox.square(
+                          dimension: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check, size: 16),
+                  label: Text(context.translate('coach_apply_change')),
+                ),
+                OutlinedButton.icon(
+                  onPressed: processing
+                      ? null
+                      : () => _discussInteractiveAction(messageIndex),
+                  icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                  label: Text(context.translate('coach_discuss_change')),
+                ),
+                TextButton(
+                  onPressed: processing
+                      ? null
+                      : () => _cancelInteractiveAction(messageIndex),
+                  child: Text(context.translate('cancel')),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
+  }
+
+  String _coachFieldLabel(BuildContext context, String field) =>
+      switch (field) {
+        'title' || 'food_name' => context.translate('coach_field_name'),
+        'date' => context.translate('coach_field_date'),
+        'start_time' || 'consumed_at' => context.translate('coach_field_time'),
+        'description' => context.translate('coach_field_notes'),
+        'target_distance_km' => context.translate('coach_field_distance'),
+        'target_duration_min' => context.translate('coach_field_duration'),
+        'workout_type' => context.translate('coach_field_workout_type'),
+        'calories' => 'Calories',
+        'protein' => 'Protein',
+        'carbs' => 'Carbs',
+        'fat' => 'Fat',
+        'amount' => context.translate('coach_field_amount'),
+        'unit' => context.translate('coach_field_unit'),
+        'meal_type' => context.translate('meal_type'),
+        _ => field,
+      };
+
+  String _coachValue(dynamic value) {
+    if (value is double) {
+      return value == value.roundToDouble()
+          ? value.toStringAsFixed(0)
+          : value.toStringAsFixed(1);
+    }
+    return value?.toString() ?? '—';
   }
 
   Widget _buildSuggestedQuestions(BuildContext context) {
@@ -1228,8 +1556,7 @@ $prompt''';
         _messages.isEmpty &&
         _controller.text.trim().isEmpty &&
         !_isRecording &&
-        !_isLoading &&
-        !_isStreaming;
+        !_isLoading;
     if (!shouldShow || _selectedSuggestions.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -1382,6 +1709,37 @@ $prompt''';
             SizedBox(width: 10),
             _AudioWave(),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionStatusChip extends StatelessWidget {
+  const _ActionStatusChip({required this.status, required this.color});
+
+  final String status;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = context.translate(switch (status) {
+      'applied' => 'coach_status_applied',
+      'cancelled' => 'coach_status_cancelled',
+      _ => 'coach_status_pending',
+    });
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );

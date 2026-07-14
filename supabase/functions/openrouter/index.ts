@@ -226,9 +226,11 @@ async function checkAiAccess(
 }
 
 // --- Groq config ------------------------------------------------------------
-// Model Groq mac dinh (theo thu tu uu tien). 70b cho chat luong, 8b de vet khi
-// 70b het 1K req/ngay. Ghi de: `supabase secrets set GROQ_MODELS="a,b"`.
+// Model Groq mac dinh (theo thu tu uu tien). GPT-OSS 120B la HLV chinh va ho
+// tro function calling; Llama la cac tang fallback khi model chinh het quota.
+// Ghi de: `supabase secrets set GROQ_MODELS="a,b"`.
 const GROQ_DEFAULT_MODELS = [
+  'openai/gpt-oss-120b',
   'llama-3.3-70b-versatile',
   'llama-3.1-8b-instant',
 ];
@@ -236,7 +238,7 @@ const GROQ_DEFAULT_MODELS = [
 // Client chi duoc yeu cau model Groq ngoai danh sach mac dinh khi server da
 // allowlist ro rang. Dung cho tao lich tap va tac vu vision nhap buoi tap tu anh chup man hinh.
 const GROQ_CLIENT_ALLOWED_MODELS = [
-  // Dung cho tao lich tap co cau truc. Llama 3.3 van la mac dinh cho chat.
+  // GPT-OSS cung la model mac dinh; giu trong allowlist cho preferred_model.
   'openai/gpt-oss-120b',
   'meta-llama/llama-4-scout-17b-16e-instruct',
   'qwen/qwen3.6-27b',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import '../models/run_reminder_model.dart';
@@ -15,6 +16,53 @@ import 'training_history_page.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'import_activity_page.dart';
+
+const _rescheduleWorkoutIcon = LucideIcons.calendar_sync;
+const _addManualWorkoutIcon = LucideIcons.calendar_plus;
+
+@Preview(
+  name: 'Training plan actions - Light',
+  group: 'Training',
+  size: Size(420, 100),
+  brightness: Brightness.light,
+)
+@Preview(
+  name: 'Training plan actions - Dark',
+  group: 'Training',
+  size: Size(420, 100),
+  brightness: Brightness.dark,
+)
+Widget trainingPlanActionIconsPreview() {
+  return MaterialApp(
+    theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue)),
+    darkTheme: ThemeData(
+      brightness: Brightness.dark,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.blue,
+        brightness: Brightness.dark,
+      ),
+    ),
+    home: Scaffold(
+      body: Center(
+        child: Wrap(
+          spacing: 12,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () {},
+              icon: const Icon(_rescheduleWorkoutIcon, size: 18),
+              label: const Text('Đặt lịch'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () {},
+              icon: const Icon(_addManualWorkoutIcon, size: 18),
+              label: const Text('Thêm lịch cá nhân'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
 (int, int) _parseWorkoutTime(String? raw) {
   if (raw == null || raw.isEmpty) return (6, 0);
@@ -44,14 +92,23 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   bool _isLoading = true;
   Map<String, dynamic>? _activeSchedule;
   List<Map<String, dynamic>> _workouts = [];
-  List<Map<String, dynamic>> _unlinkedActivities = [];
+  List<Map<String, dynamic>> _calendarActivities = [];
   Map<String, RunReminder> _runReminders = {};
   DateTime? _selectedCalendarDate;
+  final ScrollController _pageScrollController = ScrollController();
+  final GlobalKey _calendarSectionKey = GlobalKey();
+  final GlobalKey _detailsSectionKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _fetchData();
+  }
+
+  @override
+  void dispose() {
+    _pageScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchData() async {
@@ -98,17 +155,17 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         }
       }
       Map<String, RunReminder> reminders = {};
-      List<Map<String, dynamic>> unlinkedActivities = [];
+      List<Map<String, dynamic>> calendarActivities = [];
       if (workouts.isNotEmpty) {
         reminders = await _reminderService.remindersForWorkouts(
           workouts.map((w) => w['id'] as String).toList(),
         );
         try {
-          unlinkedActivities = await _fetchUnlinkedActivities();
+          calendarActivities = await _fetchCalendarActivities();
         } catch (e) {
-          // Hoạt động chưa liên kết chỉ làm giàu heatmap; không để lỗi tải chúng
-          // làm toàn bộ kế hoạch đang hiển thị bị lỗi.
-          debugPrint('Error fetching unlinked activities for calendar: $e');
+          // Hoạt động chỉ làm giàu heatmap; không để lỗi tải chúng làm toàn bộ
+          // kế hoạch đang hiển thị bị lỗi.
+          debugPrint('Error fetching activities for calendar: $e');
         }
       }
 
@@ -116,7 +173,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         setState(() {
           _activeSchedule = schedule;
           _workouts = workouts;
-          _unlinkedActivities = unlinkedActivities;
+          _calendarActivities = calendarActivities;
           _runReminders = reminders;
         });
       }
@@ -251,7 +308,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.add_task, color: colorScheme.onSurface),
+            icon: Icon(_addManualWorkoutIcon, color: colorScheme.onSurface),
             onPressed: () => _openManualWorkout(),
             tooltip: context.translate('manual_workout_add_tooltip'),
           ),
@@ -342,181 +399,231 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           ),
           SafeArea(
             child: SingleChildScrollView(
+              controller: _pageScrollController,
               padding: EdgeInsets.symmetric(
                 horizontal: widget.embedded
                     ? 0.0
                     : (MediaQuery.of(context).size.width > 900 ? 20.0 : 16.0),
                 vertical: 20.0,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TrainingCalendarHeatmap(
-                    workouts: _calendarEntries,
-                    totalPlanWorkouts: _workouts.length,
-                    completedPlanWorkouts: completedWorkouts,
-                    selectedDate: _selectedCalendarDate,
-                    onDateSelected: (date) =>
-                        setState(() => _selectedCalendarDate = date),
-                  ),
-                  const SizedBox(height: 22),
-                  if (allCompleted)
-                    _buildCompletionBanner(context)
-                  else ...[
-                    Text(
-                      context.translate('next_workout'),
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    // Dùng cùng thẻ gập (mũi tên) như lịch chi tiết, mở sẵn và có
-                    // thêm nút "Khởi động" cho buổi tập sắp tới.
-                    _WorkoutScheduleCard(
-                      workout: nextWorkout,
-                      statusColor: _statusColorFor(
-                        nextWorkout,
-                        isNext: true,
-                        isLast:
-                            _workouts.isNotEmpty &&
-                            nextWorkout['id'] == _workouts.last['id'],
-                      ),
-                      statusIcon: _statusIconFor(
-                        nextWorkout,
-                        isNext: true,
-                        isLast:
-                            _workouts.isNotEmpty &&
-                            nextWorkout['id'] == _workouts.last['id'],
-                      ),
-                      onAddActivity: () => _showAddActivityOptions(nextWorkout),
-                      onReschedule: () => _rescheduleWorkout(nextWorkout),
-                      onScheduleChanged: (workoutAt, leadMinutes, enabled) =>
-                          _rescheduleWorkoutAt(
-                            workout: nextWorkout,
-                            workoutAt: workoutAt,
-                            leadMinutes: leadMinutes,
-                            enabled: enabled,
-                          ),
-                      onEditManual: nextWorkout['source'] == 'manual'
-                          ? () => _openManualWorkout(workout: nextWorkout)
-                          : null,
-                      onDeleteManual: nextWorkout['source'] == 'manual'
-                          ? () => _deleteManualWorkout(nextWorkout)
-                          : null,
-                      onWarmUp: () => _askWarmUp(nextWorkout),
-                      reminder: _runReminders[nextWorkout['id']],
-                      onReminderChanged: (workoutAt, leadMinutes, enabled) =>
-                          _saveReminder(
-                            workout: nextWorkout,
-                            workoutAt: workoutAt,
-                            leadMinutes: leadMinutes,
-                            enabled: enabled,
-                          ),
-                      initiallyExpanded: true,
-                      isLast: _workouts.isNotEmpty &&
-                          nextWorkout['id'] == _workouts.last['id'],
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          context.translate('detailed_schedule'),
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                      ),
-                      if (_selectedCalendarDate != null)
-                        TextButton.icon(
-                          key: const ValueKey(
-                            'training_calendar_clear_date_filter',
-                          ),
-                          onPressed: () =>
-                              setState(() => _selectedCalendarDate = null),
-                          icon: const Icon(Icons.close_rounded, size: 16),
-                          label: Text(
-                            DateFormat('dd/MM').format(_selectedCalendarDate!),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  if (detailedWorkouts.isEmpty)
-                    glassCard(
-                      context: context,
-                      child: Text(
-                        context.translate(
-                          'training_calendar_no_workout_for_day',
-                        ),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: colorScheme.onSurfaceVariant),
-                      ),
-                    )
-                  else
-                    Column(
-                      children: List.generate(detailedWorkouts.length, (index) {
-                        final workout = detailedWorkouts[index];
-                        final isLast =
-                            _workouts.isNotEmpty &&
-                            workout['id'] == _workouts.last['id'];
-                        final isNext =
-                            !allCompleted && workout['id'] == nextWorkout['id'];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: _WorkoutScheduleCard(
-                            workout: workout,
-                            statusColor: _statusColorFor(
-                              workout,
-                              isNext: isNext,
-                              isLast: isLast,
-                            ),
-                            statusIcon: _statusIconFor(
-                              workout,
-                              isNext: isNext,
-                              isLast: isLast,
-                            ),
-                            onAddActivity: () =>
-                                _showAddActivityOptions(workout),
-                            onReschedule: () => _rescheduleWorkout(workout),
-                            onScheduleChanged:
-                                (workoutAt, leadMinutes, enabled) =>
-                                    _rescheduleWorkoutAt(
-                                      workout: workout,
-                                      workoutAt: workoutAt,
-                                      leadMinutes: leadMinutes,
-                                      enabled: enabled,
-                                    ),
-                            onEditManual: workout['source'] == 'manual'
-                                ? () => _openManualWorkout(workout: workout)
-                                : null,
-                            onDeleteManual: workout['source'] == 'manual'
-                                ? () => _deleteManualWorkout(workout)
-                                : null,
-                            reminder: _runReminders[workout['id']],
-                            onReminderChanged:
-                                (workoutAt, leadMinutes, enabled) =>
-                                    _saveReminder(
-                                      workout: workout,
-                                      workoutAt: workoutAt,
-                                      leadMinutes: leadMinutes,
-                                      enabled: enabled,
-                                    ),
-                            isLast: isLast,
-                          ),
-                        );
-                      }),
-                    ),
-                ],
+              child: _buildResponsiveTrainingContent(
+                context: context,
+                completedWorkouts: completedWorkouts,
+                allCompleted: allCompleted,
+                nextWorkout: nextWorkout,
+                detailedWorkouts: detailedWorkouts,
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildResponsiveTrainingContent({
+    required BuildContext context,
+    required int completedWorkouts,
+    required bool allCompleted,
+    required Map<String, dynamic> nextWorkout,
+    required List<Map<String, dynamic>> detailedWorkouts,
+  }) {
+    final calendarSection = KeyedSubtree(
+      key: _calendarSectionKey,
+      child: TrainingCalendarHeatmap(
+        workouts: _calendarEntries,
+        totalPlanWorkouts: _workouts.length,
+        completedPlanWorkouts: completedWorkouts,
+        selectedDate: _selectedCalendarDate,
+        onDateSelected: _handleCalendarDateSelected,
+      ),
+    );
+    final focusSection = allCompleted
+        ? _buildCompletionBanner(context)
+        : _buildNextWorkoutSection(context, nextWorkout);
+    final detailsSection = KeyedSubtree(
+      key: _detailsSectionKey,
+      child: _buildDetailedScheduleSection(
+        context: context,
+        detailedWorkouts: detailedWorkouts,
+        nextWorkout: nextWorkout,
+        allCompleted: allCompleted,
+      ),
+    );
+
+    return TrainingPlanResponsiveLayout(
+      calendar: calendarSection,
+      focus: focusSection,
+      details: detailsSection,
+    );
+  }
+
+  Widget _buildNextWorkoutSection(
+    BuildContext context,
+    Map<String, dynamic> nextWorkout,
+  ) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isLast =
+        _workouts.isNotEmpty && nextWorkout['id'] == _workouts.last['id'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.translate('next_workout'),
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _WorkoutScheduleCard(
+          workout: nextWorkout,
+          statusColor: _statusColorFor(
+            nextWorkout,
+            isNext: true,
+            isLast: isLast,
+          ),
+          statusIcon: _statusIconFor(nextWorkout, isNext: true, isLast: isLast),
+          onAddActivity: () => _showAddActivityOptions(nextWorkout),
+          onReschedule: () => _rescheduleWorkout(nextWorkout),
+          onScheduleChanged: (workoutAt, leadMinutes, enabled) =>
+              _rescheduleWorkoutAt(
+                workout: nextWorkout,
+                workoutAt: workoutAt,
+                leadMinutes: leadMinutes,
+                enabled: enabled,
+              ),
+          onEditManual: nextWorkout['source'] == 'manual'
+              ? () => _openManualWorkout(workout: nextWorkout)
+              : null,
+          onDeleteManual: nextWorkout['source'] == 'manual'
+              ? () => _deleteManualWorkout(nextWorkout)
+              : null,
+          onWarmUp: () => _askWarmUp(nextWorkout),
+          reminder: _runReminders[nextWorkout['id']],
+          onReminderChanged: (workoutAt, leadMinutes, enabled) => _saveReminder(
+            workout: nextWorkout,
+            workoutAt: workoutAt,
+            leadMinutes: leadMinutes,
+            enabled: enabled,
+          ),
+          initiallyExpanded: true,
+          isLast: isLast,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailedScheduleSection({
+    required BuildContext context,
+    required List<Map<String, dynamic>> detailedWorkouts,
+    required Map<String, dynamic> nextWorkout,
+    required bool allCompleted,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                context.translate('detailed_schedule'),
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+            if (_selectedCalendarDate != null)
+              TextButton.icon(
+                key: const ValueKey('training_calendar_clear_date_filter'),
+                onPressed: () => _handleCalendarDateSelected(null),
+                icon: const Icon(Icons.close_rounded, size: 16),
+                label: Text(DateFormat('dd/MM').format(_selectedCalendarDate!)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        if (detailedWorkouts.isEmpty)
+          glassCard(
+            context: context,
+            child: Text(
+              context.translate('training_calendar_no_workout_for_day'),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+          )
+        else
+          Column(
+            children: List.generate(detailedWorkouts.length, (index) {
+              final workout = detailedWorkouts[index];
+              final isLast =
+                  _workouts.isNotEmpty && workout['id'] == _workouts.last['id'];
+              final isNext =
+                  !allCompleted && workout['id'] == nextWorkout['id'];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: _WorkoutScheduleCard(
+                  workout: workout,
+                  statusColor: _statusColorFor(
+                    workout,
+                    isNext: isNext,
+                    isLast: isLast,
+                  ),
+                  statusIcon: _statusIconFor(
+                    workout,
+                    isNext: isNext,
+                    isLast: isLast,
+                  ),
+                  onAddActivity: () => _showAddActivityOptions(workout),
+                  onReschedule: () => _rescheduleWorkout(workout),
+                  onScheduleChanged: (workoutAt, leadMinutes, enabled) =>
+                      _rescheduleWorkoutAt(
+                        workout: workout,
+                        workoutAt: workoutAt,
+                        leadMinutes: leadMinutes,
+                        enabled: enabled,
+                      ),
+                  onEditManual: workout['source'] == 'manual'
+                      ? () => _openManualWorkout(workout: workout)
+                      : null,
+                  onDeleteManual: workout['source'] == 'manual'
+                      ? () => _deleteManualWorkout(workout)
+                      : null,
+                  reminder: _runReminders[workout['id']],
+                  onReminderChanged: (workoutAt, leadMinutes, enabled) =>
+                      _saveReminder(
+                        workout: workout,
+                        workoutAt: workoutAt,
+                        leadMinutes: leadMinutes,
+                        enabled: enabled,
+                      ),
+                  isLast: isLast,
+                ),
+              );
+            }),
+          ),
+      ],
+    );
+  }
+
+  void _handleCalendarDateSelected(DateTime? date) {
+    setState(() => _selectedCalendarDate = date);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final targetContext =
+          (date == null ? _calendarSectionKey : _detailsSectionKey)
+              .currentContext;
+      if (targetContext == null) return;
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeOutCubic,
+        alignment: date == null ? 0.05 : 0.08,
+      );
+    });
   }
 
   TrainingCalendarEntry? _toTrainingCalendarEntry(
@@ -559,7 +666,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             ),
           )
           .whereType<TrainingCalendarEntry>(),
-      ..._unlinkedActivities
+      ..._calendarActivities
           .map(_toActivityCalendarEntry)
           .whereType<TrainingCalendarEntry>(),
     ];
@@ -587,6 +694,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           : '${distance.toStringAsFixed(1)} km',
       targetDistanceKm: distance,
       targetDurationMin: duration,
+      isActivity: true,
     );
   }
 
@@ -846,7 +954,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () => _openManualWorkout(),
-              icon: const Icon(Icons.add_task),
+              icon: const Icon(_addManualWorkoutIcon),
               label: Text(context.translate('manual_workout_create_title')),
             ),
             const SizedBox(height: 8),
@@ -919,7 +1027,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             ),
             const SizedBox(height: 12),
             Text(
-              _activeSchedule?['error_message'] != null ? '${context.translate('plan_failed_desc')}\n\nChi tiết lỗi:\n${_activeSchedule!['error_message']}' : context.translate('plan_failed_desc'),
+              _activeSchedule?['error_message'] != null
+                  ? '${context.translate('plan_failed_desc')}\n\nChi tiết lỗi:\n${_activeSchedule!['error_message']}'
+                  : context.translate('plan_failed_desc'),
               style: TextStyle(color: colorScheme.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),
@@ -932,7 +1042,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () => _openManualWorkout(),
-              icon: const Icon(Icons.add_task),
+              icon: const Icon(_addManualWorkoutIcon),
               label: Text(context.translate('manual_workout_create_title')),
             ),
             const SizedBox(height: 12),
@@ -1116,8 +1226,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         final reminder = _runReminders[rescheduled.workoutId];
         if (reminder == null) continue;
         final isSelectedWorkout = rescheduled.workoutId == workout['id'];
-        final scheduledWorkout =
-            workoutsById[rescheduled.workoutId] ?? workout;
+        final scheduledWorkout = workoutsById[rescheduled.workoutId] ?? workout;
         try {
           await _reminderService.saveReminder(
             workoutId: rescheduled.workoutId,
@@ -1127,9 +1236,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             enabled: isSelectedWorkout ? enabled : reminder.enabled,
           );
         } catch (e) {
-          debugPrint(
-            'Failed to update run reminder after rescheduling: $e',
-          );
+          debugPrint('Failed to update run reminder after rescheduling: $e');
         }
       }
       if (mounted) {
@@ -1437,6 +1544,18 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     );
   }
 
+  Future<List<Map<String, dynamic>>> _fetchCalendarActivities() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return [];
+
+    final response = await _supabase
+        .from('activities')
+        .select()
+        .eq('user_id', user.id)
+        .order('started_at', ascending: false);
+    return List<Map<String, dynamic>>.from(response as List);
+  }
+
   Future<List<Map<String, dynamic>>> _fetchUnlinkedActivities() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return [];
@@ -1502,11 +1621,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
 
       final dateStr = workout['date'] as String;
       final now = DateTime.now();
-      final startedAt = DateTime.parse(dateStr).add(Duration(
-        hours: now.hour,
-        minutes: now.minute,
-        seconds: now.second,
-      ));
+      final startedAt = DateTime.parse(dateStr).add(
+        Duration(hours: now.hour, minutes: now.minute, seconds: now.second),
+      );
       final startedIso = startedAt.toUtc().toIso8601String();
 
       // Create Rest activity (0 km, 0 min)
@@ -1749,7 +1866,7 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                       if (workout['status'] != 'completed')
                         OutlinedButton.icon(
                           onPressed: widget.onReschedule,
-                          icon: const Icon(Icons.event_repeat, size: 18),
+                          icon: const Icon(_rescheduleWorkoutIcon, size: 18),
                           label: Text(context.translate('reschedule')),
                         ),
                       if (widget.onEditManual != null)
@@ -1973,7 +2090,7 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                           enabled: true,
                         );
                       },
-                icon: const Icon(Icons.event_repeat, size: 18),
+                icon: const Icon(_rescheduleWorkoutIcon, size: 18),
                 label: Text(DateFormat('dd/MM HH:mm').format(workoutAt)),
               ),
               Container(
@@ -2022,7 +2139,9 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
   }
 
   DateTime _workoutAt(DateTime workoutDate) {
-    final startTime = _parseWorkoutTime(widget.workout['start_time']?.toString());
+    final startTime = _parseWorkoutTime(
+      widget.workout['start_time']?.toString(),
+    );
     return DateTime(
       workoutDate.year,
       workoutDate.month,

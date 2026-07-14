@@ -16,6 +16,7 @@ class TrainingCalendarEntry {
     this.targetDurationMin,
     this.isNext = false,
     this.isLast = false,
+    this.isActivity = false,
   });
 
   final DateTime date;
@@ -25,6 +26,59 @@ class TrainingCalendarEntry {
   final double? targetDurationMin;
   final bool isNext;
   final bool isLast;
+  final bool isActivity;
+}
+
+/// Xếp tổng quan + buổi kế tiếp cạnh lịch chi tiết khi đủ chiều rộng.
+class TrainingPlanResponsiveLayout extends StatelessWidget {
+  const TrainingPlanResponsiveLayout({
+    super.key,
+    required this.calendar,
+    required this.focus,
+    required this.details,
+    this.breakpoint = 900,
+  });
+
+  final Widget calendar;
+  final Widget focus;
+  final Widget details;
+  final double breakpoint;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < breakpoint) {
+          return Column(
+            key: const ValueKey('training_plan_narrow_layout'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              calendar,
+              const SizedBox(height: 22),
+              focus,
+              const SizedBox(height: 24),
+              details,
+            ],
+          );
+        }
+        return Row(
+          key: const ValueKey('training_plan_wide_layout'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 5,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [calendar, const SizedBox(height: 22), focus],
+              ),
+            ),
+            const SizedBox(width: 22),
+            Expanded(flex: 6, child: details),
+          ],
+        );
+      },
+    );
+  }
 }
 
 /// Tổng quan lịch tập theo tháng, dùng cùng màu trạng thái với lịch chi tiết.
@@ -112,59 +166,11 @@ class _TrainingCalendarHeatmapState extends State<TrainingCalendarHeatmap> {
                 ),
                 const SizedBox(width: 11),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        context.translate('training_calendar_title'),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Container(
-                        decoration: _innerGlassDecoration(
-                          context,
-                          borderRadius: BorderRadius.circular(10),
-                          showShadow: false,
-                        ),
-                        child: InkWell(
-                          key: const ValueKey('training_calendar_month_picker'),
-                          onTap: _pickMonth,
-                          borderRadius: BorderRadius.circular(10),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 5,
-                              horizontal: 8,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    DateFormat(
-                                      'MMMM yyyy',
-                                      locale,
-                                    ).format(firstDay),
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 3),
-                                Icon(
-                                  Icons.expand_more_rounded,
-                                  color: colorScheme.onSurfaceVariant,
-                                  size: 16,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    context.translate('training_calendar_title'),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -194,7 +200,45 @@ class _TrainingCalendarHeatmapState extends State<TrainingCalendarHeatmap> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            if (_showLegend)
+              const Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: _CalendarLegend(),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _MonthArrowButton(
+                  key: const ValueKey('training_calendar_previous_month'),
+                  icon: Icons.chevron_left_rounded,
+                  onPressed: () => _changeMonth(-1),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    DateFormat('MMMM yyyy', locale).format(firstDay),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _MonthArrowButton(
+                  key: const ValueKey('training_calendar_next_month'),
+                  icon: Icons.chevron_right_rounded,
+                  onPressed: () => _changeMonth(1),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             _GlassSurface(
               key: const ValueKey('training_calendar_grid_glass'),
               padding: const EdgeInsets.all(12),
@@ -257,32 +301,21 @@ class _TrainingCalendarHeatmapState extends State<TrainingCalendarHeatmap> {
                 ),
               ),
             ],
-            if (_showLegend)
-              const Padding(
-                padding: EdgeInsets.only(top: 12),
-                child: _CalendarLegend(),
-              ),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _pickMonth() async {
-    final selection = await showDatePicker(
-      context: context,
-      initialDate: _visibleMonth,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
-      helpText: context.translate('training_calendar_pick_month'),
-    );
-    if (selection != null && mounted) {
-      setState(() {
-        _visibleMonth = _monthStart(selection);
-        _selectedDate = null;
-      });
-      widget.onDateSelected?.call(null);
-    }
+  void _changeMonth(int offset) {
+    setState(() {
+      _visibleMonth = DateTime(
+        _visibleMonth.year,
+        _visibleMonth.month + offset,
+      );
+      _selectedDate = null;
+    });
+    widget.onDateSelected?.call(null);
   }
 
   void _selectDate(DateTime date) {
@@ -342,6 +375,34 @@ class _GlassSurface extends StatelessWidget {
   }
 }
 
+class _MonthArrowButton extends StatelessWidget {
+  const _MonthArrowButton({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: _innerGlassDecoration(
+        context,
+        borderRadius: BorderRadius.circular(12),
+        showShadow: false,
+      ),
+      child: IconButton(
+        onPressed: onPressed,
+        visualDensity: VisualDensity.compact,
+        icon: Icon(icon, color: colorScheme.onSurfaceVariant),
+      ),
+    );
+  }
+}
+
 class _WeekdayHeader extends StatelessWidget {
   const _WeekdayHeader({required this.languageCode});
 
@@ -388,7 +449,11 @@ class _CalendarDay extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isToday = DateUtils.isSameDay(date, DateTime.now());
-    final status = _statusFor(entries);
+    final scheduledEntries = entries
+        .where((entry) => !entry.isActivity)
+        .toList();
+    final hasActivity = entries.any((entry) => entry.isActivity);
+    final status = _statusFor(scheduledEntries);
     final fill = _fillColor(status);
     final foreground = status == 'completed' || status == 'last'
         ? Colors.black87
@@ -494,6 +559,18 @@ class _CalendarDay extends StatelessWidget {
                         ),
                       ),
                     ),
+                  if (hasActivity)
+                    Align(
+                      alignment: Alignment.bottomLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(5, 4, 4, 5),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: fill == null ? Colors.green : foreground,
+                          size: 15,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -505,15 +582,12 @@ class _CalendarDay extends StatelessWidget {
 
   String? _statusFor(List<TrainingCalendarEntry> entries) {
     if (entries.isEmpty) return null;
-    if (entries.any((entry) => entry.isLast)) return 'last';
     if (entries.any((entry) => entry.status == 'completed')) {
       return 'completed';
     }
+    if (entries.any((entry) => entry.isLast)) return 'last';
     if (entries.any((entry) => entry.isNext)) return 'next';
-    const priority = ['completed', 'rescheduled', 'planned', 'skipped'];
-    for (final status in priority) {
-      if (entries.any((entry) => entry.status == status)) return status;
-    }
+    if (entries.every((entry) => entry.status == 'skipped')) return 'skipped';
     return 'planned';
   }
 
@@ -525,8 +599,6 @@ class _CalendarDay extends StatelessWidget {
         return Colors.orangeAccent;
       case 'completed':
         return Colors.greenAccent;
-      case 'rescheduled':
-        return Colors.orangeAccent;
       case 'planned':
         return const Color(0xFF4A82FF);
       case 'skipped':
@@ -543,9 +615,7 @@ class _CalendarDay extends StatelessWidget {
       case 'next':
         return Icons.directions_run;
       case 'completed':
-        return Icons.check_circle;
-      case 'rescheduled':
-        return Icons.update;
+        return Icons.directions_run;
       case 'skipped':
         return Icons.pause_circle;
       default:
@@ -632,6 +702,12 @@ class _CalendarLegend extends StatelessWidget {
       runSpacing: 8,
       children: [
         _LegendItem(
+          color: Colors.green,
+          icon: Icons.check_circle,
+          label: context.translate('training_calendar_has_activity'),
+          style: textStyle,
+        ),
+        _LegendItem(
           color: Colors.orangeAccent,
           icon: Icons.directions_run,
           label: context.translate('training_calendar_next_workout'),
@@ -650,14 +726,8 @@ class _CalendarLegend extends StatelessWidget {
           style: textStyle,
         ),
         _LegendItem(
-          color: Colors.orangeAccent,
-          icon: Icons.update,
-          label: context.translate('status_rescheduled'),
-          style: textStyle,
-        ),
-        _LegendItem(
           color: Colors.greenAccent,
-          icon: Icons.check_circle,
+          icon: Icons.directions_run,
           label: context.translate('status_completed'),
           style: textStyle,
         ),
@@ -768,6 +838,13 @@ Widget trainingCalendarHeatmapPreview() {
                   status: 'completed',
                   title: 'Easy run',
                   targetDistanceKm: 6,
+                ),
+                TrainingCalendarEntry(
+                  date: today.subtract(const Duration(days: 3)),
+                  status: 'activity',
+                  title: 'Recorded activity',
+                  targetDistanceKm: 6,
+                  isActivity: true,
                 ),
                 TrainingCalendarEntry(
                   date: today.add(const Duration(days: 2)),

@@ -48,7 +48,14 @@ void main() {
 
     expect(
       find.byKey(
-        const ValueKey('training_calendar_month_picker'),
+        const ValueKey('training_calendar_previous_month'),
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        const ValueKey('training_calendar_next_month'),
         skipOffstage: false,
       ),
       findsOneWidget,
