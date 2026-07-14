@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/nutrition_models.dart';
 import '../models/weight_models.dart';
@@ -34,31 +35,31 @@ class NutritionOverviewCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      l10n.translate('daily_goal'),
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Text(
-                          l10n.translate('daily_goal'),
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
+                          '${summary.caloriesIn.toInt()} / ${summary.goal.dailyCalories.toInt()} kcal',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         if (onEditGoal != null) ...[
                           const SizedBox(width: 4),
                           IconButton(
-                            icon: const Icon(Icons.tune, size: 19),
+                            icon: const Icon(LucideIcons.pen_line, size: 19),
                             tooltip: l10n.translate('edit_nutrition_goal'),
                             onPressed: onEditGoal,
                             visualDensity: VisualDensity.compact,
                           ),
                         ],
                       ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${summary.caloriesIn.toInt()} / ${summary.goal.dailyCalories.toInt()} kcal',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
                     ),
                   ],
                 ),

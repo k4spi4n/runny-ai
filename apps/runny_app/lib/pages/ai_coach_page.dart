@@ -1639,81 +1639,255 @@ $prompt''';
     );
   }
 
-  /// Hàng nút chọn dữ liệu đính kèm (cuộn ngang), hiển thị ngay trên ô nhập.
+  List<(_ChatAttachment, IconData, String, String)> _attachmentItems(
+    BuildContext context,
+  ) => [
+    (
+      _ChatAttachment.activities,
+      Icons.directions_run,
+      context.translate('chat_ctx_activities'),
+      context.translate('chat_ctx_activities_desc'),
+    ),
+    (
+      _ChatAttachment.metrics,
+      Icons.insights,
+      context.translate('chat_ctx_metrics'),
+      context.translate('chat_ctx_metrics_desc'),
+    ),
+    (
+      _ChatAttachment.plan,
+      Icons.calendar_month,
+      context.translate('chat_ctx_plan'),
+      context.translate('chat_ctx_plan_desc'),
+    ),
+    (
+      _ChatAttachment.nutrition,
+      Icons.restaurant,
+      context.translate('chat_ctx_nutrition'),
+      context.translate('chat_ctx_nutrition_desc'),
+    ),
+  ];
+
+  Future<void> _showAttachmentSettings() async {
+    final selectedAttachments = Set<_ChatAttachment>.from(_attachments);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          final colorScheme = Theme.of(context).colorScheme;
+          final theme = Theme.of(context);
+          final items = _attachmentItems(context);
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.3,
+                          ),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      context.translate('chat_context_title'),
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      context.translate('chat_context_sheet_hint'),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...items.map((item) {
+                      final (key, icon, label, description) = item;
+                      final selected = selectedAttachments.contains(key);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Material(
+                          color: selected
+                              ? colorScheme.primaryContainer.withValues(
+                                  alpha: 0.45,
+                                )
+                              : colorScheme.surfaceContainerHighest.withValues(
+                                  alpha: 0.35,
+                                ),
+                          borderRadius: BorderRadius.circular(16),
+                          child: CheckboxListTile(
+                            value: selected,
+                            onChanged: (value) => setSheetState(() {
+                              if (value ?? false) {
+                                selectedAttachments.add(key);
+                              } else {
+                                selectedAttachments.remove(key);
+                              }
+                            }),
+                            controlAffinity: ListTileControlAffinity.trailing,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                            ),
+                            secondary: Icon(
+                              icon,
+                              color: selected
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                            title: Text(
+                              label,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            subtitle: Text(description),
+                          ),
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: selectedAttachments.isEmpty
+                              ? null
+                              : () => setSheetState(
+                                  selectedAttachments.clear,
+                                ),
+                          child: Text(
+                            context.translate('chat_context_clear_all'),
+                          ),
+                        ),
+                        const Spacer(),
+                        FilledButton(
+                          onPressed: () {
+                            setState(() {
+                              _attachments
+                                ..clear()
+                                ..addAll(selectedAttachments);
+                            });
+                            Navigator.of(sheetContext).pop();
+                          },
+                          child: Text(context.translate('chat_context_done')),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Tóm tắt dữ liệu HLV có thể dùng, hiển thị ngay trên ô nhập.
   Widget _buildAttachmentBar(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final items = <(_ChatAttachment, IconData, String)>[
-      (
-        _ChatAttachment.activities,
-        Icons.directions_run,
-        context.translate('chat_ctx_activities'),
-      ),
-      (
-        _ChatAttachment.metrics,
-        Icons.insights,
-        context.translate('chat_ctx_metrics'),
-      ),
-      (
-        _ChatAttachment.plan,
-        Icons.calendar_month,
-        context.translate('chat_ctx_plan'),
-      ),
-      (
-        _ChatAttachment.nutrition,
-        Icons.restaurant,
-        context.translate('chat_ctx_nutrition'),
-      ),
-    ];
+    final theme = Theme.of(context);
+    final selectedLabels = _attachmentItems(context)
+        .where((item) => _attachments.contains(item.$1))
+        .map((item) => item.$3)
+        .join(' · ');
+    final summary = _attachments.isEmpty
+        ? context.translate('chat_context_summary_none')
+        : context.translate('chat_context_summary', [
+            _attachments.length.toString(),
+          ]);
 
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: items.length + 1,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Center(
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.attach_file,
-                    size: 16,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    context.translate('chat_attach_label'),
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showSelectedLabels = constraints.maxWidth >= 480;
+          return Semantics(
+            button: true,
+            label: context.translate('chat_context_title'),
+            child: Material(
+              color: colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.45,
               ),
-            );
-          }
-          final (key, icon, label) = items[index - 1];
-          final selected = _attachments.contains(key);
-          return Center(
-            child: FilterChip(
-              avatar: Icon(
-                icon,
-                size: 16,
-                color: selected ? colorScheme.onPrimary : colorScheme.primary,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                onTap: _showAttachmentSettings,
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.auto_awesome_outlined,
+                        size: 20,
+                        color: colorScheme.primary,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              summary,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (showSelectedLabels &&
+                                selectedLabels.isNotEmpty) ...[
+                              const SizedBox(height: 1),
+                              Text(
+                                selectedLabels,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        context.translate('chat_context_edit'),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        Icons.chevron_right,
+                        size: 20,
+                        color: colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              label: Text(label),
-              selected: selected,
-              showCheckmark: false,
-              onSelected: (value) => setState(() {
-                if (value) {
-                  _attachments.add(key);
-                } else {
-                  _attachments.remove(key);
-                }
-              }),
             ),
           );
         },
