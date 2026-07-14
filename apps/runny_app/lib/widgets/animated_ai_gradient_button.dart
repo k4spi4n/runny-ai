@@ -50,11 +50,11 @@ class _AnimatedAiGradientButtonState extends State<AnimatedAiGradientButton>
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: const [
-                Color(0xFF6C4DFF),
-                Color(0xFFB936F5),
-                Color(0xFFFF4F9A),
-                Color(0xFF13B8E9),
-                Color(0xFF6C4DFF),
+                Color(0xFFFF7A00),
+                Color(0xFF7C3AED),
+                Color(0xFF0EA5E9),
+                Color(0xFF2563EB),
+                Color(0xFFFF7A00),
               ],
               transform: GradientRotation(_controller.value * math.pi * 2),
             ),
@@ -65,7 +65,7 @@ class _AnimatedAiGradientButtonState extends State<AnimatedAiGradientButton>
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF8C45F7).withValues(alpha: 0.35),
+                color: const Color(0xFF6D4AFF).withValues(alpha: 0.35),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),

@@ -21,6 +21,18 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Phân tích với AI'), findsOneWidget);
+    final surface = tester.widget<DecoratedBox>(
+      find.byKey(const ValueKey('animated_ai_gradient_surface')),
+    );
+    final gradient = (surface.decoration as BoxDecoration).gradient;
+    expect(gradient, isA<LinearGradient>());
+    expect(
+      (gradient! as LinearGradient).colors,
+      contains(const Color(0xFFFF7A00)),
+    );
+    expect(gradient.colors, contains(const Color(0xFF7C3AED)));
+    expect(gradient.colors, contains(const Color(0xFF0EA5E9)));
+    expect(gradient.colors, isNot(contains(const Color(0xFFFF4F9A))));
 
     await tester.pump(const Duration(milliseconds: 500));
     await tester.tap(find.byKey(const ValueKey('animated_ai_gradient_button')));

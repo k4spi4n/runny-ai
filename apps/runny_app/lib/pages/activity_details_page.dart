@@ -373,10 +373,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => AICoachPage(
-                  initialActivity: _activity,
-                  autoSendInitialPrompt: true,
-                ),
+                builder: (_) => AICoachPage.activityReview(activity: _activity),
               ),
             );
           },

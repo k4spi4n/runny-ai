@@ -75,10 +75,9 @@ Widget trainingPlanActionIconsPreview() {
   );
 }
 
-/// Nhóm thao tác rút gọn cho các buổi nằm sau buổi kế tiếp. Cố ý chỉ cung cấp
-/// một hành động để lịch dài vẫn dễ quét trên màn hình nhỏ.
-class FutureWorkoutScheduleAction extends StatelessWidget {
-  const FutureWorkoutScheduleAction({
+/// Nút đổi lịch dùng chung cho buổi kế tiếp và các buổi tương lai.
+class WorkoutRescheduleAction extends StatelessWidget {
+  const WorkoutRescheduleAction({
     super.key,
     required this.onReschedule,
     required this.label,
@@ -777,7 +776,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           onAddActivity: () => _showAddActivityOptions(nextWorkout),
           onRecordGuide: () => _showRecordingGuide(nextWorkout),
           onReschedule: () => _rescheduleWorkout(nextWorkout),
-          showReschedule: false,
+          showReschedule: true,
           onScheduleChanged: (workoutAt, leadMinutes, enabled) =>
               _rescheduleWorkoutAt(
                 workout: nextWorkout,
@@ -863,10 +862,17 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
               final nextWorkoutIndex = _workouts.indexWhere(
                 (item) => item['id'] == nextWorkout['id'],
               );
-              final showReschedule =
-                  workout['status'] == 'planned' &&
+              final isPending =
+                  workout['status'] == 'planned' ||
+                  workout['status'] == 'rescheduled';
+              final rescheduleOnly =
+                  isPending &&
                   nextWorkoutIndex >= 0 &&
                   workoutIndex > nextWorkoutIndex;
+              final showReschedule =
+                  isPending &&
+                  nextWorkoutIndex >= 0 &&
+                  workoutIndex >= nextWorkoutIndex;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: _WorkoutScheduleCard(
@@ -885,6 +891,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                   onRecordGuide: () => _showRecordingGuide(workout),
                   onReschedule: () => _rescheduleWorkout(workout),
                   showReschedule: showReschedule,
+                  rescheduleOnly: rescheduleOnly,
                   onScheduleChanged: (workoutAt, leadMinutes, enabled) =>
                       _rescheduleWorkoutAt(
                         workout: workout,
@@ -1196,7 +1203,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     final prompt = context.translate('warm_up_prompt', [title, distance]);
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => AICoachPage(initialPrompt: prompt)),
+      MaterialPageRoute(
+        builder: (_) => AICoachPage.draftPrompt(prompt: prompt),
+      ),
     );
   }
 
@@ -2327,10 +2336,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => AICoachPage(
-                  initialActivity: activity,
-                  autoSendInitialPrompt: true,
-                ),
+                builder: (_) => AICoachPage.activityReview(activity: activity),
               ),
             );
           },
@@ -2394,6 +2400,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
   final VoidCallback onRecordGuide;
   final VoidCallback onReschedule;
   final bool showReschedule;
+  final bool rescheduleOnly;
   final VoidCallback? onEditManual;
   final VoidCallback? onDeleteManual;
   final RunReminder? reminder;
@@ -2415,6 +2422,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
     required this.onRecordGuide,
     required this.onReschedule,
     this.showReschedule = false,
+    this.rescheduleOnly = false,
     this.onEditManual,
     this.onDeleteManual,
     required this.onReminderChanged,
@@ -2553,8 +2561,8 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                     runSpacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      if (widget.showReschedule)
-                        FutureWorkoutScheduleAction(
+                      if (widget.rescheduleOnly)
+                        WorkoutRescheduleAction(
                           buttonKey: ValueKey(
                             'reschedule_workout_${workout['id']}',
                           ),
@@ -2641,6 +2649,14 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                               color: Colors.redAccent,
                             ),
                             label: Text(context.translate('delete')),
+                          ),
+                        if (widget.showReschedule)
+                          WorkoutRescheduleAction(
+                            buttonKey: ValueKey(
+                              'reschedule_workout_${workout['id']}',
+                            ),
+                            onReschedule: widget.onReschedule,
+                            label: context.translate('reschedule'),
                           ),
                       ],
                     ],

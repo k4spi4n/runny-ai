@@ -20,7 +20,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: FutureWorkoutScheduleAction(
+          body: WorkoutRescheduleAction(
             label: 'Đặt lịch',
             onReschedule: () => rescheduled = true,
           ),

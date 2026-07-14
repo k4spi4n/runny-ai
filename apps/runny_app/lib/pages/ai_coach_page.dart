@@ -51,6 +51,12 @@ class AICoachPage extends StatefulWidget {
     this.embedded = false,
   });
 
+  const AICoachPage.activityReview({Key? key, required Activity activity})
+    : this(key: key, initialActivity: activity);
+
+  const AICoachPage.draftPrompt({Key? key, required String prompt})
+    : this(key: key, initialPrompt: prompt);
+
   @override
   State<AICoachPage> createState() => _AICoachPageState();
 }
@@ -1118,6 +1124,9 @@ $prompt''';
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final coachName = _coachNameController.text.trim();
+    // `Navigator.canPop` cũng trả về true khi bottom sheet thiết lập đang mở.
+    // Dùng route chứa trang này để nút quay lại chỉ phản ánh điều hướng trang.
+    final canPopPage = ModalRoute.of(context)?.isFirst == false;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -1129,7 +1138,7 @@ $prompt''';
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: Navigator.canPop(context)
+        leading: canPopPage
             ? IconButton(
                 icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
                 onPressed: () => Navigator.pop(context),
