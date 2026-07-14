@@ -5,6 +5,7 @@ import '../models/workout_models.dart';
 import '../models/shoe_models.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
+import '../widgets/animated_ai_gradient_button.dart';
 import '../services/weather_service.dart';
 import '../services/readiness_service.dart';
 import '../l10n/app_localizations.dart';
@@ -366,7 +367,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             ),
           ],
         ),
-        floatingActionButton: FloatingActionButton.extended(
+        floatingActionButton: AnimatedAiGradientButton(
+          key: const ValueKey('activity_analyze_with_ai'),
           onPressed: () {
             Navigator.push(
               context,
@@ -378,15 +380,8 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
               ),
             );
           },
-          backgroundColor: colorScheme.primary,
-          icon: const Icon(
-            Icons.tips_and_updates_outlined,
-            color: Colors.white,
-          ),
-          label: Text(
-            context.translate('analyze_with_ai'),
-            style: const TextStyle(color: Colors.white),
-          ),
+          icon: Icons.tips_and_updates_outlined,
+          label: context.translate('analyze_with_ai'),
         ),
         body: Stack(
           children: [

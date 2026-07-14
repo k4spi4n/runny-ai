@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import '../models/run_reminder_model.dart';
@@ -10,13 +11,14 @@ import '../services/training_service.dart';
 import '../services/training_refresh_service.dart';
 import '../services/integration_service.dart';
 import '../services/readiness_service.dart';
-import '../services/paywall_exception.dart';
+import '../services/ai_insight_service.dart';
 import '../models/workout_models.dart';
 import '../widgets/ui_components.dart';
-import '../widgets/paywall.dart';
 import '../widgets/training_calendar_heatmap.dart';
 import '../widgets/activity_recording_guide.dart';
 import '../widgets/post_run_review_card.dart';
+import '../widgets/missed_workout_reschedule_dialog.dart';
+import '../widgets/training_weekly_insight_card.dart';
 import '../utils/activity_matcher.dart';
 import 'create_training_plan_page.dart';
 import 'manual_workout_page.dart';
@@ -73,6 +75,37 @@ Widget trainingPlanActionIconsPreview() {
   );
 }
 
+/// Nhóm thao tác rút gọn cho các buổi nằm sau buổi kế tiếp. Cố ý chỉ cung cấp
+/// một hành động để lịch dài vẫn dễ quét trên màn hình nhỏ.
+class FutureWorkoutScheduleAction extends StatelessWidget {
+  const FutureWorkoutScheduleAction({
+    super.key,
+    required this.onReschedule,
+    required this.label,
+    this.buttonKey,
+  });
+
+  final VoidCallback onReschedule;
+  final String label;
+  final Key? buttonKey;
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFF8B5CF6);
+    return OutlinedButton.icon(
+      key: buttonKey,
+      onPressed: onReschedule,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: color.withValues(alpha: 0.82), width: 0.9),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+      icon: const Icon(_rescheduleWorkoutIcon, size: 18),
+      label: Text(label),
+    );
+  }
+}
+
 (int, int) _parseWorkoutTime(String? raw) {
   if (raw == null || raw.isEmpty) return (6, 0);
   final parts = raw.split(':');
@@ -100,6 +133,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   final RunReminderService _reminderService = RunReminderService();
   final IntegrationService _integrationService = IntegrationService();
   final ReadinessService _readinessService = ReadinessService();
+  final AiInsightService _aiInsightService = AiInsightService();
   bool _isLoading = true;
   bool _isFetching = false;
   Map<String, dynamic>? _activeSchedule;
@@ -111,10 +145,18 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   final GlobalKey _calendarSectionKey = GlobalKey();
   final GlobalKey _detailsSectionKey = GlobalKey();
   Timer? _generationPollTimer;
+  late int _seenTrainingPageOpenRevision;
+  bool _checkMissedWorkoutOnNextLoad = true;
+  bool _missedWorkoutDialogOpen = false;
+  String? _promptedMissedWorkoutId;
+  Future<String?>? _weeklyInsightFuture;
+  String? _weeklyInsightKey;
 
   @override
   void initState() {
     super.initState();
+    _seenTrainingPageOpenRevision =
+        TrainingRefreshService.instance.pageOpenRevision;
     TrainingRefreshService.instance.addListener(_onTrainingChanged);
     _fetchData();
   }
@@ -128,6 +170,12 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   }
 
   void _onTrainingChanged() {
+    final pageOpenRevision = TrainingRefreshService.instance.pageOpenRevision;
+    if (pageOpenRevision != _seenTrainingPageOpenRevision) {
+      _seenTrainingPageOpenRevision = pageOpenRevision;
+      _checkMissedWorkoutOnNextLoad = true;
+      _promptedMissedWorkoutId = null;
+    }
     _fetchData(showLoading: false);
   }
 
@@ -219,6 +267,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           _runReminders = reminders;
         });
         _updateGenerationPolling(schedule?['status']?.toString());
+        if (_checkMissedWorkoutOnNextLoad) {
+          _checkMissedWorkoutOnNextLoad = false;
+          _scheduleMissedWorkoutCheck(schedule);
+        }
       }
     } catch (e) {
       debugPrint('Error fetching training plan: $e');
@@ -240,80 +292,86 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     );
   }
 
-  Future<void> _adjustPlan() async {
-    // Điều chỉnh kế hoạch bằng AI là tính năng cao cấp: chặn tier free trước.
-    if (!await ensurePaywall(context, 'plan')) return;
-    if (!mounted) return;
+  void _scheduleMissedWorkoutCheck(Map<String, dynamic>? schedule) {
+    if (schedule?['status'] != 'active') return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _maybeShowMissedWorkoutPrompt();
+    });
+  }
 
-    // Bước 1: HLV AI phân tích và ĐỀ XUẤT (chưa lưu).
-    setState(() => _isLoading = true);
-    PlanAdjustmentProposal proposal;
-    try {
-      proposal = await _trainingService.proposePlanAdjustments();
-    } on NoCompletedWorkoutException {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.translate('adjust_need_workout'))),
-      );
-      return;
-    } on PaywallException catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      await showUpgradeSheet(context, message: e.message);
-      return;
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${context.translate('error')}: $e')),
-      );
+  Map<String, dynamic>? _firstMissedWorkout() {
+    final today = DateUtils.dateOnly(DateTime.now());
+    for (final workout in _workouts) {
+      final status = workout['status']?.toString();
+      if (status != 'planned' && status != 'rescheduled') continue;
+      final date = DateTime.tryParse(workout['date']?.toString() ?? '');
+      if (date != null && DateUtils.dateOnly(date).isBefore(today)) {
+        return workout;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _maybeShowMissedWorkoutPrompt() async {
+    if (_missedWorkoutDialogOpen || !mounted) return;
+    final workout = _firstMissedWorkout();
+    final workoutId = workout?['id']?.toString();
+    if (workout == null ||
+        workoutId == null ||
+        workoutId == _promptedMissedWorkoutId) {
       return;
     }
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    if (proposal.isEmpty) {
-      // AI thấy lịch đã hợp lý — không có gì để đổi.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            proposal.summary?.trim().isNotEmpty == true
-                ? proposal.summary!
-                : context.translate('adjust_no_change'),
-          ),
-        ),
-      );
-      return;
-    }
-
-    // Bước 2: người dùng xem trước thay đổi + giải thích, xác nhận mới lưu.
-    final confirmed = await showDialog<bool>(
+    _missedWorkoutDialogOpen = true;
+    _promptedMissedWorkoutId = workoutId;
+    final missedDate = DateTime.parse(workout['date'] as String);
+    final choice = await showDialog<MissedWorkoutRescheduleChoice>(
       context: context,
-      builder: (_) => _AdjustmentPreviewDialog(proposal: proposal),
+      builder: (_) => MissedWorkoutRescheduleDialog(
+        title: context.translate('missed_workout_title'),
+        message: context.translate('missed_workout_description', [
+          workout['title']?.toString() ?? context.translate('workout'),
+          DateFormat('dd/MM').format(missedDate),
+        ]),
+        todayLabel: context.translate('missed_workout_move_today'),
+        tomorrowLabel: context.translate('missed_workout_move_tomorrow'),
+        dismissLabel: context.translate('later'),
+      ),
     );
-    if (confirmed != true || !mounted) return;
+    _missedWorkoutDialogOpen = false;
+    if (!mounted || choice == null) return;
 
-    // Bước 3: đã xác nhận -> ghi vào DB.
-    setState(() => _isLoading = true);
-    try {
-      await _trainingService.applyPlanAdjustments(proposal.adjustments);
-      await _fetchData();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.translate('plan_adjusted'))),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${context.translate('error')}: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    final targetDate = DateUtils.dateOnly(DateTime.now()).add(
+      Duration(days: choice == MissedWorkoutRescheduleChoice.tomorrow ? 1 : 0),
+    );
+    final startTime = _parseWorkoutTime(workout['start_time']?.toString());
+    final reminder = _runReminders[workoutId];
+    await _rescheduleWorkoutAt(
+      workout: workout,
+      workoutAt: DateTime(
+        targetDate.year,
+        targetDate.month,
+        targetDate.day,
+        startTime.$1,
+        startTime.$2,
+      ),
+      leadMinutes: reminder?.leadMinutes ?? 10,
+      enabled: reminder?.enabled ?? false,
+      shiftFollowingWorkouts: true,
+    );
+  }
+
+  void _openPlanOptimizationCoach({Activity? activity}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AICoachPage(
+          initialActivity: activity,
+          initialPrompt: context.translate('optimize_plan_ai_prompt'),
+          autoSendInitialPrompt: true,
+        ),
+      ),
+    );
   }
 
   @override
@@ -377,7 +435,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           if (!allCompleted && !isDraft)
             IconButton(
               icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface),
-              onPressed: _adjustPlan,
+              onPressed: _openPlanOptimizationCoach,
               tooltip: context.translate('optimize_plan_tooltip'),
             ),
           PopupMenuButton<String>(
@@ -494,17 +552,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         )
         .toList();
     if (planned.isEmpty) return _workouts.first;
-
-    final today = DateUtils.dateOnly(DateTime.now());
-    return planned.firstWhere(
-      (workout) {
-        final date = DateTime.tryParse(workout['date']?.toString() ?? '');
-        return date != null && !DateUtils.dateOnly(date).isBefore(today);
-      },
-      // Nếu tất cả buổi còn lại đã quá hạn, ưu tiên buổi quá hạn gần nhất thay
-      // vì giữ buổi cũ nhất làm "buổi tiếp theo" mãi mãi.
-      orElse: () => planned.last,
-    );
+    // Buổi chưa hoàn thành sớm nhất vẫn là "buổi kế tiếp", kể cả đã quá ngày.
+    // Popup dời lịch sẽ giúp người dùng đưa cả chuỗi trở lại đúng nhịp.
+    return planned.first;
   }
 
   Widget _buildDraftBanner(BuildContext context) {
@@ -658,6 +708,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         completedPlanWorkouts: completedWorkouts,
         selectedDate: _selectedCalendarDate,
         onDateSelected: _handleCalendarDateSelected,
+        progressFooter: _buildWeeklyInsight(context),
       ),
     );
     final focusSection = Column(
@@ -726,6 +777,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           onAddActivity: () => _showAddActivityOptions(nextWorkout),
           onRecordGuide: () => _showRecordingGuide(nextWorkout),
           onReschedule: () => _rescheduleWorkout(nextWorkout),
+          showReschedule: false,
           onScheduleChanged: (workoutAt, leadMinutes, enabled) =>
               _rescheduleWorkoutAt(
                 workout: nextWorkout,
@@ -805,6 +857,16 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                   _workouts.isNotEmpty && workout['id'] == _workouts.last['id'];
               final isNext =
                   !allCompleted && workout['id'] == nextWorkout['id'];
+              final workoutIndex = _workouts.indexWhere(
+                (item) => item['id'] == workout['id'],
+              );
+              final nextWorkoutIndex = _workouts.indexWhere(
+                (item) => item['id'] == nextWorkout['id'],
+              );
+              final showReschedule =
+                  workout['status'] == 'planned' &&
+                  nextWorkoutIndex >= 0 &&
+                  workoutIndex > nextWorkoutIndex;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: _WorkoutScheduleCard(
@@ -822,6 +884,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                   onAddActivity: () => _showAddActivityOptions(workout),
                   onRecordGuide: () => _showRecordingGuide(workout),
                   onReschedule: () => _rescheduleWorkout(workout),
+                  showReschedule: showReschedule,
                   onScheduleChanged: (workoutAt, leadMinutes, enabled) =>
                       _rescheduleWorkoutAt(
                         workout: workout,
@@ -945,6 +1008,186 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   double? _asDouble(dynamic value) {
     if (value is num) return value.toDouble();
     return double.tryParse(value?.toString() ?? '');
+  }
+
+  DateTime _weekStart(DateTime date) {
+    final day = DateUtils.dateOnly(date.toLocal());
+    return day.subtract(Duration(days: day.weekday - DateTime.monday));
+  }
+
+  List<Map<String, dynamic>> _activitiesBetween(DateTime start, DateTime end) {
+    return _calendarActivities.where((activity) {
+      final startedAt = DateTime.tryParse(
+        activity['started_at']?.toString() ?? '',
+      )?.toLocal();
+      return startedAt != null &&
+          !startedAt.isBefore(start) &&
+          startedAt.isBefore(end);
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> _workoutsBetween(DateTime start, DateTime end) {
+    return _workouts.where((workout) {
+      final date = DateTime.tryParse(workout['date']?.toString() ?? '');
+      return date != null && !date.isBefore(start) && date.isBefore(end);
+    }).toList();
+  }
+
+  WeeklyTrainingMetrics _weeklyMetrics(DateTime start, DateTime end) {
+    final activities = _activitiesBetween(start, end);
+    return WeeklyTrainingMetrics(
+      activityCount: activities.length,
+      distanceKm: activities.fold<double>(
+        0,
+        (sum, activity) => sum + (_asDouble(activity['distance_km']) ?? 0),
+      ),
+      durationMin: activities.fold<double>(
+        0,
+        (sum, activity) => sum + (_asDouble(activity['duration_min']) ?? 0),
+      ),
+    );
+  }
+
+  String _weeklyInsightSignature(String languageCode) {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final weekStart = _weekStart(today);
+    final previousWeekStart = weekStart.subtract(const Duration(days: 7));
+    final nextWeekStart = weekStart.add(const Duration(days: 7));
+    final activities = _activitiesBetween(previousWeekStart, nextWeekStart)
+        .map(
+          (activity) => [
+            activity['id'] ?? '',
+            activity['started_at'] ?? '',
+            activity['distance_km'] ?? '',
+            activity['duration_min'] ?? '',
+          ].join(':'),
+        )
+        .join('|');
+    final workouts = _workoutsBetween(weekStart, nextWeekStart)
+        .map(
+          (workout) => [
+            workout['id'] ?? '',
+            workout['date'] ?? '',
+            workout['status'] ?? '',
+          ].join(':'),
+        )
+        .join('|');
+    return [
+      languageCode,
+      AiInsightService.weeklyCachePeriod(today),
+      _activeSchedule?['id'] ?? '',
+      activities,
+      workouts,
+    ].join('::');
+  }
+
+  Future<String?> _weeklyInsightFor(String languageCode) {
+    final signature = _weeklyInsightSignature(languageCode);
+    if (_weeklyInsightFuture == null || _weeklyInsightKey != signature) {
+      _weeklyInsightKey = signature;
+      _weeklyInsightFuture = _fetchWeeklyInsight(languageCode, signature);
+    }
+    return _weeklyInsightFuture!;
+  }
+
+  Future<String?> _fetchWeeklyInsight(
+    String languageCode,
+    String signature,
+  ) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return null;
+    final textKey = 'training_weekly_insight_text_${userId}_$languageCode';
+    final signatureKey =
+        'training_weekly_insight_signature_${userId}_$languageCode';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(textKey);
+      if (cached != null &&
+          cached.isNotEmpty &&
+          prefs.getString(signatureKey) == signature) {
+        return cached;
+      }
+
+      final today = DateUtils.dateOnly(DateTime.now());
+      final weekStart = _weekStart(today);
+      final previousWeekStart = weekStart.subtract(const Duration(days: 7));
+      final nextWeekStart = weekStart.add(const Duration(days: 7));
+      final currentWorkouts = _workoutsBetween(weekStart, nextWeekStart);
+      final insight = await _aiInsightService.generateWeeklyTrainingConclusion(
+        currentWeek: _weeklyMetrics(weekStart, nextWeekStart),
+        previousWeek: _weeklyMetrics(previousWeekStart, weekStart),
+        plannedWorkouts: currentWorkouts.length,
+        completedWorkouts: currentWorkouts
+            .where((workout) => workout['status'] == 'completed')
+            .length,
+        skippedWorkouts: currentWorkouts
+            .where((workout) => workout['status'] == 'skipped')
+            .length,
+        languageCode: languageCode,
+        today: DateTime.now(),
+      );
+      final normalized = _normalizeWeeklyConclusion(insight);
+      if (normalized.isEmpty) return null;
+      await prefs.setString(textKey, normalized);
+      await prefs.setString(signatureKey, signature);
+      return normalized;
+    } catch (e) {
+      debugPrint('Weekly training insight error: $e');
+      return null;
+    }
+  }
+
+  String _normalizeWeeklyConclusion(String raw) {
+    var value = raw
+        .replaceAll(RegExp(r'[*#\n\r]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    value = value.replaceFirst(
+      RegExp(r'^(Kết luận|Conclusion)\s*:\s*', caseSensitive: false),
+      '',
+    );
+    if (value.length <= 180) return value;
+    final shortened = value.substring(0, 180);
+    final lastSpace = shortened.lastIndexOf(' ');
+    return '${shortened.substring(0, lastSpace > 120 ? lastSpace : 180)}…';
+  }
+
+  Widget _buildWeeklyInsight(BuildContext context) {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final weekStart = _weekStart(today);
+    final currentMetrics = _weeklyMetrics(
+      weekStart,
+      weekStart.add(const Duration(days: 7)),
+    );
+    final title = context.translate('training_weekly_ai_title');
+    if (currentMetrics.activityCount == 0) {
+      return TrainingWeeklyInsightCard(
+        title: title,
+        message: context.translate('training_weekly_ai_empty'),
+        encouragement: true,
+      );
+    }
+
+    return FutureBuilder<String?>(
+      future: _weeklyInsightFor(Localizations.localeOf(context).languageCode),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return TrainingWeeklyInsightCard(
+            title: title,
+            message: context.translate('training_weekly_ai_loading'),
+            loading: true,
+          );
+        }
+        return TrainingWeeklyInsightCard(
+          title: title,
+          message: snapshot.data?.isNotEmpty == true
+              ? snapshot.data!
+              : context.translate('training_weekly_ai_fallback', [
+                  currentMetrics.activityCount.toString(),
+                ]),
+        );
+      },
+    );
   }
 
   void _askWarmUp(Map<String, dynamic> workout) {
@@ -2093,7 +2336,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           },
           onOptimizePlan: () {
             Navigator.pop(sheetContext);
-            _adjustPlan();
+            _openPlanOptimizationCoach(activity: activity);
           },
         ),
       ),
@@ -2150,6 +2393,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
   final VoidCallback onAddActivity;
   final VoidCallback onRecordGuide;
   final VoidCallback onReschedule;
+  final bool showReschedule;
   final VoidCallback? onEditManual;
   final VoidCallback? onDeleteManual;
   final RunReminder? reminder;
@@ -2170,6 +2414,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
     required this.onAddActivity,
     required this.onRecordGuide,
     required this.onReschedule,
+    this.showReschedule = false,
     this.onEditManual,
     this.onDeleteManual,
     required this.onReminderChanged,
@@ -2308,73 +2553,96 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                     runSpacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      if (workout['status'] == 'planned' &&
-                          widget.allowExecution) ...[
-                        ElevatedButton.icon(
-                          key: ValueKey(
-                            'record_workout_guide_${workout['id']}',
+                      if (widget.showReschedule)
+                        FutureWorkoutScheduleAction(
+                          buttonKey: ValueKey(
+                            'reschedule_workout_${workout['id']}',
                           ),
-                          onPressed: widget.onRecordGuide,
-                          style: primaryActionButton(context),
-                          icon: const Icon(Icons.watch_outlined, size: 18),
-                          label: Text(
-                            context.translate('record_workout_with_device'),
-                          ),
-                        ),
-                        if (widget.onWarmUp != null)
-                          OutlinedButton.icon(
-                            onPressed: widget.onWarmUp,
-                            icon: const Icon(
-                              Icons.local_fire_department,
-                              size: 18,
+                          onReschedule: widget.onReschedule,
+                          label: context.translate('reschedule'),
+                        )
+                      else ...[
+                        if (workout['status'] == 'planned' &&
+                            widget.allowExecution) ...[
+                          ElevatedButton.icon(
+                            key: ValueKey(
+                              'record_workout_guide_${workout['id']}',
                             ),
-                            label: Text(context.translate('warm_up')),
-                          ),
-                        OutlinedButton.icon(
-                          onPressed: widget.onAddActivity,
-                          icon: const Icon(
-                            Icons.add_location_alt_outlined,
-                            size: 18,
-                          ),
-                          label: Text(context.translate('attach_activity')),
-                        ),
-                      ] else if (workout['status'] != 'planned')
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(widget.statusIcon, color: widget.statusColor),
-                            const SizedBox(width: 8),
-                            Text(
-                              context.translate('status_${workout['status']}'),
-                              style: TextStyle(
-                                color: colorScheme.onSurfaceVariant,
+                            onPressed: widget.onRecordGuide,
+                            style: primaryActionButton(context).copyWith(
+                              side: const WidgetStatePropertyAll(
+                                BorderSide(
+                                  color: Color(0xFFFFA45C),
+                                  width: 0.9,
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-                      // Nút "Đặt lịch" cho các buổi tập chưa hoàn thành để đổi ngày theo ý muốn.
-                      if (workout['status'] != 'completed')
-                        OutlinedButton.icon(
-                          onPressed: widget.onReschedule,
-                          icon: const Icon(_rescheduleWorkoutIcon, size: 18),
-                          label: Text(context.translate('reschedule')),
-                        ),
-                      if (widget.onEditManual != null)
-                        OutlinedButton.icon(
-                          onPressed: widget.onEditManual,
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: Text(context.translate('edit')),
-                        ),
-                      if (widget.onDeleteManual != null)
-                        OutlinedButton.icon(
-                          onPressed: widget.onDeleteManual,
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            size: 18,
-                            color: Colors.redAccent,
+                            icon: const Icon(Icons.watch_outlined, size: 18),
+                            label: Text(
+                              context.translate('record_workout_with_device'),
+                            ),
                           ),
-                          label: Text(context.translate('delete')),
-                        ),
+                          if (widget.onWarmUp != null)
+                            OutlinedButton.icon(
+                              onPressed: widget.onWarmUp,
+                              style: _outlinedActionStyle(
+                                const Color(0xFFFF7A00),
+                              ),
+                              icon: const Icon(
+                                Icons.local_fire_department,
+                                size: 18,
+                              ),
+                              label: Text(context.translate('warm_up')),
+                            ),
+                          OutlinedButton.icon(
+                            onPressed: widget.onAddActivity,
+                            style: _outlinedActionStyle(colorScheme.primary),
+                            icon: const Icon(
+                              Icons.add_location_alt_outlined,
+                              size: 18,
+                            ),
+                            label: Text(context.translate('attach_activity')),
+                          ),
+                        ] else if (workout['status'] != 'planned')
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                widget.statusIcon,
+                                color: widget.statusColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                context.translate(
+                                  'status_${workout['status']}',
+                                ),
+                                style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        if (widget.onEditManual != null)
+                          OutlinedButton.icon(
+                            onPressed: widget.onEditManual,
+                            style: _outlinedActionStyle(
+                              const Color(0xFF0D9488),
+                            ),
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            label: Text(context.translate('edit')),
+                          ),
+                        if (widget.onDeleteManual != null)
+                          OutlinedButton.icon(
+                            onPressed: widget.onDeleteManual,
+                            style: _outlinedActionStyle(Colors.redAccent),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              size: 18,
+                              color: Colors.redAccent,
+                            ),
+                            label: Text(context.translate('delete')),
+                          ),
+                      ],
                     ],
                   ),
                 ],
@@ -2387,6 +2655,14 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
           ),
         ],
       ),
+    );
+  }
+
+  ButtonStyle _outlinedActionStyle(Color color) {
+    return OutlinedButton.styleFrom(
+      foregroundColor: color,
+      side: BorderSide(color: color.withValues(alpha: 0.82), width: 0.9),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
     );
   }
 
@@ -2690,175 +2966,5 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
       default:
         return context.translate('reminder_before_minutes', ['$minutes']);
     }
-  }
-}
-
-/// Hộp thoại xem trước các điều chỉnh do HLV AI đề xuất: hiển thị nhận xét tổng
-/// quan + từng thay đổi "cũ → mới" kèm lý do; người dùng xác nhận mới lưu.
-class _AdjustmentPreviewDialog extends StatelessWidget {
-  final PlanAdjustmentProposal proposal;
-  const _AdjustmentPreviewDialog({required this.proposal});
-
-  /// Đổi 'YYYY-MM-DD' sang 'dd/MM' cho gọn; giữ nguyên nếu không phân tích được.
-  String _fmtDate(String? raw) {
-    if (raw == null) return '—';
-    final d = DateTime.tryParse(raw);
-    return d == null ? raw : DateFormat('dd/MM').format(d);
-  }
-
-  String _fmtDist(num? km) => km == null ? '—' : '$km km';
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return AlertDialog(
-      title: Row(
-        children: [
-          Icon(Icons.auto_fix_high, color: colorScheme.primary),
-          const SizedBox(width: 10),
-          Expanded(child: Text(context.translate('adjust_preview_title'))),
-        ],
-      ),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (proposal.summary != null &&
-                  proposal.summary!.trim().isNotEmpty) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    proposal.summary!.trim(),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              Text(
-                context.translate('adjust_preview_changes'),
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...proposal.adjustments.map(
-                (adj) => _buildChangeTile(context, adj),
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(context.translate('cancel')),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(context.translate('adjust_preview_confirm')),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildChangeTile(BuildContext context, WorkoutAdjustment adj) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
-    final rows = <Widget>[];
-    // Chỉ hiện dòng nào thực sự thay đổi.
-    if (adj.newDate != null && adj.newDate != adj.currentDate) {
-      rows.add(
-        _changeRow(
-          context,
-          Icons.event,
-          '${_fmtDate(adj.currentDate)}  →  ${_fmtDate(adj.newDate)}',
-        ),
-      );
-    }
-    if (adj.newDistanceKm != null &&
-        adj.newDistanceKm != adj.currentDistanceKm) {
-      rows.add(
-        _changeRow(
-          context,
-          Icons.straighten,
-          '${_fmtDist(adj.currentDistanceKm)}  →  ${_fmtDist(adj.newDistanceKm)}',
-        ),
-      );
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.06)
-            : Colors.black.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.12)
-              : Colors.black.withValues(alpha: 0.06),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            adj.title,
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ...rows,
-          if (adj.reason.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              adj.reason,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _changeRow(BuildContext context, IconData icon, String text) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: colorScheme.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: colorScheme.onSurface,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

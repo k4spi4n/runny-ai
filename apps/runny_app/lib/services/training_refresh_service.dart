@@ -13,8 +13,19 @@ class TrainingRefreshService extends ChangeNotifier {
   int _revision = 0;
   int get revision => _revision;
 
+  int _pageOpenRevision = 0;
+  int get pageOpenRevision => _pageOpenRevision;
+
   void notifyTrainingChanged() {
     _revision++;
+    notifyListeners();
+  }
+
+  /// Báo rằng người dùng vừa chuyển trở lại tab Kế hoạch. Tách khỏi revision
+  /// dữ liệu để trang chỉ hiện nhắc buổi bị lỡ khi thực sự được mở, không bật
+  /// dialog trong lúc tab đang Offstage vì một tác vụ nền vừa đồng bộ xong.
+  void notifyTrainingPageOpened() {
+    _pageOpenRevision++;
     notifyListeners();
   }
 }

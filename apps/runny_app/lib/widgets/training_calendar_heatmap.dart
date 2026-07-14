@@ -6,6 +6,26 @@ import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'ui_components.dart';
 
+const _activityCalendarColor = Colors.green;
+const _plannedCalendarColor = Color(0xFF4A82FF);
+
+Color? _calendarStatusColor(String? status) {
+  switch (status) {
+    case 'last':
+      return Colors.amber;
+    case 'next':
+      return Colors.orangeAccent;
+    case 'completed':
+      return Colors.greenAccent;
+    case 'planned':
+      return _plannedCalendarColor;
+    case 'skipped':
+      return Colors.grey;
+    default:
+      return null;
+  }
+}
+
 /// Dữ liệu tối giản để biểu diễn một buổi tập hoặc hoạt động chạy trong lịch.
 class TrainingCalendarEntry {
   const TrainingCalendarEntry({
@@ -91,6 +111,7 @@ class TrainingCalendarHeatmap extends StatefulWidget {
     this.month,
     this.selectedDate,
     this.onDateSelected,
+    this.progressFooter,
   });
 
   final List<TrainingCalendarEntry> workouts;
@@ -99,6 +120,7 @@ class TrainingCalendarHeatmap extends StatefulWidget {
   final DateTime? month;
   final DateTime? selectedDate;
   final ValueChanged<DateTime?>? onDateSelected;
+  final Widget? progressFooter;
 
   @override
   State<TrainingCalendarHeatmap> createState() =>
@@ -300,6 +322,10 @@ class _TrainingCalendarHeatmapState extends State<TrainingCalendarHeatmap> {
                   totalWorkouts: widget.totalPlanWorkouts,
                 ),
               ),
+              if (widget.progressFooter != null) ...[
+                const SizedBox(height: 10),
+                widget.progressFooter!,
+              ],
             ],
           ],
         ),
@@ -455,8 +481,9 @@ class _CalendarDay extends StatelessWidget {
         .toList();
     final hasActivity = entries.any((entry) => entry.isActivity);
     final status = _statusFor(scheduledEntries);
-    final statusFill = _fillColor(status);
-    final fill = statusFill ?? (isDark && hasActivity ? Colors.green : null);
+    final statusFill = _calendarStatusColor(status);
+    final fill =
+        statusFill ?? (isDark && hasActivity ? _activityCalendarColor : null);
     final foreground = isDark
         ? Colors.white
         : status == 'completed' || status == 'last'
@@ -504,14 +531,7 @@ class _CalendarDay extends StatelessWidget {
                           ),
                         ]
                       : isDark
-                      ? [
-                          fill.withValues(alpha: 0.46),
-                          Color.lerp(
-                            fill,
-                            colorScheme.surface,
-                            0.35,
-                          )!.withValues(alpha: 0.28),
-                        ]
+                      ? [fill, Color.lerp(fill, Colors.white, 0.18)!]
                       : [
                           fill.withValues(alpha: 0.96),
                           Color.lerp(fill, Colors.black, 0.14)!,
@@ -601,23 +621,6 @@ class _CalendarDay extends StatelessWidget {
     if (entries.any((entry) => entry.isNext)) return 'next';
     if (entries.every((entry) => entry.status == 'skipped')) return 'skipped';
     return 'planned';
-  }
-
-  Color? _fillColor(String? status) {
-    switch (status) {
-      case 'last':
-        return Colors.amber;
-      case 'next':
-        return Colors.orangeAccent;
-      case 'completed':
-        return Colors.greenAccent;
-      case 'planned':
-        return const Color(0xFF4A82FF);
-      case 'skipped':
-        return Colors.grey;
-      default:
-        return null;
-    }
   }
 
   IconData _statusIcon(String status) {
@@ -714,37 +717,43 @@ class _CalendarLegend extends StatelessWidget {
       runSpacing: 8,
       children: [
         _LegendItem(
-          color: Colors.green,
+          key: const ValueKey('training_calendar_legend_activity'),
+          color: _activityCalendarColor,
           icon: Icons.check_circle,
           label: context.translate('training_calendar_has_activity'),
           style: textStyle,
         ),
         _LegendItem(
-          color: Colors.orangeAccent,
+          key: const ValueKey('training_calendar_legend_next'),
+          color: _calendarStatusColor('next')!,
           icon: Icons.directions_run,
           label: context.translate('training_calendar_next_workout'),
           style: textStyle,
         ),
         _LegendItem(
-          color: Colors.amber,
+          key: const ValueKey('training_calendar_legend_last'),
+          color: _calendarStatusColor('last')!,
           icon: Icons.military_tech,
           label: context.translate('training_calendar_last_workout'),
           style: textStyle,
         ),
         _LegendItem(
-          color: const Color(0xFF4A82FF),
+          key: const ValueKey('training_calendar_legend_planned'),
+          color: _calendarStatusColor('planned')!,
           icon: Icons.directions_run,
           label: context.translate('status_planned'),
           style: textStyle,
         ),
         _LegendItem(
-          color: Colors.greenAccent,
+          key: const ValueKey('training_calendar_legend_completed'),
+          color: _calendarStatusColor('completed')!,
           icon: Icons.directions_run,
           label: context.translate('status_completed'),
           style: textStyle,
         ),
         _LegendItem(
-          color: Colors.grey,
+          key: const ValueKey('training_calendar_legend_skipped'),
+          color: _calendarStatusColor('skipped')!,
           icon: Icons.pause_circle,
           label: context.translate('status_skipped'),
           style: textStyle,
@@ -756,6 +765,7 @@ class _CalendarLegend extends StatelessWidget {
 
 class _LegendItem extends StatelessWidget {
   const _LegendItem({
+    super.key,
     required this.color,
     required this.icon,
     required this.label,

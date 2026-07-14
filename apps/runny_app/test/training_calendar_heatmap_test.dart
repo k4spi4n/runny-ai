@@ -296,8 +296,34 @@ void main() {
     );
     final decoration = ink.decoration! as BoxDecoration;
     final gradient = decoration.gradient! as LinearGradient;
-    expect(gradient.colors.every((color) => color.a > 0), isTrue);
-    expect(gradient.colors.every((color) => color.a < 0.55), isTrue);
+    expect(gradient.colors.every((color) => color.a == 1), isTrue);
+    expect(
+      gradient.colors.last.computeLuminance(),
+      greaterThan(gradient.colors.first.computeLuminance()),
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('training_calendar_legend_toggle')),
+    );
+    await tester.pump();
+    final activityLegend = find.byKey(
+      const ValueKey('training_calendar_legend_activity'),
+      skipOffstage: false,
+    );
+    final legendMarker = find.descendant(
+      of: activityLegend,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Container &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration! as BoxDecoration).shape == BoxShape.circle,
+        skipOffstage: false,
+      ),
+    );
+    expect(legendMarker, findsOneWidget);
+    final legendDecoration =
+        tester.widget<Container>(legendMarker).decoration! as BoxDecoration;
+    expect(gradient.colors.first, legendDecoration.color);
   });
 
   testWidgets('uses two columns only when the available width is wide', (

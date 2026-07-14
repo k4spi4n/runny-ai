@@ -18,7 +18,7 @@ import '../widgets/nutrition_components.dart';
 import '../services/nutrition_service.dart';
 import '../models/workout_models.dart';
 import '../services/weather_service.dart';
-import '../services/gemini_service.dart';
+import '../services/ai_insight_service.dart';
 import '../services/dashboard_layout.dart';
 import '../services/readiness_service.dart';
 import '../models/readiness_models.dart';
@@ -79,6 +79,9 @@ class _DashboardPageState extends State<DashboardPage> {
       _selectedIndex = index;
       _visitedPageIndexes.add(index);
     });
+    if (index == 1) {
+      TrainingRefreshService.instance.notifyTrainingPageOpened();
+    }
   }
 
   @override
@@ -558,9 +561,19 @@ class _OverviewContentState extends State<OverviewContent> {
   /// Chữ ký của tập buổi chạy gần đây: nhận xét chỉ đổi khi tập này đổi (có buổi
   /// chạy mới / sửa). Nhờ vậy không gọi lại AI mỗi lần mở lại tab Tổng quan.
   String _activitiesSignature(List<Activity> activities) {
-    return activities
-        .map((a) => a.id ?? a.startedAt.millisecondsSinceEpoch.toString())
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
+    final activityData = activities
+        .map(
+          (a) => [
+            a.id ?? '',
+            a.startedAt.toIso8601String(),
+            a.distanceKm.toStringAsFixed(3),
+            a.durationMin.toStringAsFixed(2),
+            a.avgHr?.toString() ?? '',
+          ].join(':'),
+        )
         .join('|');
+    return '$today|$activityData';
   }
 
   /// Gọi AI để nhận xét ngắn về xu hướng hiệu suất dựa trên các buổi chạy gần đây.
@@ -583,35 +596,10 @@ class _OverviewContentState extends State<OverviewContent> {
         return cachedText;
       }
 
-      final buffer = StringBuffer();
-      for (final a in activities) {
-        final dateStr = DateFormat('dd/MM').format(a.startedAt.toLocal());
-        final pace = a.distanceKm > 0 ? a.durationMin / a.distanceKm : 0.0;
-        String paceStr = '--';
-        if (pace > 0) {
-          final min = pace.floor();
-          final sec = ((pace - min) * 60).round();
-          paceStr = '$min:${sec.toString().padLeft(2, '0')}';
-        }
-        buffer.writeln(
-          '- $dateStr: ${a.distanceKm.toStringAsFixed(1)} km, '
-          '${a.durationMin.toStringAsFixed(0)} phút, pace $paceStr/km'
-          '${a.avgHr != null ? ', HR ${a.avgHr} bpm' : ''}',
-        );
-      }
-
-      final langName = langCode == 'en' ? 'English' : 'Vietnamese';
-      final prompt =
-          'Đây là các buổi chạy gần đây nhất của một người dùng:\n'
-          '${buffer.toString()}\n'
-          'Hãy đưa ra nhận xét ngắn gọn (2-3 câu), tích cực và khích lệ về xu hướng hiệu suất '
-          '(quãng đường, nhịp độ, nhịp tim), kèm đúng 1 gợi ý cải thiện cụ thể. '
-          'Trả lời bằng $langName, văn phong thân thiện, không dùng markdown hay tiêu đề.';
-
-      final insight = await GeminiService().generateResponse(
-        prompt,
-        preferredProvider: 'groq',
-        preferredModel: 'llama-3.1-8b-instant',
+      final insight = await AiInsightService().generateActivityTrendInsight(
+        activities: activities,
+        languageCode: langCode,
+        today: DateTime.now(),
       );
       final trimmed = insight.trim();
       if (trimmed.isEmpty) return null;
