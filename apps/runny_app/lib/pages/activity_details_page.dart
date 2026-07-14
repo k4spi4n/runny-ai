@@ -366,19 +366,26 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             ),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
+        floatingActionButton: FloatingActionButton.extended(
           onPressed: () {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => AICoachPage(initialActivity: _activity),
+                builder: (_) => AICoachPage(
+                  initialActivity: _activity,
+                  autoSendInitialPrompt: true,
+                ),
               ),
             );
           },
           backgroundColor: colorScheme.primary,
-          child: const Icon(
+          icon: const Icon(
             Icons.tips_and_updates_outlined,
             color: Colors.white,
+          ),
+          label: Text(
+            context.translate('analyze_with_ai'),
+            style: const TextStyle(color: Colors.white),
           ),
         ),
         body: Stack(

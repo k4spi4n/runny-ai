@@ -8,9 +8,17 @@ void main() {
   Widget buildSubject(
     List<TrainingCalendarEntry> workouts, {
     ValueChanged<DateTime?>? onDateSelected,
+    Brightness brightness = Brightness.light,
   }) {
     return MaterialApp(
       locale: const Locale('en'),
+      theme: ThemeData(
+        brightness: brightness,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF4A82FF),
+          brightness: brightness,
+        ),
+      ),
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -211,6 +219,87 @@ void main() {
     expect(selectionChanges, 2);
   });
 
+  testWidgets('uses white corner icons and soft gradients in dark mode', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        buildSubject([
+          TrainingCalendarEntry(
+            date: DateTime(2026, 7, 8),
+            status: 'activity',
+            title: 'Recorded activity',
+            isActivity: true,
+          ),
+          TrainingCalendarEntry(
+            date: DateTime(2026, 7, 9),
+            status: 'completed',
+            title: 'Completed workout',
+          ),
+        ], brightness: Brightness.dark),
+      );
+      await tester.pumpAndSettle();
+    });
+
+    final activityDay = find.byKey(
+      const ValueKey('training_calendar_day_2026-07-08'),
+      skipOffstage: false,
+    );
+    final completedDay = find.byKey(
+      const ValueKey('training_calendar_day_2026-07-09'),
+      skipOffstage: false,
+    );
+    final activityIcon = find.descendant(
+      of: activityDay,
+      matching: find.byIcon(Icons.check_circle, skipOffstage: false),
+    );
+    final completedIcon = find.descendant(
+      of: completedDay,
+      matching: find.byIcon(Icons.directions_run, skipOffstage: false),
+    );
+
+    expect(activityDay, findsOneWidget);
+    expect(completedDay, findsOneWidget);
+    expect(activityIcon, findsOneWidget);
+    expect(completedIcon, findsOneWidget);
+    expect(tester.widget<Icon>(activityIcon).color, Colors.white);
+    expect(tester.widget<Icon>(completedIcon).color, Colors.white);
+    expect(
+      tester
+          .widget<Text>(
+            find.descendant(of: activityDay, matching: find.text('8')),
+          )
+          .style
+          ?.color,
+      Colors.white,
+    );
+    expect(
+      tester
+          .widget<Text>(
+            find.descendant(of: completedDay, matching: find.text('9')),
+          )
+          .style
+          ?.color,
+      Colors.white,
+    );
+    expect(
+      tester.getCenter(activityIcon).dx,
+      greaterThan(tester.getCenter(activityDay).dx),
+    );
+    expect(
+      tester.getCenter(activityIcon).dy,
+      greaterThan(tester.getCenter(activityDay).dy),
+    );
+
+    final ink = tester.widget<Ink>(
+      find.descendant(of: activityDay, matching: find.byType(Ink)),
+    );
+    final decoration = ink.decoration! as BoxDecoration;
+    final gradient = decoration.gradient! as LinearGradient;
+    expect(gradient.colors.every((color) => color.a > 0), isTrue);
+    expect(gradient.colors.every((color) => color.a < 0.55), isTrue);
+  });
+
   testWidgets('uses two columns only when the available width is wide', (
     tester,
   ) async {
@@ -227,9 +316,9 @@ void main() {
             child: SizedBox(
               width: width,
               child: const TrainingPlanResponsiveLayout(
-                calendar: SizedBox(key: ValueKey('calendar')),
-                focus: SizedBox(key: ValueKey('focus')),
-                details: SizedBox(key: ValueKey('details')),
+                calendar: SizedBox(key: ValueKey('calendar'), height: 320),
+                focus: SizedBox(key: ValueKey('focus'), height: 100),
+                details: SizedBox(key: ValueKey('details'), height: 400),
               ),
             ),
           ),
@@ -246,6 +335,10 @@ void main() {
       find.byKey(const ValueKey('training_plan_wide_layout')),
       findsNothing,
     );
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('focus'))).dy,
+      greaterThan(tester.getTopLeft(find.byKey(const ValueKey('calendar'))).dy),
+    );
 
     await tester.pumpWidget(buildLayout(1100));
     expect(
@@ -256,5 +349,17 @@ void main() {
       find.byKey(const ValueKey('training_plan_narrow_layout')),
       findsNothing,
     );
+    final calendarPosition = tester.getTopLeft(
+      find.byKey(const ValueKey('calendar')),
+    );
+    final focusPosition = tester.getTopLeft(
+      find.byKey(const ValueKey('focus')),
+    );
+    final detailsPosition = tester.getTopLeft(
+      find.byKey(const ValueKey('details')),
+    );
+    expect(focusPosition.dx, greaterThan(calendarPosition.dx));
+    expect(detailsPosition.dx, focusPosition.dx);
+    expect(detailsPosition.dy, greaterThan(focusPosition.dy));
   });
 }

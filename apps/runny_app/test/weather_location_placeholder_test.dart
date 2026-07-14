@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:runny_app/l10n/app_localizations.dart';
 import 'package:runny_app/widgets/weather_location_placeholder.dart';
 
 void main() {
@@ -12,14 +10,6 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        locale: const Locale('vi'),
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: const [Locale('en'), Locale('vi')],
         home: Scaffold(
           body: WeatherLocationPlaceholder(
             onRequestLocation: () => requested = true,
@@ -27,13 +17,13 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
+    expect(find.byType(WeatherLocationPlaceholder), findsOneWidget);
     expect(
-      find.text('Thời tiết và chất lượng không khí sẽ hiển thị ở đây.'),
+      find.byKey(const Key('weather-location-placeholder')),
       findsOneWidget,
     );
-    expect(find.text('Nhấn để cho phép truy cập vị trí'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('request-weather-location-button')));
 

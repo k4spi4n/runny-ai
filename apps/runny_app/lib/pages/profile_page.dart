@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/ui_components.dart';
 import '../services/integration_service.dart';
+import '../services/training_refresh_service.dart';
 import '../services/social_service.dart';
 import '../services/subscription_service.dart';
 import '../services/entitlement_service.dart';
@@ -385,6 +386,7 @@ class _ProfilePageState extends State<ProfilePage> {
           content: Text(context.translate('strava_synced', ['$imported'])),
         ),
       );
+      TrainingRefreshService.instance.notifyTrainingChanged();
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('$errorText: $e')));

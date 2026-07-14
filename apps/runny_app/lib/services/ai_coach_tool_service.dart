@@ -144,6 +144,8 @@ class AICoachToolService {
     final from = _dateArg(args['date_from'], today);
     final to = _dateArg(args['date_to'], today.add(const Duration(days: 14)));
     final limit = _limit(args['limit'], 10, 20);
+    final scheduleId = await _activeScheduleId();
+    if (scheduleId == null) return {'workouts': const [], 'count': 0};
     final rows = await _supabase
         .from('scheduled_workouts')
         .select(
@@ -151,6 +153,7 @@ class AICoachToolService {
           'target_duration_min,target_pace_min_per_km,workout_type,status,source',
         )
         .eq('user_id', _userId)
+        .eq('schedule_id', scheduleId)
         .gte('date', _dateOnly(from))
         .lte('date', _dateOnly(to))
         .order('date')
@@ -188,7 +191,7 @@ class AICoachToolService {
     final row = await _supabase
         .from('scheduled_workouts')
         .select(
-          'id,date,start_time,title,description,target_distance_km,'
+          'id,schedule_id,date,start_time,title,description,target_distance_km,'
           'target_duration_min,workout_type,status',
         )
         .eq('id', id)
@@ -197,6 +200,15 @@ class AICoachToolService {
     if (row == null) {
       return const CoachToolExecution(
         output: {'error': 'Không tìm thấy buổi tập thuộc người dùng.'},
+      );
+    }
+    final activeScheduleId = await _activeScheduleId();
+    if (activeScheduleId == null || row['schedule_id'] != activeScheduleId) {
+      return const CoachToolExecution(
+        output: {
+          'error':
+              'Buổi tập không thuộc lịch đang hoạt động; không chỉnh bản nháp hoặc lịch sử.',
+        },
       );
     }
     if (row['status'] == 'completed') {
@@ -294,6 +306,18 @@ class AICoachToolService {
 
   Future<void> applyAction(CoachInteractiveAction action) async {
     if (!action.isPending) return;
+    if (action.kind == 'workout_update') {
+      final row = await _supabase
+          .from('scheduled_workouts')
+          .select('schedule_id')
+          .eq('id', action.targetId)
+          .eq('user_id', _userId)
+          .maybeSingle();
+      final activeScheduleId = await _activeScheduleId();
+      if (row == null || row['schedule_id'] != activeScheduleId) {
+        throw StateError('Buổi tập không còn thuộc lịch đang hoạt động.');
+      }
+    }
     final table = switch (action.kind) {
       'workout_update' => 'scheduled_workouts',
       'meal_update' => 'meal_logs',
@@ -351,6 +375,18 @@ class AICoachToolService {
       if (oldValue is num && value is num) return oldValue == value;
       return oldValue?.toString() == value?.toString();
     });
+  }
+
+  Future<String?> _activeScheduleId() async {
+    final row = await _supabase
+        .from('training_schedules')
+        .select('id')
+        .eq('user_id', _userId)
+        .eq('status', 'active')
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    return row?['id']?.toString();
   }
 
   DateTime _dateArg(dynamic value, DateTime fallback) =>

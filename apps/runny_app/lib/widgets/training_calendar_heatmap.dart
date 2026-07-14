@@ -65,15 +65,15 @@ class TrainingPlanResponsiveLayout extends StatelessWidget {
           key: const ValueKey('training_plan_wide_layout'),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Expanded(flex: 5, child: calendar),
+            const SizedBox(width: 22),
             Expanded(
-              flex: 5,
+              flex: 6,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [calendar, const SizedBox(height: 22), focus],
+                children: [focus, const SizedBox(height: 24), details],
               ),
             ),
-            const SizedBox(width: 22),
-            Expanded(flex: 6, child: details),
           ],
         );
       },
@@ -448,16 +448,25 @@ class _CalendarDay extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final isToday = DateUtils.isSameDay(date, DateTime.now());
     final scheduledEntries = entries
         .where((entry) => !entry.isActivity)
         .toList();
     final hasActivity = entries.any((entry) => entry.isActivity);
     final status = _statusFor(scheduledEntries);
-    final fill = _fillColor(status);
-    final foreground = status == 'completed' || status == 'last'
+    final statusFill = _fillColor(status);
+    final fill = statusFill ?? (isDark && hasActivity ? Colors.green : null);
+    final foreground = isDark
+        ? Colors.white
+        : status == 'completed' || status == 'last'
         ? Colors.black87
         : Colors.white;
+    final activityForeground = isDark
+        ? Colors.white
+        : statusFill == null
+        ? Colors.green
+        : foreground;
     final dateText = DateFormat(
       'EEE, d MMM',
       Localizations.localeOf(context).toLanguageTag(),
@@ -489,16 +498,19 @@ class _CalendarDay extends StatelessWidget {
                   end: Alignment.bottomRight,
                   colors: fill == null
                       ? [
-                          Colors.white.withValues(
-                            alpha: theme.brightness == Brightness.dark
-                                ? 0.07
-                                : 0.5,
-                          ),
+                          Colors.white.withValues(alpha: isDark ? 0.07 : 0.5),
                           colorScheme.surfaceContainerHighest.withValues(
-                            alpha: theme.brightness == Brightness.dark
-                                ? 0.18
-                                : 0.32,
+                            alpha: isDark ? 0.18 : 0.32,
                           ),
+                        ]
+                      : isDark
+                      ? [
+                          fill.withValues(alpha: 0.46),
+                          Color.lerp(
+                            fill,
+                            colorScheme.surface,
+                            0.35,
+                          )!.withValues(alpha: 0.28),
                         ]
                       : [
                           fill.withValues(alpha: 0.96),
@@ -512,11 +524,7 @@ class _CalendarDay extends StatelessWidget {
                       : isToday
                       ? colorScheme.primary.withValues(alpha: 0.72)
                       : entries.isEmpty
-                      ? Colors.white.withValues(
-                          alpha: theme.brightness == Brightness.dark
-                              ? 0.09
-                              : 0.62,
-                        )
+                      ? Colors.white.withValues(alpha: isDark ? 0.09 : 0.62)
                       : Colors.white.withValues(alpha: 0.2),
                   width: isSelected ? 2.4 : (isToday ? 1.8 : 1),
                 ),
@@ -524,8 +532,8 @@ class _CalendarDay extends StatelessWidget {
                     ? null
                     : [
                         BoxShadow(
-                          color: fill.withValues(alpha: 0.22),
-                          blurRadius: 8,
+                          color: fill.withValues(alpha: isDark ? 0.12 : 0.22),
+                          blurRadius: isDark ? 6 : 8,
                           offset: const Offset(0, 4),
                         ),
                       ],
@@ -539,7 +547,9 @@ class _CalendarDay extends StatelessWidget {
                       child: Text(
                         '${date.day}',
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: fill == null
+                          color: isDark
+                              ? Colors.white
+                              : fill == null
                               ? colorScheme.onSurface
                               : foreground,
                           fontWeight: FontWeight.w800,
@@ -547,27 +557,29 @@ class _CalendarDay extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (status != null)
+                  if (status != null || hasActivity)
                     Align(
                       alignment: Alignment.bottomRight,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(4, 4, 5, 5),
-                        child: Icon(
-                          _statusIcon(status),
-                          color: foreground,
-                          size: 15,
-                        ),
-                      ),
-                    ),
-                  if (hasActivity)
-                    Align(
-                      alignment: Alignment.bottomLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(5, 4, 4, 5),
-                        child: Icon(
-                          Icons.check_circle,
-                          color: fill == null ? Colors.green : foreground,
-                          size: 15,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (hasActivity)
+                              Icon(
+                                Icons.check_circle,
+                                color: activityForeground,
+                                size: 15,
+                              ),
+                            if (hasActivity && status != null)
+                              const SizedBox(width: 1),
+                            if (status != null)
+                              Icon(
+                                _statusIcon(status),
+                                color: foreground,
+                                size: 15,
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -847,6 +859,13 @@ Widget trainingCalendarHeatmapPreview() {
                   isActivity: true,
                 ),
                 TrainingCalendarEntry(
+                  date: today,
+                  status: 'activity',
+                  title: 'Activity without a linked workout',
+                  targetDistanceKm: 5,
+                  isActivity: true,
+                ),
+                TrainingCalendarEntry(
                   date: today.add(const Duration(days: 2)),
                   status: 'planned',
                   title: 'Tempo run',
@@ -867,4 +886,120 @@ Widget trainingCalendarHeatmapPreview() {
       ),
     ),
   );
+}
+
+@Preview(
+  name: 'Training plan two-column - Dark',
+  group: 'Training',
+  size: Size(1180, 760),
+  brightness: Brightness.dark,
+)
+Widget trainingPlanWideLayoutPreview() {
+  final today = DateTime.now();
+  return MaterialApp(
+    locale: const Locale('vi'),
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    supportedLocales: const [Locale('en'), Locale('vi')],
+    darkTheme: ThemeData(
+      brightness: Brightness.dark,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: const Color(0xFF4A82FF),
+        brightness: Brightness.dark,
+      ),
+    ),
+    themeMode: ThemeMode.dark,
+    home: Scaffold(
+      body: Builder(
+        builder: (context) => SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: TrainingPlanResponsiveLayout(
+            calendar: TrainingCalendarHeatmap(
+              month: today,
+              totalPlanWorkouts: 8,
+              completedPlanWorkouts: 3,
+              workouts: [
+                TrainingCalendarEntry(
+                  date: today,
+                  status: 'activity',
+                  title: 'Chạy tự do 5 km',
+                  isActivity: true,
+                ),
+                TrainingCalendarEntry(
+                  date: today.add(const Duration(days: 2)),
+                  status: 'planned',
+                  title: 'Tempo 45 phút',
+                  isNext: true,
+                ),
+              ],
+            ),
+            focus: _TrainingPlanPreviewPanel(
+              title: 'Buổi tập tiếp theo',
+              subtitle: 'Tempo 45 phút · 8 km',
+              color: Colors.orangeAccent,
+            ),
+            details: const _TrainingPlanPreviewPanel(
+              title: 'Lịch trình chi tiết',
+              subtitle: 'Các buổi tập còn lại trong kế hoạch',
+              color: Color(0xFF4A82FF),
+              height: 360,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _TrainingPlanPreviewPanel extends StatelessWidget {
+  const _TrainingPlanPreviewPanel({
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    this.height = 150,
+  });
+
+  final String title;
+  final String subtitle;
+  final Color color;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return glassCard(
+      context: context,
+      child: SizedBox(
+        height: height,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.directions_run, color: color),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(subtitle),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

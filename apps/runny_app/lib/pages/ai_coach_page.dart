@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/training_service.dart';
+import '../services/training_refresh_service.dart';
 import '../services/gemini_service.dart';
 import '../services/chat_service.dart';
 import '../services/ai_coach_tool_service.dart';
@@ -35,6 +36,7 @@ enum _ChatAttachment { activities, metrics, plan, nutrition }
 class AICoachPage extends StatefulWidget {
   final Activity? initialActivity;
   final String? initialPrompt;
+  final bool autoSendInitialPrompt;
 
   /// [embedded] = true khi hiển thị bên trong khung tab của Dashboard: bỏ nền
   /// gradient riêng (Dashboard đã vẽ gradient toàn màn) để không tạo ra "box"
@@ -45,6 +47,7 @@ class AICoachPage extends StatefulWidget {
     super.key,
     this.initialActivity,
     this.initialPrompt,
+    this.autoSendInitialPrompt = false,
     this.embedded = false,
   });
 
@@ -71,6 +74,7 @@ class _AICoachPageState extends State<AICoachPage> {
   bool _isRecording = false;
   final Set<int> _processingActionIndexes = <int>{};
   bool _hasConfirmedMicrophoneAccess = false;
+  bool _autoSendPending = false;
   String _coachPersona = CoachPersona.calm.id;
   String _baseText = '';
   Activity? _contextActivity;
@@ -94,6 +98,7 @@ class _AICoachPageState extends State<AICoachPage> {
     super.initState();
     _controller.addListener(_handlePromptChanged);
     _contextActivity = widget.initialActivity;
+    _autoSendPending = widget.autoSendInitialPrompt;
     if (widget.initialPrompt != null && widget.initialPrompt!.isNotEmpty) {
       _controller.text = widget.initialPrompt!;
     }
@@ -207,6 +212,17 @@ class _AICoachPageState extends State<AICoachPage> {
         _contextActivity!.distanceKm.toStringAsFixed(2),
       ]);
     }
+    _maybeAutoSendInitialPrompt();
+  }
+
+  void _maybeAutoSendInitialPrompt() {
+    if (!_autoSendPending || _isLoading || _controller.text.trim().isEmpty) {
+      return;
+    }
+    _autoSendPending = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _sendMessage();
+    });
   }
 
   Future<void> _loadHistory() async {
@@ -219,7 +235,10 @@ class _AICoachPageState extends State<AICoachPage> {
     } catch (e) {
       debugPrint('Error loading chat history: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _maybeAutoSendInitialPrompt();
+      }
     }
   }
 
@@ -374,8 +393,14 @@ $prompt''';
       final asksToCreate =
           lowercaseText.contains('tạo') ||
           lowercaseText.contains('lập') ||
+          lowercaseText.contains('lên lịch') ||
+          lowercaseText.contains('cho tôi') ||
+          lowercaseText.contains('muốn có') ||
+          lowercaseText.contains('cần một') ||
           lowercaseText.contains('xây dựng') ||
           lowercaseText.contains('create') ||
+          lowercaseText.contains('i want') ||
+          lowercaseText.contains('i need') ||
           lowercaseText.contains('make me') ||
           lowercaseText.contains('build');
       final asksToEdit = RegExp(
@@ -867,6 +892,10 @@ $prompt''';
     setState(() => _processingActionIndexes.add(messageIndex));
     try {
       DateTime? rescheduledAt;
+      // Xác thực buổi tập vẫn thuộc lịch active và lưu các trường được người
+      // dùng xác nhận trước; reschedule phía dưới bổ sung cập nhật biên lịch và
+      // reminder cho thay đổi ngày/giờ.
+      await _coachToolService.applyAction(action);
       if (action.kind == 'workout_update' &&
           (action.changes.containsKey('date') ||
               action.changes.containsKey('start_time'))) {
@@ -876,7 +905,7 @@ $prompt''';
           workoutAt: rescheduledAt,
         );
       }
-      await _coachToolService.applyAction(action);
+      TrainingRefreshService.instance.notifyTrainingChanged();
       final updatedAction = action.copyWith(status: 'applied');
       final metadata = {'interactive_action': updatedAction.toJson()};
       if (!mounted) return;

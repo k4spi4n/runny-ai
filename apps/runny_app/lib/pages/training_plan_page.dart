@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5,10 +7,17 @@ import 'package:flutter_lucide/flutter_lucide.dart';
 import '../models/run_reminder_model.dart';
 import '../services/run_reminder_service.dart';
 import '../services/training_service.dart';
+import '../services/training_refresh_service.dart';
+import '../services/integration_service.dart';
+import '../services/readiness_service.dart';
 import '../services/paywall_exception.dart';
+import '../models/workout_models.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/paywall.dart';
 import '../widgets/training_calendar_heatmap.dart';
+import '../widgets/activity_recording_guide.dart';
+import '../widgets/post_run_review_card.dart';
+import '../utils/activity_matcher.dart';
 import 'create_training_plan_page.dart';
 import 'manual_workout_page.dart';
 import 'ai_coach_page.dart';
@@ -89,7 +98,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   final TrainingService _trainingService = TrainingService();
   final RunReminderService _reminderService = RunReminderService();
+  final IntegrationService _integrationService = IntegrationService();
+  final ReadinessService _readinessService = ReadinessService();
   bool _isLoading = true;
+  bool _isFetching = false;
   Map<String, dynamic>? _activeSchedule;
   List<Map<String, dynamic>> _workouts = [];
   List<Map<String, dynamic>> _calendarActivities = [];
@@ -98,34 +110,61 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   final ScrollController _pageScrollController = ScrollController();
   final GlobalKey _calendarSectionKey = GlobalKey();
   final GlobalKey _detailsSectionKey = GlobalKey();
+  Timer? _generationPollTimer;
 
   @override
   void initState() {
     super.initState();
+    TrainingRefreshService.instance.addListener(_onTrainingChanged);
     _fetchData();
   }
 
   @override
   void dispose() {
+    TrainingRefreshService.instance.removeListener(_onTrainingChanged);
+    _generationPollTimer?.cancel();
     _pageScrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchData() async {
-    setState(() => _isLoading = true);
+  void _onTrainingChanged() {
+    _fetchData(showLoading: false);
+  }
+
+  Future<void> _fetchData({bool showLoading = true}) async {
+    if (_isFetching) return;
+    _isFetching = true;
+    if (showLoading && mounted) setState(() => _isLoading = true);
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      // Lấy lịch gần nhất ở một trong các trạng thái hiển thị tại tab này:
-      // active (đang chạy), completed (vừa hoàn thành — hiện banner chúc mừng),
-      // generating (AI đang tạo), failed (tạo lỗi). Các trạng thái abandoned/
-      // archived chỉ xuất hiện trong màn hình Lịch sử.
-      final schedule = await _supabase
+      // Bản AI đang tạo/bản nháp cần được ưu tiên để người dùng duyệt. Nếu
+      // không có, luôn lấy lịch active trước completed, tránh lịch sử mới hơn
+      // vô tình lấn át lịch đang chạy.
+      var schedule = await _supabase
           .from('training_schedules')
           .select()
           .eq('user_id', user.id)
-          .inFilter('status', ['active', 'completed', 'generating', 'failed'])
+          .inFilter('status', ['generating', 'failed', 'draft'])
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      schedule ??= await _supabase
+          .from('training_schedules')
+          .select()
+          .eq('user_id', user.id)
+          .eq('status', 'active')
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      schedule ??= await _supabase
+          .from('training_schedules')
+          .select()
+          .eq('user_id', user.id)
+          .eq('status', 'completed')
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
@@ -133,7 +172,8 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       List<Map<String, dynamic>> workouts = [];
       if (schedule != null &&
           (schedule['status'] == 'active' ||
-              schedule['status'] == 'completed')) {
+              schedule['status'] == 'completed' ||
+              schedule['status'] == 'draft')) {
         workouts = List<Map<String, dynamic>>.from(
           await _supabase
               .from('scheduled_workouts')
@@ -146,7 +186,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         // được lưu vào Lịch sử. Bao phủ cả luồng liên kết lẫn tải hoạt động.
         if (schedule['status'] == 'active' &&
             workouts.isNotEmpty &&
-            workouts.every((w) => w['status'] == 'completed')) {
+            workouts.every(
+              (w) => w['status'] == 'completed' || w['status'] == 'skipped',
+            )) {
           await _supabase
               .from('training_schedules')
               .update({'status': 'completed'})
@@ -176,12 +218,26 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           _calendarActivities = calendarActivities;
           _runReminders = reminders;
         });
+        _updateGenerationPolling(schedule?['status']?.toString());
       }
     } catch (e) {
       debugPrint('Error fetching training plan: $e');
     } finally {
+      _isFetching = false;
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _updateGenerationPolling(String? status) {
+    if (status != 'generating') {
+      _generationPollTimer?.cancel();
+      _generationPollTimer = null;
+      return;
+    }
+    _generationPollTimer ??= Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _fetchData(showLoading: false),
+    );
   }
 
   Future<void> _adjustPlan() async {
@@ -221,7 +277,13 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     if (proposal.isEmpty) {
       // AI thấy lịch đã hợp lý — không có gì để đổi.
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.translate('adjust_no_change'))),
+        SnackBar(
+          content: Text(
+            proposal.summary?.trim().isNotEmpty == true
+                ? proposal.summary!
+                : context.translate('adjust_no_change'),
+          ),
+        ),
       );
       return;
     }
@@ -280,12 +342,11 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     final completedWorkouts = _workouts
         .where((w) => w['status'] == 'completed')
         .length;
-    final allCompleted = _workouts.every((w) => w['status'] == 'completed');
-    // Buổi tập tiếp theo = buổi 'planned' gần nhất; nếu đã hoàn thành hết thì không dùng tới.
-    final Map<String, dynamic> nextWorkout = _workouts.firstWhere(
-      (workout) => workout['status'] == 'planned',
-      orElse: () => _workouts.first,
+    final allCompleted = _workouts.every(
+      (w) => w['status'] == 'completed' || w['status'] == 'skipped',
     );
+    final isDraft = status == 'draft';
+    final Map<String, dynamic> nextWorkout = _selectNextWorkout();
     final detailedWorkouts = _selectedCalendarDate == null
         ? _workouts
         : _workouts.where((workout) {
@@ -307,12 +368,13 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: Icon(_addManualWorkoutIcon, color: colorScheme.onSurface),
-            onPressed: () => _openManualWorkout(),
-            tooltip: context.translate('manual_workout_add_tooltip'),
-          ),
-          if (!allCompleted)
+          if (!isDraft)
+            IconButton(
+              icon: Icon(_addManualWorkoutIcon, color: colorScheme.onSurface),
+              onPressed: () => _openManualWorkout(),
+              tooltip: context.translate('manual_workout_add_tooltip'),
+            ),
+          if (!allCompleted && !isDraft)
             IconButton(
               icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface),
               onPressed: _adjustPlan,
@@ -351,21 +413,23 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                   ],
                 ),
               ),
-              const PopupMenuDivider(),
-              PopupMenuItem<String>(
-                value: 'abandon',
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.cancel_outlined,
-                      color: Colors.redAccent,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(context.translate('abandon_plan')),
-                  ],
+              if (!isDraft) ...[
+                const PopupMenuDivider(),
+                PopupMenuItem<String>(
+                  value: 'abandon',
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.cancel_outlined,
+                        color: Colors.redAccent,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(context.translate('abandon_plan')),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],
@@ -410,6 +474,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                 context: context,
                 completedWorkouts: completedWorkouts,
                 allCompleted: allCompleted,
+                isDraft: isDraft,
                 nextWorkout: nextWorkout,
                 detailedWorkouts: detailedWorkouts,
               ),
@@ -420,10 +485,168 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     );
   }
 
+  Map<String, dynamic> _selectNextWorkout() {
+    final planned = _workouts
+        .where(
+          (workout) =>
+              workout['status'] == 'planned' ||
+              workout['status'] == 'rescheduled',
+        )
+        .toList();
+    if (planned.isEmpty) return _workouts.first;
+
+    final today = DateUtils.dateOnly(DateTime.now());
+    return planned.firstWhere(
+      (workout) {
+        final date = DateTime.tryParse(workout['date']?.toString() ?? '');
+        return date != null && !DateUtils.dateOnly(date).isBefore(today);
+      },
+      // Nếu tất cả buổi còn lại đã quá hạn, ưu tiên buổi quá hạn gần nhất thay
+      // vì giữ buổi cũ nhất làm "buổi tiếp theo" mãi mãi.
+      orElse: () => planned.last,
+    );
+  }
+
+  Widget _buildDraftBanner(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final goal = _activeSchedule?['goal_description']?.toString();
+    return glassCard(
+      context: context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.preview_outlined, color: colors.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  context.translate('plan_draft_title'),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            context.translate('plan_draft_desc'),
+            style: TextStyle(color: colors.onSurfaceVariant, height: 1.4),
+          ),
+          if (goal != null && goal.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(bottom: 8),
+              title: Text(context.translate('plan_draft_inputs')),
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    goal,
+                    style: TextStyle(color: colors.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.end,
+            children: [
+              TextButton(
+                onPressed: _discardDraft,
+                child: Text(context.translate('plan_draft_discard')),
+              ),
+              FilledButton.icon(
+                key: const ValueKey('activate_training_plan_draft'),
+                onPressed: _activateDraft,
+                icon: const Icon(Icons.check_circle_outline),
+                label: Text(context.translate('plan_draft_activate')),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _activateDraft() async {
+    final scheduleId = _activeSchedule?['id']?.toString();
+    if (scheduleId == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.translate('plan_draft_activate')),
+        content: Text(context.translate('plan_draft_activate_confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.translate('cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(context.translate('plan_draft_activate')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _trainingService.activateSchedule(scheduleId);
+      await _fetchData(showLoading: false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.translate('plan_draft_activated'))),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _discardDraft() async {
+    final scheduleId = _activeSchedule?['id']?.toString();
+    if (scheduleId == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.translate('plan_draft_discard')),
+        content: Text(context.translate('plan_draft_discard_confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.translate('cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(context.translate('plan_draft_discard')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _trainingService.discardDraftSchedule(scheduleId);
+    await _fetchData();
+  }
+
   Widget _buildResponsiveTrainingContent({
     required BuildContext context,
     required int completedWorkouts,
     required bool allCompleted,
+    required bool isDraft,
     required Map<String, dynamic> nextWorkout,
     required List<Map<String, dynamic>> detailedWorkouts,
   }) {
@@ -437,9 +660,23 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         onDateSelected: _handleCalendarDateSelected,
       ),
     );
-    final focusSection = allCompleted
-        ? _buildCompletionBanner(context)
-        : _buildNextWorkoutSection(context, nextWorkout);
+    final focusSection = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (isDraft) ...[
+          _buildDraftBanner(context),
+          const SizedBox(height: 16),
+        ],
+        if (allCompleted)
+          _buildCompletionBanner(context)
+        else
+          _buildNextWorkoutSection(
+            context,
+            nextWorkout,
+            allowExecution: !isDraft,
+          ),
+      ],
+    );
     final detailsSection = KeyedSubtree(
       key: _detailsSectionKey,
       child: _buildDetailedScheduleSection(
@@ -447,6 +684,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         detailedWorkouts: detailedWorkouts,
         nextWorkout: nextWorkout,
         allCompleted: allCompleted,
+        allowExecution: !isDraft,
       ),
     );
 
@@ -459,8 +697,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
 
   Widget _buildNextWorkoutSection(
     BuildContext context,
-    Map<String, dynamic> nextWorkout,
-  ) {
+    Map<String, dynamic> nextWorkout, {
+    required bool allowExecution,
+  }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isLast =
@@ -485,6 +724,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           ),
           statusIcon: _statusIconFor(nextWorkout, isNext: true, isLast: isLast),
           onAddActivity: () => _showAddActivityOptions(nextWorkout),
+          onRecordGuide: () => _showRecordingGuide(nextWorkout),
           onReschedule: () => _rescheduleWorkout(nextWorkout),
           onScheduleChanged: (workoutAt, leadMinutes, enabled) =>
               _rescheduleWorkoutAt(
@@ -500,6 +740,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
               ? () => _deleteManualWorkout(nextWorkout)
               : null,
           onWarmUp: () => _askWarmUp(nextWorkout),
+          allowExecution: allowExecution,
           reminder: _runReminders[nextWorkout['id']],
           onReminderChanged: (workoutAt, leadMinutes, enabled) => _saveReminder(
             workout: nextWorkout,
@@ -519,6 +760,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     required List<Map<String, dynamic>> detailedWorkouts,
     required Map<String, dynamic> nextWorkout,
     required bool allCompleted,
+    required bool allowExecution,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -578,6 +820,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                     isLast: isLast,
                   ),
                   onAddActivity: () => _showAddActivityOptions(workout),
+                  onRecordGuide: () => _showRecordingGuide(workout),
                   onReschedule: () => _rescheduleWorkout(workout),
                   onScheduleChanged: (workoutAt, leadMinutes, enabled) =>
                       _rescheduleWorkoutAt(
@@ -600,6 +843,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                         leadMinutes: leadMinutes,
                         enabled: enabled,
                       ),
+                  allowExecution: allowExecution,
                   isLast: isLast,
                 ),
               );
@@ -1255,6 +1499,69 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     }
   }
 
+  Future<void> _showRecordingGuide(Map<String, dynamic> workout) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+    var stravaConnected = false;
+    try {
+      final profile = await _supabase
+          .from('profiles')
+          .select('strava_id')
+          .eq('id', user.id)
+          .maybeSingle();
+      stravaConnected = profile?['strava_id'] != null;
+    } catch (_) {
+      // Hướng dẫn và nhập file vẫn dùng được khi không tải được trạng thái Strava.
+    }
+    if (!mounted) return;
+
+    var syncing = false;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => ActivityRecordingGuide(
+          stravaConnected: stravaConnected,
+          syncing: syncing,
+          onSyncStrava: () async {
+            setSheetState(() => syncing = true);
+            try {
+              final imported = await _integrationService.syncStrava();
+              TrainingRefreshService.instance.notifyTrainingChanged();
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    context.translate('strava_synced', ['$imported']),
+                  ),
+                ),
+              );
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('${context.translate('error')}: $e')),
+                );
+              }
+            } finally {
+              if (sheetContext.mounted) {
+                setSheetState(() => syncing = false);
+              }
+            }
+          },
+          onFindActivity: () {
+            Navigator.pop(sheetContext);
+            _showLinkActivityDialog(workout);
+          },
+          onImportActivity: () {
+            Navigator.pop(sheetContext);
+            _uploadNewActivity(workout);
+          },
+        ),
+      ),
+    );
+  }
+
   void _showAddActivityOptions(Map<String, dynamic> workout) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -1373,7 +1680,8 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       ),
     );
     if (result == true) {
-      _fetchData();
+      await _fetchData();
+      await _openPostRunReviewForWorkout(workout);
     }
   }
 
@@ -1425,7 +1733,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                   const SizedBox(height: 20),
                   Expanded(
                     child: FutureBuilder<List<Map<String, dynamic>>>(
-                      future: _fetchUnlinkedActivities(),
+                      future: _fetchUnlinkedActivities(workout),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
@@ -1442,7 +1750,11 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                           );
                         }
                         final activities = snapshot.data ?? [];
-                        if (activities.isEmpty) {
+                        final candidates = ActivityMatcher.rank(
+                          workout: workout,
+                          activities: activities,
+                        );
+                        if (candidates.isEmpty) {
                           return Center(
                             child: Padding(
                               padding: const EdgeInsets.all(24.0),
@@ -1460,11 +1772,12 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
 
                         return ListView.separated(
                           controller: scrollController,
-                          itemCount: activities.length,
+                          itemCount: candidates.length,
                           separatorBuilder: (context, index) =>
                               const Divider(height: 1),
                           itemBuilder: (context, index) {
-                            final activity = activities[index];
+                            final candidate = candidates[index];
+                            final activity = candidate.activity;
                             final date = DateTime.parse(
                               activity['started_at'] as String,
                             );
@@ -1491,25 +1804,62 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                                   color: colorScheme.primary,
                                 ),
                               ),
-                              title: Text(
-                                name?.isNotEmpty == true
-                                    ? name!
-                                    : '${distance.toStringAsFixed(2)} km • ${duration.toStringAsFixed(0)} mins',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.onSurface,
-                                ),
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      name?.isNotEmpty == true
+                                          ? name!
+                                          : '${distance.toStringAsFixed(2)} km • ${duration.toStringAsFixed(0)} mins',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ),
+                                  if (index == 0 && candidate.isStrongMatch)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.primaryContainer,
+                                        borderRadius: BorderRadius.circular(99),
+                                      ),
+                                      child: Text(
+                                        context.translate(
+                                          'activity_best_match',
+                                        ),
+                                        style: TextStyle(
+                                          color: colorScheme.onPrimaryContainer,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                               subtitle: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    DateFormat(
-                                      'EEEE, dd/MM/yyyy HH:mm',
-                                    ).format(date.toLocal()),
+                                    '${distance.toStringAsFixed(2)} km • ${duration.toStringAsFixed(0)} ${context.translate('min')} • ${DateFormat('dd/MM/yyyy HH:mm').format(date.toLocal())}',
                                     style: TextStyle(
                                       color: colorScheme.onSurfaceVariant,
                                       fontSize: 13,
+                                    ),
+                                  ),
+                                  Text(
+                                    context.translate('activity_match_score', [
+                                      '${candidate.score.round()}',
+                                    ]),
+                                    style: TextStyle(
+                                      color: candidate.isStrongMatch
+                                          ? colorScheme.primary
+                                          : colorScheme.onSurfaceVariant,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   if (notes != null &&
@@ -1528,7 +1878,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
                                 ],
                               ),
                               onTap: () =>
-                                  _linkActivity(workout, activity['id']),
+                                  _confirmAndLinkActivity(workout, activity),
                             );
                           },
                         );
@@ -1552,11 +1902,14 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         .from('activities')
         .select()
         .eq('user_id', user.id)
+        .gt('distance_km', 0)
         .order('started_at', ascending: false);
     return List<Map<String, dynamic>>.from(response as List);
   }
 
-  Future<List<Map<String, dynamic>>> _fetchUnlinkedActivities() async {
+  Future<List<Map<String, dynamic>>> _fetchUnlinkedActivities(
+    Map<String, dynamic> workout,
+  ) async {
     final user = _supabase.auth.currentUser;
     if (user == null) return [];
 
@@ -1574,27 +1927,69 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         .from('activities')
         .select()
         .eq('user_id', user.id)
-        .order('started_at', ascending: false);
+        .gt('distance_km', 0)
+        .order('started_at', ascending: false)
+        .limit(50);
 
-    final List<Map<String, dynamic>> allActivities =
-        List<Map<String, dynamic>>.from(activitiesRes as List);
+    final allActivities = List<Map<String, dynamic>>.from(
+      activitiesRes as List,
+    ).where((activity) => !linkedActivityIds.contains(activity['id'])).toList();
 
-    return allActivities
-        .where((activity) => !linkedActivityIds.contains(activity['id']))
-        .toList();
+    final workoutDate = DateTime.tryParse(workout['date']?.toString() ?? '');
+    if (workoutDate == null) return allActivities;
+    final nearby = allActivities.where((activity) {
+      final startedAt = DateTime.tryParse(
+        activity['started_at']?.toString() ?? '',
+      )?.toLocal();
+      return startedAt != null &&
+          startedAt.difference(workoutDate).inDays.abs() <= 7;
+    }).toList();
+    return nearby.isEmpty ? allActivities : nearby;
+  }
+
+  Future<void> _confirmAndLinkActivity(
+    Map<String, dynamic> workout,
+    Map<String, dynamic> activity,
+  ) async {
+    final distance = (activity['distance_km'] as num).toDouble();
+    final duration = (activity['duration_min'] as num).toDouble();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.translate('confirm_activity_link_title')),
+        content: Text(
+          context.translate('confirm_activity_link_desc', [
+            distance.toStringAsFixed(2),
+            duration.toStringAsFixed(0),
+            workout['title']?.toString() ?? context.translate('workout'),
+          ]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.translate('cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(context.translate('attach_activity')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    Navigator.pop(context);
+    await _linkActivity(workout, activity);
   }
 
   Future<void> _linkActivity(
     Map<String, dynamic> workout,
-    String activityId,
+    Map<String, dynamic> activity,
   ) async {
-    Navigator.pop(context);
-
     setState(() => _isLoading = true);
     try {
       await _trainingService.completeScheduledWorkout(
         workoutId: workout['id'] as String,
-        activityId: activityId,
+        activityId: activity['id'] as String,
       );
 
       if (mounted) {
@@ -1602,65 +1997,145 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           SnackBar(content: Text(context.translate('link_success'))),
         );
       }
-      _fetchData();
+      await _fetchData(showLoading: false);
+      if (mounted) await _showPostRunReview(workout, activity);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${context.translate('link_error')}: $e')),
         );
       }
-      setState(() => _isLoading = false);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  Future<void> _openPostRunReviewForWorkout(
+    Map<String, dynamic> workout,
+  ) async {
+    try {
+      final linked = await _supabase
+          .from('scheduled_workouts')
+          .select('activity_id')
+          .eq('id', workout['id'])
+          .maybeSingle();
+      final activityId = linked?['activity_id']?.toString();
+      if (activityId == null) return;
+      final activity = await _supabase
+          .from('activities')
+          .select()
+          .eq('id', activityId)
+          .single();
+      if (mounted) {
+        await _showPostRunReview(workout, Map<String, dynamic>.from(activity));
+      }
+    } catch (e) {
+      debugPrint('Unable to open post-run review: $e');
+    }
+  }
+
+  Future<void> _showPostRunReview(
+    Map<String, dynamic> workout,
+    Map<String, dynamic> activityJson,
+  ) async {
+    final activity = Activity.fromJson(activityJson);
+    int? selectedRpe;
+    var savingRpe = false;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => PostRunReviewCard(
+          workoutTitle:
+              workout['title']?.toString() ?? context.translate('workout'),
+          plannedDistanceKm: (workout['target_distance_km'] as num?)
+              ?.toDouble(),
+          plannedDurationMin: (workout['target_duration_min'] as num?)
+              ?.toDouble(),
+          actualDistanceKm: activity.distanceKm,
+          actualDurationMin: activity.durationMin,
+          selectedRpe: selectedRpe,
+          savingRpe: savingRpe,
+          onRpeSelected: (value) async {
+            setSheetState(() => savingRpe = true);
+            try {
+              await _readinessService.saveFeedback(
+                activityId: activity.id!,
+                rpe: value,
+              );
+              if (sheetContext.mounted) {
+                setSheetState(() => selectedRpe = value);
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('${context.translate('error')}: $e')),
+                );
+              }
+            } finally {
+              if (sheetContext.mounted) {
+                setSheetState(() => savingRpe = false);
+              }
+            }
+          },
+          onAnalyzeWithAi: () {
+            Navigator.pop(sheetContext);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AICoachPage(
+                  initialActivity: activity,
+                  autoSendInitialPrompt: true,
+                ),
+              ),
+            );
+          },
+          onOptimizePlan: () {
+            Navigator.pop(sheetContext);
+            _adjustPlan();
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _skipWorkoutAsRest(Map<String, dynamic> workout) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(context.translate('skip_workout_confirm_title')),
+        content: Text(context.translate('skip_workout_confirm_desc')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(context.translate('cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(context.translate('add_activity_option_skip_rest')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     setState(() => _isLoading = true);
     try {
-      final user = _supabase.auth.currentUser;
-      if (user == null) throw Exception('User not logged in');
-
-      final dateStr = workout['date'] as String;
-      final now = DateTime.now();
-      final startedAt = DateTime.parse(dateStr).add(
-        Duration(hours: now.hour, minutes: now.minute, seconds: now.second),
-      );
-      final startedIso = startedAt.toUtc().toIso8601String();
-
-      // Create Rest activity (0 km, 0 min)
-      final activityRes = await _supabase
-          .from('activities')
-          .insert({
-            'user_id': user.id,
-            'started_at': startedIso,
-            'distance_km': 0.0,
-            'duration_min': 0.0,
-            'name': context.translate('rest_activity_name'),
-            'notes': context.translate('add_activity_option_skip_rest_desc'),
-          })
-          .select('id')
-          .single();
-
-      final activityId = activityRes['id'] as String;
-
-      // Link the activity to the scheduled workout and complete it
-      await _trainingService.completeScheduledWorkout(
-        workoutId: workout['id'] as String,
-        activityId: activityId,
-      );
-
+      await _trainingService.skipScheduledWorkout(workout['id'] as String);
+      await _fetchData(showLoading: false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.translate('link_success'))),
+          SnackBar(content: Text(context.translate('workout_skipped'))),
         );
       }
-      _fetchData();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${context.translate('error')}: $e')),
         );
       }
-      setState(() => _isLoading = false);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 }
@@ -1673,6 +2148,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
   final Color statusColor;
   final IconData statusIcon;
   final VoidCallback onAddActivity;
+  final VoidCallback onRecordGuide;
   final VoidCallback onReschedule;
   final VoidCallback? onEditManual;
   final VoidCallback? onDeleteManual;
@@ -1683,6 +2159,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
   onScheduleChanged;
   // Chỉ buổi tập sắp tới mới có nút "Khởi động" (null -> ẩn).
   final VoidCallback? onWarmUp;
+  final bool allowExecution;
   final bool initiallyExpanded;
   final bool isLast;
 
@@ -1691,6 +2168,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
     required this.statusColor,
     required this.statusIcon,
     required this.onAddActivity,
+    required this.onRecordGuide,
     required this.onReschedule,
     this.onEditManual,
     this.onDeleteManual,
@@ -1698,6 +2176,7 @@ class _WorkoutScheduleCard extends StatefulWidget {
     required this.onScheduleChanged,
     this.reminder,
     this.onWarmUp,
+    this.allowExecution = true,
     this.initiallyExpanded = false,
     this.isLast = false,
   });
@@ -1829,11 +2308,22 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                     runSpacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      if (workout['status'] == 'planned') ...[
+                      if (workout['status'] == 'planned' &&
+                          widget.allowExecution) ...[
+                        ElevatedButton.icon(
+                          key: ValueKey(
+                            'record_workout_guide_${workout['id']}',
+                          ),
+                          onPressed: widget.onRecordGuide,
+                          style: primaryActionButton(context),
+                          icon: const Icon(Icons.watch_outlined, size: 18),
+                          label: Text(
+                            context.translate('record_workout_with_device'),
+                          ),
+                        ),
                         if (widget.onWarmUp != null)
-                          ElevatedButton.icon(
+                          OutlinedButton.icon(
                             onPressed: widget.onWarmUp,
-                            style: primaryActionButton(context),
                             icon: const Icon(
                               Icons.local_fire_department,
                               size: 18,
@@ -1848,7 +2338,7 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                           ),
                           label: Text(context.translate('attach_activity')),
                         ),
-                      ] else
+                      ] else if (workout['status'] != 'planned')
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [

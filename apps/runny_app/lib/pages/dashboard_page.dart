@@ -24,6 +24,7 @@ import '../services/readiness_service.dart';
 import '../models/readiness_models.dart';
 import '../widgets/readiness_components.dart';
 import '../services/integration_service.dart';
+import '../services/training_refresh_service.dart';
 import '../services/strava_redirect.dart';
 import '../services/entitlement_service.dart';
 import '../services/payment_redirect.dart';
@@ -131,6 +132,7 @@ class _DashboardPageState extends State<DashboardPage> {
     if (result == true && mounted) {
       _overviewKey.currentState?.refreshActivityData();
       await context.read<NutritionService>().refresh();
+      TrainingRefreshService.instance.notifyTrainingChanged();
     }
   }
 
@@ -193,6 +195,7 @@ class _DashboardPageState extends State<DashboardPage> {
       if (imported > 0) {
         _overviewKey.currentState?.refreshActivityData();
         await context.read<NutritionService>().refresh();
+        TrainingRefreshService.instance.notifyTrainingChanged();
       }
     } catch (e) {
       if (!mounted) return;
@@ -780,6 +783,7 @@ class _OverviewContentState extends State<OverviewContent> {
     final response = await Supabase.instance.client
         .from('activities')
         .select()
+        .gt('distance_km', 0)
         .order('started_at', ascending: false)
         .limit(5);
 
@@ -791,12 +795,22 @@ class _OverviewContentState extends State<OverviewContent> {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return [];
 
-    // Tìm lịch tập hiện tại (active hoặc completed gần nhất) của người dùng
-    final scheduleRes = await Supabase.instance.client
+    // Luôn ưu tiên lịch active; lịch completed chỉ là fallback để hiển thị
+    // trạng thái hoàn thành trong ngày cuối, không được lấn át lịch đang chạy.
+    var scheduleRes = await Supabase.instance.client
         .from('training_schedules')
         .select('id')
         .eq('user_id', user.id)
-        .inFilter('status', ['active', 'completed'])
+        .eq('status', 'active')
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    scheduleRes ??= await Supabase.instance.client
+        .from('training_schedules')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('status', 'completed')
         .order('created_at', ascending: false)
         .limit(1)
         .maybeSingle();
@@ -838,6 +852,7 @@ class _OverviewContentState extends State<OverviewContent> {
     final response = await Supabase.instance.client
         .from('activities')
         .select('started_at')
+        .gt('distance_km', 0)
         .order('started_at', ascending: false)
         .limit(365);
 

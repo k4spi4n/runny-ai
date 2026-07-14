@@ -109,6 +109,7 @@ class NutritionService extends ChangeNotifier {
           .from('activities')
           .select('user_id, started_at, distance_km, duration_min')
           .eq('user_id', uid)
+          .gt('distance_km', 0)
           .gte('started_at', since);
       _activities = (actRes as List)
           .map((e) => Activity.fromJson(e as Map<String, dynamic>))

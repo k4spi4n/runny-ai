@@ -7,6 +7,7 @@ import '../models/run_reminder_model.dart';
 import 'gemini_service.dart';
 import 'notification_service.dart';
 import 'readiness_service.dart';
+import 'training_refresh_service.dart';
 
 /// Ném ra khi chưa có buổi tập nào hoàn thành (gắn hoạt động thực tế) — HLV AI
 /// cần ít nhất một buổi để căn cứ tinh chỉnh lịch.
@@ -132,10 +133,38 @@ class TrainingService {
   Future<void> completeScheduledWorkout({
     required String workoutId,
     required String activityId,
-  }) => _supabase.rpc(
-    'complete_scheduled_workout',
-    params: {'p_workout_id': workoutId, 'p_activity_id': activityId},
-  );
+  }) async {
+    await _supabase.rpc(
+      'complete_scheduled_workout',
+      params: {'p_workout_id': workoutId, 'p_activity_id': activityId},
+    );
+    TrainingRefreshService.instance.notifyTrainingChanged();
+  }
+
+  Future<void> skipScheduledWorkout(String workoutId) async {
+    await _supabase.rpc(
+      'skip_scheduled_workout',
+      params: {'p_workout_id': workoutId},
+    );
+    TrainingRefreshService.instance.notifyTrainingChanged();
+  }
+
+  Future<void> activateSchedule(String scheduleId) async {
+    await _supabase.rpc(
+      'activate_training_schedule',
+      params: {'p_schedule_id': scheduleId},
+    );
+    TrainingRefreshService.instance.notifyTrainingChanged();
+  }
+
+  Future<void> discardDraftSchedule(String scheduleId) async {
+    await _supabase
+        .from('training_schedules')
+        .delete()
+        .eq('id', scheduleId)
+        .eq('status', 'draft');
+    TrainingRefreshService.instance.notifyTrainingChanged();
+  }
 
   /// Đặt lại một buổi chưa hoàn thành vào một ngày khác.
   ///
@@ -223,16 +252,18 @@ class TrainingService {
         .eq('id', workout['schedule_id'])
         .maybeSingle();
     if (schedule != null) {
-      final affectedDates = rescheduledWorkouts
-          .map((rescheduled) => rescheduled.workoutAt)
-          .toList()
-        ..sort();
+      final affectedDates =
+          rescheduledWorkouts
+              .map((rescheduled) => rescheduled.workoutAt)
+              .toList()
+            ..sort();
       await _expandScheduleRangeIfNeeded(
         schedule: schedule,
         earliestWorkoutDate: affectedDates.first,
         latestWorkoutDate: affectedDates.last,
       );
     }
+    TrainingRefreshService.instance.notifyTrainingChanged();
     return rescheduledWorkouts;
   }
 
@@ -722,7 +753,7 @@ class TrainingService {
         .from('training_schedules')
         .delete()
         .eq('user_id', user.id)
-        .inFilter('status', ['generating', 'failed']);
+        .inFilter('status', ['generating', 'failed', 'draft']);
 
     final placeholder = await _supabase
         .from('training_schedules')
@@ -782,7 +813,7 @@ class TrainingService {
   }
 
   /// Tạo lịch tập đồng bộ (chờ AI xong rồi lưu). Dùng cho luồng chat HLV AI.
-  Future<void> createGoalBasedPlan(
+  Future<String> createGoalBasedPlan(
     String goalPrompt, {
     DateTime? startDate,
     DateTime? endDate,
@@ -791,9 +822,15 @@ class TrainingService {
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('User not logged in');
 
+    await _supabase
+        .from('training_schedules')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('status', 'draft');
+
     final start = startDate ?? DateTime.now();
     final planJson = await _generatePlanJson(goalPrompt, start, endDate);
-    await _persistPlan(
+    return _persistPlan(
       userId: user.id,
       goal: goalPrompt,
       startDate: start,
@@ -998,7 +1035,7 @@ $manualWorkoutsSection
 
   /// Lưu lịch tập vào Supabase. Nếu [scheduleId] có giá trị thì cập nhật bản
   /// ghi placeholder (luồng nền); ngược lại chèn mới (luồng đồng bộ).
-  Future<void> _persistPlan({
+  Future<String> _persistPlan({
     required String userId,
     required String goal,
     required DateTime startDate,
@@ -1031,6 +1068,12 @@ $manualWorkoutsSection
       manualWorkouts = List<Map<String, dynamic>>.from(wList);
     }
 
+    final generatedWorkouts = planJson['workouts'];
+    if ((generatedWorkouts is! List || generatedWorkouts.isEmpty) &&
+        manualWorkouts.isEmpty) {
+      throw const FormatException('AI không trả về buổi tập hợp lệ.');
+    }
+
     final values = {
       'user_id': userId,
       'title': planJson['title'] ?? 'Lịch tập của bạn',
@@ -1045,15 +1088,8 @@ $manualWorkoutsSection
       'goal_description': goal,
       'start_date': _dateOnly(startDate),
       'end_date': _dateOnly(computedEnd),
-      'status': 'active',
+      'status': 'draft',
     };
-
-    // Lưu trữ (archive) các lịch cũ (active/completed) để chỉ còn 1 lịch hiện hành.
-    await _supabase
-        .from('training_schedules')
-        .update({'status': 'archived'})
-        .eq('user_id', userId)
-        .inFilter('status', ['active', 'completed']);
 
     final Map<String, dynamic> schedule;
     if (scheduleId != null) {
@@ -1072,8 +1108,8 @@ $manualWorkoutsSection
     }
 
     final workouts = <Map<String, dynamic>>[];
-    if (planJson['workouts'] is List) {
-      for (final w in planJson['workouts']) {
+    if (generatedWorkouts is List) {
+      for (final w in generatedWorkouts) {
         final offset = (w['day_offset'] as num?)?.toInt() ?? 0;
         final dateStr = _dateOnly(startDate.add(Duration(days: offset)));
 
@@ -1135,6 +1171,8 @@ $manualWorkoutsSection
     if (workouts.isNotEmpty) {
       await _supabase.from('scheduled_workouts').insert(workouts);
     }
+    TrainingRefreshService.instance.notifyTrainingChanged();
+    return schedule['id'] as String;
   }
 
   /// Yêu cầu AI đề xuất tinh chỉnh các buổi tập SẮP TỚI dựa trên TẤT CẢ các buổi
@@ -1309,6 +1347,7 @@ $upcomingSummary
           })
           .eq('id', adj.workoutId);
     }
+    TrainingRefreshService.instance.notifyTrainingChanged();
   }
 
   /// Ghép mục tiêu của một buổi tập thành chuỗi ngắn cho prompt (an toàn với null).

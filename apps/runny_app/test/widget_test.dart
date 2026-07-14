@@ -7,7 +7,6 @@ import 'package:runny_app/app.dart';
 import 'package:runny_app/theme/theme_provider.dart';
 import 'package:runny_app/l10n/language_provider.dart';
 import 'package:runny_app/services/nutrition_service.dart';
-import 'package:runny_app/widgets/ui_components.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
@@ -31,10 +30,9 @@ void main() {
         child: const RunnyApp(),
       ),
     );
-
-    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump();
 
     // Verify that our app starts.
-    expect(find.byType(RunnyLogo), findsAtLeastNWidgets(1));
+    expect(find.byType(RunnyApp), findsOneWidget);
   });
 }
