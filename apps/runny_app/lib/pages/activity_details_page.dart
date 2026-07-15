@@ -5,6 +5,7 @@ import '../models/workout_models.dart';
 import '../models/shoe_models.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
+import '../widgets/activity_summary_card.dart';
 import '../widgets/animated_ai_gradient_button.dart';
 import '../services/weather_service.dart';
 import '../services/readiness_service.dart';
@@ -22,6 +23,8 @@ class ActivityDetailsPage extends StatefulWidget {
 }
 
 class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
+  static const _wideLayoutBreakpoint = 840.0;
+
   late Activity _activity;
   bool _isSaving = false;
   bool _hasChanged = false;
@@ -89,9 +92,11 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
           id: _activity.id,
           userId: _activity.userId,
           startedAt: _activity.startedAt,
+          createdAt: _activity.createdAt,
           distanceKm: _activity.distanceKm,
           durationMin: _activity.durationMin,
           avgHr: _activity.avgHr,
+          avgCadence: _activity.avgCadence,
           elevationGainM: _activity.elevationGainM,
           name: name.isEmpty ? null : name,
           notes: notes.isEmpty ? null : notes,
@@ -317,11 +322,12 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
             icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
             onPressed: () => Navigator.pop(context, _hasChanged),
           ),
-          title: MarqueeText(
-            _activity.name ??
-                _activity.notes ??
-                context.translate('activity_details'),
-            style: TextStyle(color: colorScheme.onSurface),
+          title: Text(
+            context.translate('run_activity'),
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -398,146 +404,223 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                         : 16.0,
                     vertical: 20.0,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (_isSaving) ...[
-                        const Center(child: CircularProgressIndicator()),
-                        const SizedBox(height: 24),
-                      ],
-                      // Thời gian thực hiện (bắt đầu - kết thúc)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.play_circle_outline,
-                              size: 16,
-                              color: colorScheme.primary,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _formatStartEnd(
-                                _activity.startedAt,
-                                _activity.durationMin,
-                              ),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: colorScheme.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      _buildSummaryHeader(context),
-                      const SizedBox(height: 24),
-                      _buildRecoveryFeedbackCard(context),
-                      const SizedBox(height: 24),
-                      if (_activity.weatherSummary != null ||
-                          _activity.temperatureC != null ||
-                          _activity.aqi != null) ...[
-                        _buildWeatherCard(context),
-                        const SizedBox(height: 24),
-                      ],
-                      _buildShoeCard(context),
-                      const SizedBox(height: 24),
-                      if (paces.isNotEmpty) ...[
-                        ActivityChart(
-                          title: context.translate('pace_title'),
-                          xValues: times,
-                          yValues: paces,
-                          color: const Color(0xFFFA6B27),
-                          yAxisLabel: context.translate('min_km'),
-                          isPace: true,
-                          activeX: _activeTime,
-                          onXSelected: (val) =>
-                              setState(() => _activeTime = val),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-                      if (hrs.isNotEmpty) ...[
-                        ActivityChart(
-                          title: context.translate('heart_rate'),
-                          xValues: times,
-                          yValues: hrs,
-                          color: Colors.redAccent,
-                          yAxisLabel: context.translate('bpm'),
-                          activeX: _activeTime,
-                          onXSelected: (val) =>
-                              setState(() => _activeTime = val),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-                      if (elevations.isNotEmpty) ...[
-                        ActivityChart(
-                          title: context.translate('elevation'),
-                          xValues: times,
-                          yValues: elevations,
-                          color: const Color(0xFF3CABFF),
-                          yAxisLabel: context.translate('m'),
-                          activeX: _activeTime,
-                          onXSelected: (val) =>
-                              setState(() => _activeTime = val),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-                      if (_activity.notes != null &&
-                          _activity.notes!.isNotEmpty &&
-                          _activity.notes != _activity.name) ...[
-                        Text(
-                          context.translate('notes'),
-                          style: TextStyle(
-                            color: colorScheme.onSurface,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        glassCard(
-                          context: context,
-                          child: Text(
-                            _activity.notes!,
-                            style: TextStyle(
-                              color: colorScheme.onSurfaceVariant,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (_activity.createdAt != null) ...[
-                        const SizedBox(height: 24),
-                        Center(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.download_done,
-                                size: 14,
-                                color: colorScheme.onSurfaceVariant.withValues(
-                                  alpha: 0.6,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '${context.translate('imported_time')}: ${DateFormat('HH:mm dd/MM/yyyy').format(_activity.createdAt!)}',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.6),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => _buildAdaptiveBody(
+                      context,
+                      maxWidth: constraints.maxWidth,
+                      times: times,
+                      paces: paces,
+                      heartRates: hrs,
+                      elevations: elevations,
+                    ),
                   ),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAdaptiveBody(
+    BuildContext context, {
+    required double maxWidth,
+    required List<double> times,
+    required List<double> paces,
+    required List<double> heartRates,
+    required List<double> elevations,
+  }) {
+    final isWide = maxWidth >= _wideLayoutBreakpoint;
+    final contextCards = _buildContextCards(context);
+    final performanceColumn = _buildPerformanceColumn(
+      context,
+      times: times,
+      paces: paces,
+      heartRates: heartRates,
+      elevations: elevations,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_isSaving) ...[
+          const Center(child: CircularProgressIndicator()),
+          const SizedBox(height: 20),
+        ],
+        ActivitySummaryCard(
+          activity: _activity,
+          timeRange: _formatStartEnd(
+            _activity.startedAt,
+            _activity.durationMin,
+          ),
+        ),
+        const SizedBox(height: 24),
+        if (isWide)
+          Row(
+            key: const ValueKey('activity_details_wide_layout'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 7, child: performanceColumn),
+              const SizedBox(width: 24),
+              SizedBox(width: 330, child: contextCards),
+            ],
+          )
+        else
+          Column(
+            key: const ValueKey('activity_details_compact_layout'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              contextCards,
+              const SizedBox(height: 24),
+              performanceColumn,
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildContextCards(BuildContext context) {
+    final hasWeather =
+        _activity.weatherSummary != null ||
+        _activity.temperatureC != null ||
+        _activity.aqi != null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildRecoveryFeedbackCard(context),
+        if (hasWeather) ...[
+          const SizedBox(height: 16),
+          _buildWeatherCard(context),
+        ],
+        const SizedBox(height: 16),
+        _buildShoeCard(context),
+      ],
+    );
+  }
+
+  Widget _buildPerformanceColumn(
+    BuildContext context, {
+    required List<double> times,
+    required List<double> paces,
+    required List<double> heartRates,
+    required List<double> elevations,
+  }) {
+    final colors = Theme.of(context).colorScheme;
+    final hasCharts =
+        paces.isNotEmpty || heartRates.isNotEmpty || elevations.isNotEmpty;
+    final hasNotes =
+        _activity.notes != null &&
+        _activity.notes!.isNotEmpty &&
+        _activity.notes != _activity.name;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (hasCharts) ...[
+          Text(
+            context.translate('performance_overview'),
+            style: TextStyle(
+              color: colors.onSurface,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (paces.isNotEmpty) ...[
+          ActivityChart(
+            title: context.translate('pace_title'),
+            xValues: times,
+            yValues: paces,
+            color: const Color(0xFFFA6B27),
+            yAxisLabel: context.translate('min_km'),
+            isPace: true,
+            activeX: _activeTime,
+            onXSelected: (val) => setState(() => _activeTime = val),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (heartRates.isNotEmpty) ...[
+          ActivityChart(
+            title: context.translate('heart_rate'),
+            xValues: times,
+            yValues: heartRates,
+            color: Colors.redAccent,
+            yAxisLabel: context.translate('bpm'),
+            activeX: _activeTime,
+            onXSelected: (val) => setState(() => _activeTime = val),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (elevations.isNotEmpty) ...[
+          ActivityChart(
+            title: context.translate('elevation'),
+            xValues: times,
+            yValues: elevations,
+            color: const Color(0xFF3CABFF),
+            yAxisLabel: context.translate('m'),
+            activeX: _activeTime,
+            onXSelected: (val) => setState(() => _activeTime = val),
+          ),
+        ],
+        if (hasNotes) ...[
+          if (hasCharts) const SizedBox(height: 24),
+          Text(
+            context.translate('notes'),
+            style: TextStyle(
+              color: colors.onSurface,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          glassCard(
+            context: context,
+            padding: const EdgeInsets.all(20),
+            child: Text(
+              _activity.notes!,
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
+                fontSize: 15,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+        if (_activity.createdAt != null) ...[
+          const SizedBox(height: 20),
+          _buildImportedTimestamp(context),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildImportedTimestamp(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.download_done,
+            size: 14,
+            color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              '${context.translate('imported_time')}: ${DateFormat('HH:mm dd/MM/yyyy').format(_activity.createdAt!)}',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                color: colors.onSurfaceVariant.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -736,120 +819,6 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
     );
   }
 
-  Widget _buildSummaryHeader(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return glassCard(
-      context: context,
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatItem(
-                  context,
-                  context.translate('distance'),
-                  '${_activity.distanceKm.toStringAsFixed(2)} km',
-                ),
-              ),
-              Expanded(
-                child: _buildStatItem(
-                  context,
-                  context.translate('time'),
-                  _formatDuration(_activity.durationMin),
-                ),
-              ),
-            ],
-          ),
-          Divider(
-            color: colorScheme.outline.withValues(alpha: 0.1),
-            height: 32,
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildStatItem(
-                context,
-                context.translate('avg_pace'),
-                _formatPace(_activity.durationMin / _activity.distanceKm),
-              ),
-              _buildStatItem(
-                context,
-                context.translate('elevation_gain'),
-                '${_activity.elevationGainM?.toStringAsFixed(0) ?? 0} m',
-              ),
-            ],
-          ),
-          if (_activity.avgHr != null || _activity.avgCadence != null) ...[
-            Divider(
-              color: colorScheme.outline.withValues(alpha: 0.1),
-              height: 32,
-            ),
-            Row(
-              children: [
-                if (_activity.avgHr != null)
-                  Expanded(
-                    child: _buildStatItem(
-                      context,
-                      context.translate('avg_hr'),
-                      '${_activity.avgHr} bpm',
-                    ),
-                  ),
-                if (_activity.avgCadence != null)
-                  Expanded(
-                    child: _buildStatItem(
-                      context,
-                      context.translate('avg_cadence'),
-                      '${_activity.avgCadence} spm',
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(BuildContext context, String label, String value) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            color: colorScheme.onSurface,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatDuration(double minutes) {
-    int h = minutes ~/ 60;
-    int m = minutes.toInt() % 60;
-    int s = ((minutes - minutes.toInt()) * 60).round();
-    if (h > 0) {
-      return "$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
-    }
-    return "$m:${s.toString().padLeft(2, '0')}";
-  }
-
-  String _formatPace(double paceDecimal) {
-    if (paceDecimal.isInfinite || paceDecimal.isNaN) return "-:--";
-    int minutes = paceDecimal.floor();
-    int seconds = ((paceDecimal - minutes) * 60).round();
-    return "$minutes:${seconds.toString().padLeft(2, '0')}";
-  }
-
   List<double> _convertToList(dynamic data) {
     if (data == null) return [];
     if (data is List) {
@@ -901,9 +870,11 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         id: _activity.id,
         userId: _activity.userId,
         startedAt: _activity.startedAt,
+        createdAt: _activity.createdAt,
         distanceKm: _activity.distanceKm,
         durationMin: _activity.durationMin,
         avgHr: _activity.avgHr,
+        avgCadence: _activity.avgCadence,
         elevationGainM: _activity.elevationGainM,
         name: _activity.name,
         notes: _activity.notes,

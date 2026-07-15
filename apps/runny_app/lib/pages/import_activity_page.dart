@@ -437,14 +437,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         .from('activities')
         .insert({
           'user_id': uid,
-          'started_at': startedIso,
-          'distance_km': parsed.distanceKm,
-          'duration_min': parsed.durationMin,
-          'avg_hr': parsed.avgHr,
-          'elevation_gain_m': parsed.elevationGainM,
-          'data_points': parsed.dataPoints,
-          'start_lat': parsed.startLat,
-          'start_lon': parsed.startLon,
+          ...parsed.toDatabaseFields(),
           'weather_summary': weather?.summary,
           'temperature_c': weather?.temperatureC,
           'aqi': weather?.aqi,

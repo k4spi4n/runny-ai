@@ -131,6 +131,16 @@ void main() {
       expect(activity.avgCadence, 90); // (80 + 90 + 100) / 3
     });
 
+    test('payload lưu database giữ lại avg cadence', () async {
+      final activity = await ActivityParser.parse(_bytes(_validTcx), 'tcx');
+
+      final fields = activity.toDatabaseFields();
+
+      expect(fields['avg_cadence'], 90);
+      expect(fields['avg_hr'], 150);
+      expect(fields['started_at'], '2026-06-19T00:00:00.000Z');
+    });
+
     test('elevation gain = max - min', () async {
       final activity = await ActivityParser.parse(_bytes(_validTcx), 'tcx');
       expect(activity.elevationGainM, closeTo(7.0, 1e-6)); // 12 - 5

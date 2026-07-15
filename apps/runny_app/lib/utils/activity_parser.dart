@@ -27,6 +27,24 @@ class ParsedActivity {
     this.startLat,
     this.startLon,
   });
+
+  /// Các cột activity được dùng chung bởi luồng nhập file và ảnh chụp.
+  ///
+  /// Giữ ánh xạ này cạnh dữ liệu đã parse để khi schema có thêm một chỉ số,
+  /// mọi luồng dùng [ParsedActivity] đều lưu cùng một payload.
+  Map<String, dynamic> toDatabaseFields() {
+    return {
+      'started_at': startedAt.toUtc().toIso8601String(),
+      'distance_km': distanceKm,
+      'duration_min': durationMin,
+      'avg_hr': avgHr,
+      'avg_cadence': avgCadence,
+      'elevation_gain_m': elevationGainM,
+      'data_points': dataPoints,
+      'start_lat': startLat,
+      'start_lon': startLon,
+    };
+  }
 }
 
 class ActivityParser {
@@ -426,7 +444,9 @@ class ActivityParser {
     }
 
     if (avgCadence == null && recordCadences.isNotEmpty) {
-      avgCadence = (recordCadences.reduce((a, b) => a + b) / recordCadences.length).round();
+      avgCadence =
+          (recordCadences.reduce((a, b) => a + b) / recordCadences.length)
+              .round();
     }
 
     return ParsedActivity(
