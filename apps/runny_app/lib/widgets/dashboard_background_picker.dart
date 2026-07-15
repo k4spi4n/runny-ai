@@ -116,14 +116,14 @@ class DashboardBackgroundPicker extends StatefulWidget {
 }
 
 class _DashboardBackgroundPickerState extends State<DashboardBackgroundPicker> {
-  late final PageController _pageController;
   late int _currentIndex;
+
+  static const _animationDuration = Duration(milliseconds: 320);
 
   @override
   void initState() {
     super.initState();
     _currentIndex = AppBackground.values.indexOf(widget.selected);
-    _pageController = PageController(initialPage: _currentIndex);
   }
 
   @override
@@ -132,24 +132,28 @@ class _DashboardBackgroundPickerState extends State<DashboardBackgroundPicker> {
     final selectedIndex = AppBackground.values.indexOf(widget.selected);
     if (selectedIndex != _currentIndex) {
       _currentIndex = selectedIndex;
-      if (_pageController.hasClients) {
-        _pageController.jumpToPage(selectedIndex);
-      }
     }
   }
 
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+  int _relativeDistance(int index) {
+    final count = AppBackground.values.length;
+    var distance = (index - _currentIndex) % count;
+    if (distance > count / 2) distance -= count;
+    return distance;
   }
 
-  void _goToPage(int index) {
-    _pageController.animateToPage(
-      index.clamp(0, AppBackground.values.length - 1),
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOutCubic,
-    );
+  void _selectIndex(int index) {
+    final pageCount = AppBackground.values.length;
+    final wrappedIndex = (index % pageCount + pageCount) % pageCount;
+    if (wrappedIndex == _currentIndex) return;
+    setState(() => _currentIndex = wrappedIndex);
+    widget.onSelected(AppBackground.values[wrappedIndex]);
+  }
+
+  void _handleHorizontalDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity.abs() < 120) return;
+    _selectIndex(_currentIndex + (velocity < 0 ? 1 : -1));
   }
 
   @override
@@ -157,181 +161,315 @@ class _DashboardBackgroundPickerState extends State<DashboardBackgroundPicker> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final selectedBackground = AppBackground.values[_currentIndex];
+    final selectedLabel =
+        widget.labels[selectedBackground] ?? selectedBackground.name;
+
     return SizedBox(
-      height: 184,
+      height: 286,
       child: Column(
         children: [
           Expanded(
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: AppBackground.values.length,
-              onPageChanged: (index) {
-                setState(() => _currentIndex = index);
-                widget.onSelected(AppBackground.values[index]);
-              },
-              itemBuilder: (context, index) {
-                final background = AppBackground.values[index];
-                final isSelected = index == _currentIndex;
-                final label = widget.labels[background] ?? background.name;
-                final assetPath = background.assetPath;
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 390),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragEnd: _handleHorizontalDragEnd,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final cardWidth = (constraints.maxWidth * 0.54)
+                          .clamp(146.0, 200.0)
+                          .toDouble();
+                      final indices =
+                          List<int>.generate(
+                            AppBackground.values.length,
+                            (index) => index,
+                          )..sort((a, b) {
+                            final depthCompare = _relativeDistance(
+                              b,
+                            ).abs().compareTo(_relativeDistance(a).abs());
+                            if (depthCompare != 0) return depthCompare;
+                            return _relativeDistance(
+                              a,
+                            ).compareTo(_relativeDistance(b));
+                          });
 
-                return Semantics(
-                  label: label,
-                  button: true,
-                  selected: isSelected,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        key: ValueKey('background-option-${background.name}'),
-                        onTap: () => widget.onSelected(background),
-                        borderRadius: BorderRadius.circular(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                clipBehavior: Clip.antiAlias,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? colorScheme.primary
-                                        : colorScheme.outlineVariant.withValues(
-                                            alpha: 0.7,
-                                          ),
-                                    width: isSelected ? 2.5 : 1,
-                                  ),
-                                  boxShadow: isSelected
-                                      ? [
-                                          BoxShadow(
-                                            color: colorScheme.primary
-                                                .withValues(alpha: 0.25),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 3),
-                                          ),
-                                        ]
-                                      : null,
-                                ),
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    if (assetPath == null)
-                                      DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          gradient: sportPlatformGradient(
-                                            context,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          Icons.block_rounded,
-                                          color: colorScheme.onSurfaceVariant,
-                                          size: 30,
-                                        ),
-                                      )
-                                    else
-                                      Image.asset(
-                                        assetPath,
-                                        fit: BoxFit.cover,
-                                        filterQuality: FilterQuality.low,
-                                      ),
-                                    if (isSelected)
-                                      ColoredBox(
-                                        color: colorScheme.primary.withValues(
-                                          alpha: 0.08,
-                                        ),
-                                      ),
-                                    if (isSelected)
-                                      Positioned(
-                                        top: 8,
-                                        right: 8,
-                                        child: Container(
-                                          key: ValueKey(
-                                            'background-selected-${background.name}',
-                                          ),
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: BoxDecoration(
-                                            color: colorScheme.primary,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            Icons.check_rounded,
-                                            size: 16,
-                                            color: colorScheme.onPrimary,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          for (final index in indices)
+                            _buildBackgroundCard(
+                              context,
+                              index: index,
+                              distance: _relativeDistance(index),
+                              width: cardWidth,
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: isSelected
-                                    ? colorScheme.primary
-                                    : colorScheme.onSurfaceVariant,
-                                fontWeight: isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                        ],
+                      );
+                    },
                   ),
-                );
-              },
+                ),
+              ),
             ),
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              IconButton(
-                key: const ValueKey('background-previous'),
-                onPressed: _currentIndex == 0
-                    ? null
-                    : () => _goToPage(_currentIndex - 1),
-                icon: const Icon(Icons.arrow_back_ios_new),
-              ),
-              Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    AppBackground.values.length,
-                    (index) => AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: index == _currentIndex ? 18 : 7,
-                      height: 7,
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 390),
+            child: Row(
+              children: [
+                _CarouselArrowButton(
+                  key: const ValueKey('background-previous'),
+                  tooltip: MaterialLocalizations.of(
+                    context,
+                  ).previousPageTooltip,
+                  icon: Icons.arrow_back_ios_new_rounded,
+                  onPressed: () => _selectIndex(_currentIndex - 1),
+                ),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        child: Text(
+                          selectedLabel,
+                          key: ValueKey(selectedBackground),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(
+                          AppBackground.values.length,
+                          (index) => Semantics(
+                            button: true,
+                            selected: index == _currentIndex,
+                            child: InkWell(
+                              key: ValueKey('background-indicator-$index'),
+                              borderRadius: BorderRadius.circular(999),
+                              onTap: () => _selectIndex(index),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 220),
+                                curve: Curves.easeOutCubic,
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 3,
+                                ),
+                                width: index == _currentIndex ? 18 : 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: index == _currentIndex
+                                      ? colorScheme.primary
+                                      : colorScheme.outlineVariant,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _CarouselArrowButton(
+                  key: const ValueKey('background-next'),
+                  tooltip: MaterialLocalizations.of(context).nextPageTooltip,
+                  icon: Icons.arrow_forward_ios_rounded,
+                  onPressed: () => _selectIndex(_currentIndex + 1),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBackgroundCard(
+    BuildContext context, {
+    required int index,
+    required int distance,
+    required double width,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final background = AppBackground.values[index];
+    final label = widget.labels[background] ?? background.name;
+    final assetPath = background.assetPath;
+    final depth = distance.abs();
+    final isSelected = depth == 0;
+    final isVisible = depth <= 2;
+    final alignmentX = switch (distance) {
+      <= -2 => -1.0,
+      -1 => -0.62,
+      0 => 0.0,
+      1 => 0.62,
+      _ => 1.0,
+    };
+    final scale = switch (depth) {
+      0 => 1.0,
+      1 => 0.86,
+      _ => 0.73,
+    };
+    final opacity = switch (depth) {
+      0 => 1.0,
+      1 => 0.66,
+      2 => 0.32,
+      _ => 0.0,
+    };
+
+    return AnimatedAlign(
+      key: ValueKey('background-position-${background.name}'),
+      duration: _animationDuration,
+      curve: Curves.easeOutCubic,
+      alignment: Alignment(alignmentX, 0),
+      child: IgnorePointer(
+        ignoring: !isVisible,
+        child: AnimatedOpacity(
+          duration: _animationDuration,
+          curve: Curves.easeOutCubic,
+          opacity: opacity,
+          child: AnimatedScale(
+            duration: _animationDuration,
+            curve: Curves.easeOutBack,
+            scale: scale,
+            child: Semantics(
+              label: label,
+              button: true,
+              selected: isSelected,
+              child: SizedBox(
+                width: width,
+                height: 220,
+                child: Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(24),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    key: ValueKey('background-option-${background.name}'),
+                    onTap: () => _selectIndex(index),
+                    child: AnimatedContainer(
+                      duration: _animationDuration,
                       decoration: BoxDecoration(
-                        color: index == _currentIndex
-                            ? colorScheme.primary
-                            : colorScheme.outlineVariant,
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: isSelected
+                              ? colorScheme.primary
+                              : colorScheme.surface.withValues(alpha: 0.8),
+                          width: isSelected ? 2.5 : 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isSelected
+                                ? colorScheme.primary.withValues(alpha: 0.3)
+                                : colorScheme.shadow.withValues(alpha: 0.16),
+                            blurRadius: isSelected ? 18 : 10,
+                            spreadRadius: isSelected ? 1 : 0,
+                            offset: const Offset(0, 7),
+                          ),
+                        ],
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (assetPath == null)
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: sportPlatformGradient(context),
+                              ),
+                              child: Icon(
+                                Icons.hide_image_outlined,
+                                color: colorScheme.onSurfaceVariant,
+                                size: 36,
+                              ),
+                            )
+                          else
+                            Image.asset(
+                              assetPath,
+                              fit: BoxFit.cover,
+                              filterQuality: FilterQuality.medium,
+                            ),
+                          if (!isSelected)
+                            ColoredBox(
+                              color: colorScheme.surface.withValues(
+                                alpha: theme.brightness == Brightness.dark
+                                    ? 0.08
+                                    : 0.12,
+                              ),
+                            ),
+                          if (isSelected)
+                            Positioned(
+                              top: 10,
+                              right: 10,
+                              child: Container(
+                                key: ValueKey(
+                                  'background-selected-${background.name}',
+                                ),
+                                padding: const EdgeInsets.all(5),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primary,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: colorScheme.onPrimary.withValues(
+                                      alpha: 0.75,
+                                    ),
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.check_rounded,
+                                  size: 16,
+                                  color: colorScheme.onPrimary,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
                 ),
               ),
-              IconButton(
-                key: const ValueKey('background-next'),
-                onPressed: _currentIndex == AppBackground.values.length - 1
-                    ? null
-                    : () => _goToPage(_currentIndex + 1),
-                icon: const Icon(Icons.arrow_forward_ios),
-              ),
-            ],
+            ),
           ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _CarouselArrowButton extends StatelessWidget {
+  const _CarouselArrowButton({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        minimumSize: const Size.square(38),
+        maximumSize: const Size.square(38),
+        backgroundColor: colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.72,
+        ),
+        foregroundColor: colorScheme.onSurfaceVariant,
+      ),
+      icon: Icon(icon, size: 16),
     );
   }
 }
@@ -350,13 +488,13 @@ void previewBackgroundSelection(AppBackground _) {}
 @Preview(
   name: 'Background picker - light',
   group: 'Dashboard customization',
-  size: Size(760, 220),
+  size: Size(430, 320),
   brightness: Brightness.light,
 )
 @Preview(
   name: 'Background picker - dark',
   group: 'Dashboard customization',
-  size: Size(760, 220),
+  size: Size(430, 320),
   brightness: Brightness.dark,
 )
 Widget dashboardBackgroundPickerPreview() {

@@ -3,21 +3,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runny_app/widgets/activity_recording_guide.dart';
 
 void main() {
-  Widget buildSubject({required VoidCallback onImport}) {
+  Widget buildSubject({
+    required VoidCallback onFindActivity,
+    required VoidCallback onImport,
+  }) {
     return MaterialApp(
-      home: Scaffold(body: ActivityRecordingGuide(onImportActivity: onImport)),
+      home: Scaffold(
+        body: ActivityRecordingGuide(
+          onFindActivity: onFindActivity,
+          onImportActivity: onImport,
+        ),
+      ),
     );
   }
 
-  testWidgets('explains the manual import workflow and opens activity import', (
+  testWidgets('offers finding an existing activity or importing a new one', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(500, 1400);
+    tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    var findTapped = false;
     var importTapped = false;
-    await tester.pumpWidget(buildSubject(onImport: () => importTapped = true));
+    await tester.pumpWidget(
+      buildSubject(
+        onFindActivity: () => findTapped = true,
+        onImport: () => importTapped = true,
+      ),
+    );
     await tester.pump();
 
     expect(find.byType(ActivityRecordingGuide), findsOneWidget);
@@ -37,10 +51,15 @@ void main() {
       find.byKey(const ValueKey('recording_guide_sync_strava')),
       findsNothing,
     );
-    expect(
-      find.byKey(const ValueKey('recording_guide_find_activity')),
-      findsNothing,
+    final findButton = find.byKey(
+      const ValueKey('recording_guide_find_activity'),
     );
+    expect(findButton, findsOneWidget);
+    await tester.ensureVisible(findButton);
+    await tester.tap(findButton);
+    await tester.pump();
+    expect(findTapped, isTrue);
+    expect(importTapped, isFalse);
 
     final importButton = find.byKey(
       const ValueKey('recording_guide_import_activity'),

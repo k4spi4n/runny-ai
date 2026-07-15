@@ -77,6 +77,58 @@ Widget trainingPlanActionIconsPreview() {
 }
 
 @Preview(
+  name: 'Imported activity link confirmation',
+  group: 'Training',
+  size: Size(420, 240),
+)
+Widget importedActivityLinkConfirmationPreview() {
+  return MaterialApp(
+    theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue)),
+    home: Scaffold(
+      body: _ActivityLinkConfirmationDialog(
+        title: 'Xác nhận kết quả buổi tập',
+        description:
+            'Gắn hoạt động 5.20 km trong 31 phút vào “Chạy nhẹ phục hồi”?',
+        cancelLabel: 'Hủy',
+        confirmLabel: 'Gắn hoạt động',
+        onCancel: () {},
+        onConfirm: () {},
+      ),
+    ),
+  );
+}
+
+class _ActivityLinkConfirmationDialog extends StatelessWidget {
+  const _ActivityLinkConfirmationDialog({
+    required this.title,
+    required this.description,
+    required this.cancelLabel,
+    required this.confirmLabel,
+    required this.onCancel,
+    required this.onConfirm,
+  });
+
+  final String title;
+  final String description;
+  final String cancelLabel;
+  final String confirmLabel;
+  final VoidCallback onCancel;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(title),
+      content: Text(description),
+      actions: [
+        TextButton(onPressed: onCancel, child: Text(cancelLabel)),
+        FilledButton(onPressed: onConfirm, child: Text(confirmLabel)),
+      ],
+    );
+  }
+}
+
+@Preview(
   name: 'Completed workout with linked activity',
   group: 'Training',
   size: Size(420, 250),
@@ -432,6 +484,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final useCompactAppBar = MediaQuery.sizeOf(context).width <= 600;
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -471,6 +524,8 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       extendBodyBehindAppBar: true,
       backgroundColor: widget.embedded ? Colors.transparent : null,
       appBar: AppBar(
+        titleSpacing: useCompactAppBar ? 12 : null,
+        actionsPadding: EdgeInsets.only(right: useCompactAppBar ? 4 : 8),
         title: MarqueeText(
           _activeSchedule!['title'] ?? context.translate('your_training_plan'),
           style: theme.textTheme.titleLarge?.copyWith(
@@ -481,68 +536,86 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         elevation: 0,
         actions: [
           if (!isDraft)
-            IconButton(
-              icon: Icon(_addManualWorkoutIcon, color: colorScheme.onSurface),
-              onPressed: () => _openManualWorkout(),
-              tooltip: context.translate('manual_workout_add_tooltip'),
+            CompactAppBarAction(
+              enabled: useCompactAppBar,
+              child: IconButton(
+                icon: Icon(_addManualWorkoutIcon, color: colorScheme.onSurface),
+                onPressed: () => _openManualWorkout(),
+                tooltip: context.translate('manual_workout_add_tooltip'),
+              ),
             ),
           if (!allCompleted && !isDraft)
-            IconButton(
-              icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface),
-              onPressed: _openPlanOptimizationCoach,
-              tooltip: context.translate('optimize_plan_tooltip'),
+            CompactAppBarAction(
+              enabled: useCompactAppBar,
+              child: IconButton(
+                icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface),
+                onPressed: _openPlanOptimizationCoach,
+                tooltip: context.translate('optimize_plan_tooltip'),
+              ),
             ),
-          PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert, color: colorScheme.onSurface),
-            onSelected: (v) {
-              switch (v) {
-                case 'history':
-                  _openHistory();
-                case 'refresh':
-                  _fetchData();
-                case 'abandon':
-                  _abandonPlan();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem<String>(
-                value: 'history',
-                child: Row(
-                  children: [
-                    Icon(Icons.history, color: colorScheme.onSurface, size: 20),
-                    const SizedBox(width: 10),
-                    Text(context.translate('training_history')),
-                  ],
-                ),
-              ),
-              PopupMenuItem<String>(
-                value: 'refresh',
-                child: Row(
-                  children: [
-                    Icon(Icons.refresh, color: colorScheme.onSurface, size: 20),
-                    const SizedBox(width: 10),
-                    Text(context.translate('refresh')),
-                  ],
-                ),
-              ),
-              if (!isDraft) ...[
-                const PopupMenuDivider(),
+          CompactAppBarAction(
+            enabled: useCompactAppBar,
+            child: PopupMenuButton<String>(
+              padding: EdgeInsets.zero,
+              icon: Icon(Icons.more_vert, color: colorScheme.onSurface),
+              onSelected: (v) {
+                switch (v) {
+                  case 'history':
+                    _openHistory();
+                  case 'refresh':
+                    _fetchData();
+                  case 'abandon':
+                    _abandonPlan();
+                }
+              },
+              itemBuilder: (context) => [
                 PopupMenuItem<String>(
-                  value: 'abandon',
+                  value: 'history',
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.cancel_outlined,
-                        color: Colors.redAccent,
+                      Icon(
+                        Icons.history,
+                        color: colorScheme.onSurface,
                         size: 20,
                       ),
                       const SizedBox(width: 10),
-                      Text(context.translate('abandon_plan')),
+                      Text(context.translate('training_history')),
                     ],
                   ),
                 ),
+                PopupMenuItem<String>(
+                  value: 'refresh',
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.refresh,
+                        color: colorScheme.onSurface,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(context.translate('refresh')),
+                    ],
+                  ),
+                ),
+                if (!isDraft) ...[
+                  const PopupMenuDivider(),
+                  PopupMenuItem<String>(
+                    value: 'abandon',
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.cancel_outlined,
+                          color: Colors.redAccent,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(context.translate('abandon_plan')),
+                      ],
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ],
       ),
@@ -1818,6 +1891,10 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       isScrollControlled: true,
       useSafeArea: true,
       builder: (sheetContext) => ActivityRecordingGuide(
+        onFindActivity: () {
+          Navigator.pop(sheetContext);
+          _showLinkActivityDialog(workout);
+        },
         onImportActivity: () {
           Navigator.pop(sheetContext);
           _uploadNewActivity(workout);
@@ -1944,6 +2021,33 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       ),
     );
     if (result is Activity) {
+      final shouldLink = await _showActivityLinkConfirmation(
+        workout: workout,
+        distance: result.distanceKm,
+        duration: result.durationMin,
+      );
+      if (!mounted) return;
+
+      if (shouldLink && result.id != null) {
+        try {
+          await _trainingService.completeScheduledWorkout(
+            workoutId: workout['id'] as String,
+            activityId: result.id!,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(context.translate('link_success'))),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('${context.translate('link_error')}: $e')),
+            );
+          }
+        }
+      }
+
       await _fetchData();
       if (!mounted) return;
       await Navigator.push(
@@ -2222,32 +2326,37 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   ) async {
     final distance = (activity['distance_km'] as num).toDouble();
     final duration = (activity['duration_min'] as num).toDouble();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(context.translate('confirm_activity_link_title')),
-        content: Text(
-          context.translate('confirm_activity_link_desc', [
-            distance.toStringAsFixed(2),
-            duration.toStringAsFixed(0),
-            workout['title']?.toString() ?? context.translate('workout'),
-          ]),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(context.translate('cancel')),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(context.translate('attach_activity')),
-          ),
-        ],
-      ),
+    final confirmed = await _showActivityLinkConfirmation(
+      workout: workout,
+      distance: distance,
+      duration: duration,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     Navigator.pop(context);
     await _linkActivity(workout, activity);
+  }
+
+  Future<bool> _showActivityLinkConfirmation({
+    required Map<String, dynamic> workout,
+    required double distance,
+    required double duration,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => _ActivityLinkConfirmationDialog(
+        title: context.translate('confirm_activity_link_title'),
+        description: context.translate('confirm_activity_link_desc', [
+          distance.toStringAsFixed(2),
+          duration.toStringAsFixed(0),
+          workout['title']?.toString() ?? context.translate('workout'),
+        ]),
+        cancelLabel: context.translate('cancel'),
+        confirmLabel: context.translate('attach_activity'),
+        onCancel: () => Navigator.pop(dialogContext, false),
+        onConfirm: () => Navigator.pop(dialogContext, true),
+      ),
+    );
+    return confirmed == true;
   }
 
   Future<void> _linkActivity(
@@ -2524,7 +2633,7 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                       if (workout['workout_type'] != null)
                         _buildInfoChip(
                           context,
-                          Icons.category_outlined,
+                          LucideIcons.gauge,
                           context.translate(
                             'workout_type_${workout['workout_type']}',
                           ),

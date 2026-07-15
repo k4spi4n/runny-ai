@@ -31,10 +31,11 @@ class ScreenshotImportGuidance extends StatelessWidget {
         const SizedBox(height: 16),
         Align(
           alignment: Alignment.center,
-          child: FilledButton.icon(
+          child: TextButton.icon(
             onPressed: onShowExamples,
             icon: const Icon(Icons.lightbulb_outline),
             label: Text(examplesLabel),
+            style: TextButton.styleFrom(foregroundColor: Colors.orange),
           ),
         ),
       ],

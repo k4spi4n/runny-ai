@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../l10n/app_localizations.dart';
 
 class ActivityRecordingGuide extends StatelessWidget {
-  const ActivityRecordingGuide({super.key, required this.onImportActivity});
+  const ActivityRecordingGuide({
+    super.key,
+    required this.onFindActivity,
+    required this.onImportActivity,
+  });
 
+  final VoidCallback onFindActivity;
   final VoidCallback onImportActivity;
 
   @override
@@ -68,6 +75,13 @@ class ActivityRecordingGuide extends StatelessWidget {
             ],
             const SizedBox(height: 24),
             FilledButton.icon(
+              key: const ValueKey('recording_guide_find_activity'),
+              onPressed: onFindActivity,
+              icon: const Icon(Icons.manage_search_outlined),
+              label: Text(context.translate('recording_guide_find_activity')),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
               key: const ValueKey('recording_guide_import_activity'),
               onPressed: onImportActivity,
               icon: const Icon(Icons.upload_file_outlined),
@@ -78,6 +92,30 @@ class ActivityRecordingGuide extends StatelessWidget {
       ),
     );
   }
+}
+
+@Preview(
+  name: 'Activity recording guide',
+  group: 'Training',
+  size: Size(420, 760),
+)
+Widget activityRecordingGuidePreview() {
+  return MaterialApp(
+    locale: const Locale('vi'),
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    supportedLocales: const [Locale('en'), Locale('vi')],
+    home: Scaffold(
+      body: ActivityRecordingGuide(
+        onFindActivity: () {},
+        onImportActivity: () {},
+      ),
+    ),
+  );
 }
 
 class _GuideStep extends StatelessWidget {

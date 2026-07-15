@@ -8,7 +8,6 @@ import '../services/activity_screenshot_import_service.dart';
 import '../services/image_compress_service.dart';
 import '../services/paywall_exception.dart';
 import '../services/weather_service.dart';
-import '../services/training_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/paywall.dart';
 import '../widgets/screenshot_import_guidance.dart';
@@ -32,7 +31,6 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   bool _isLoading = false;
   String? _statusMessage;
   final WeatherService _weatherService = WeatherService();
-  final TrainingService _trainingService = TrainingService();
   final ActivityScreenshotImportService _screenshotImportService =
       ActivityScreenshotImportService();
   final ImageCompressService _compressService = ImageCompressService();
@@ -174,14 +172,6 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           failed++;
           debugPrint('Import file ${file.name} error: $e');
         }
-      }
-
-      // Mở từ một buổi tập -> gắn hoạt động đầu tiên nhập được vào buổi tập đó.
-      if (widget.scheduledWorkoutId != null && firstImportedActivity != null) {
-        await _trainingService.completeScheduledWorkout(
-          workoutId: widget.scheduledWorkoutId!,
-          activityId: firstImportedActivity.id!,
-        );
       }
 
       setState(() {
@@ -368,13 +358,6 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               'screenshot_import_failed';
         });
         return;
-      }
-
-      if (widget.scheduledWorkoutId != null) {
-        await _trainingService.completeScheduledWorkout(
-          workoutId: widget.scheduledWorkoutId!,
-          activityId: outcome.$2!.id!,
-        );
       }
 
       setState(() {
@@ -566,14 +549,6 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           })
           .select()
           .single();
-
-      // Mở từ một buổi tập -> gắn hoạt động vừa lưu vào buổi tập đó.
-      if (widget.scheduledWorkoutId != null) {
-        await _trainingService.completeScheduledWorkout(
-          workoutId: widget.scheduledWorkoutId!,
-          activityId: res['id'] as String,
-        );
-      }
 
       setState(() {
         _statusMessage = l?.translate('activity_saved') ?? 'activity_saved';

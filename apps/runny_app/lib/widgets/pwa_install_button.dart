@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
 import '../services/pwa_install.dart';
+import 'ui_components.dart';
 
 /// Nút "Cài ứng dụng" trên thanh điều hướng. Chỉ hiển thị khi trình duyệt cho
 /// biết app đủ điều kiện cài PWA (event `beforeinstallprompt`); ẩn trên native
 /// và khi app đã được cài, nên không chiếm chỗ vô ích.
 class PwaInstallButton extends StatefulWidget {
-  const PwaInstallButton({super.key});
+  const PwaInstallButton({super.key, this.compact = false});
+
+  final bool compact;
 
   @override
   State<PwaInstallButton> createState() => _PwaInstallButtonState();
@@ -30,7 +33,7 @@ class _PwaInstallButtonState extends State<PwaInstallButton> {
   Widget build(BuildContext context) {
     if (!_available) return const SizedBox.shrink();
     final colorScheme = Theme.of(context).colorScheme;
-    return IconButton(
+    final button = IconButton(
       icon: Icon(Icons.install_mobile, color: colorScheme.onSurface),
       tooltip: context.translate('install_app'),
       onPressed: () async {
@@ -38,5 +41,6 @@ class _PwaInstallButtonState extends State<PwaInstallButton> {
         if (mounted) setState(() => _available = pwaInstallAvailable());
       },
     );
+    return widget.compact ? CompactAppBarAction(child: button) : button;
   }
 }

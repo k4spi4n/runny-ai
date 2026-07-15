@@ -211,10 +211,9 @@ class _AICoachPageState extends State<AICoachPage> {
     setState(() {});
   }
 
-  /// Theo kiểu Messenger, các điều khiển phụ chỉ xuất hiện khi ô nhập chưa
-  /// được dùng. Nút gửi luôn được giữ để người dùng có thể gửi ngay.
-  bool get _isComposing =>
-      _inputFocusNode.hasFocus && _controller.text.trim().isNotEmpty;
+  /// Theo kiểu Messenger, các điều khiển phụ ẩn ngay khi người dùng chạm vào
+  /// ô nhập. Nút gửi luôn được giữ để người dùng có thể gửi ngay.
+  bool get _isComposing => _inputFocusNode.hasFocus;
 
   @override
   void didChangeDependencies() {

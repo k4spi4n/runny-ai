@@ -286,8 +286,10 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
+    final width = MediaQuery.sizeOf(context).width;
     final isDesktop = width > 900;
+    final useCompactAppBar = width <= 600;
+    final showLogoText = width >= 400;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final appBackground = context.watch<ThemeProvider>().background;
@@ -334,23 +336,43 @@ class _DashboardPageState extends State<DashboardPage> {
       extendBody: true,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const RunnyLogo(fontSize: 20),
+        titleSpacing: useCompactAppBar ? 12 : null,
+        actionsPadding: EdgeInsets.only(right: useCompactAppBar ? 4 : 8),
+        title: RunnyLogo(
+          fontSize: useCompactAppBar ? 18 : 20,
+          showText: showLogoText,
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          const LanguageSwitcher(),
-          const ThemeToggle(),
-          IconButton(
-            icon: Icon(Icons.tune, color: colorScheme.onSurface),
-            tooltip: context.translate('screen_settings'),
-            onPressed: _openScreenSettings,
+          CompactAppBarAction(
+            enabled: useCompactAppBar,
+            child: const LanguageSwitcher(),
           ),
-          IconButton(
-            icon: Icon(Icons.add_circle_outline, color: colorScheme.onSurface),
-            tooltip: context.translate('import_activity'),
-            onPressed: _openImportActivity,
+          CompactAppBarAction(
+            enabled: useCompactAppBar,
+            child: const ThemeToggle(),
           ),
-          const PwaInstallButton(),
+          CompactAppBarAction(
+            enabled: useCompactAppBar,
+            child: IconButton(
+              icon: Icon(Icons.tune, color: colorScheme.onSurface),
+              tooltip: context.translate('screen_settings'),
+              onPressed: _openScreenSettings,
+            ),
+          ),
+          CompactAppBarAction(
+            enabled: useCompactAppBar,
+            child: IconButton(
+              icon: Icon(
+                Icons.add_circle_outline,
+                color: colorScheme.onSurface,
+              ),
+              tooltip: context.translate('import_activity'),
+              onPressed: _openImportActivity,
+            ),
+          ),
+          PwaInstallButton(compact: useCompactAppBar),
         ],
       ),
       body: Stack(

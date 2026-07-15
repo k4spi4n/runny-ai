@@ -5,6 +5,41 @@ import '../theme/theme_provider.dart';
 import '../l10n/language_provider.dart';
 import '../l10n/app_localizations.dart';
 
+/// Keeps app-bar actions visually compact while preserving a comfortable
+/// 44x44 touch target on narrow screens.
+class CompactAppBarAction extends StatelessWidget {
+  const CompactAppBarAction({
+    super.key,
+    required this.child,
+    this.enabled = true,
+  });
+
+  static const double extent = 44;
+
+  final Widget child;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    return SizedBox.square(
+      dimension: extent,
+      child: IconButtonTheme(
+        data: IconButtonThemeData(
+          style: IconButton.styleFrom(
+            minimumSize: const Size.square(extent),
+            maximumSize: const Size.square(extent),
+            padding: EdgeInsets.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
 class ThemeToggle extends StatelessWidget {
   const ThemeToggle({super.key});
 
