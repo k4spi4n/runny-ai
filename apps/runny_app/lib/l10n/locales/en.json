@@ -356,7 +356,7 @@
   "screenshot_import_step_summary": "Open the summary page for one activity before taking the screenshot.",
   "screenshot_import_step_details": "Include the date, distance and duration; heart rate, cadence and elevation help when available.",
   "screenshot_import_step_clarity": "Do not crop, blur, or cover important information.",
-  "view_screenshot_examples": "View 3 example screenshots",
+  "view_screenshot_examples": "Capture guide & examples",
   "screenshot_examples_title": "Example screenshots",
   "screenshot_examples_hint": "Each example clearly shows the workout data that AI can recognize.",
   "screenshot_example_strava": "Strava example",

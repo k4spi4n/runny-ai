@@ -892,10 +892,6 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         const SizedBox(height: 8),
         ScreenshotImportGuidance(
           intro: context.translate('screenshot_import_hint'),
-          guideTitle: context.translate('screenshot_import_guide_title'),
-          summaryStep: context.translate('screenshot_import_step_summary'),
-          detailsStep: context.translate('screenshot_import_step_details'),
-          clarityStep: context.translate('screenshot_import_step_clarity'),
           examplesLabel: context.translate('view_screenshot_examples'),
           onShowExamples: () => _showScreenshotExamples(context),
         ),
@@ -927,82 +923,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) {
-        final theme = Theme.of(sheetContext);
-        final width = MediaQuery.sizeOf(sheetContext).width;
-        final columns = width >= 900
-            ? 3
-            : width >= 600
-            ? 2
-            : 1;
-
-        return SafeArea(
-          child: SizedBox(
-            height: MediaQuery.sizeOf(sheetContext).height * 0.88,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    context.translate('screenshot_examples_title'),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    context.translate('screenshot_examples_hint'),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: GridView.builder(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: columns,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        childAspectRatio: columns == 1 ? 0.62 : 0.48,
-                      ),
-                      itemCount: examples.length,
-                      itemBuilder: (context, index) {
-                        final example = examples[index];
-                        return Card(
-                          clipBehavior: Clip.antiAlias,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: Image.asset(
-                                  example.$1,
-                                  fit: BoxFit.contain,
-                                  semanticLabel: context.translate(example.$2),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Text(
-                                  context.translate(example.$2),
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+      builder: (_) => _ScreenshotExamplesSheet(examples: examples),
     );
   }
 
@@ -1375,6 +1296,213 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           row('import_help_generic'),
         ],
       ),
+    );
+  }
+}
+
+class _ScreenshotExamplesSheet extends StatefulWidget {
+  const _ScreenshotExamplesSheet({required this.examples});
+
+  final List<(String, String)> examples;
+
+  @override
+  State<_ScreenshotExamplesSheet> createState() =>
+      _ScreenshotExamplesSheetState();
+}
+
+class _ScreenshotExamplesSheetState extends State<_ScreenshotExamplesSheet> {
+  final PageController _pageController = PageController();
+  var _currentPage = 0;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _goToPage(int page) {
+    _pageController.animateToPage(
+      page.clamp(0, widget.examples.length - 1),
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return SafeArea(
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height * 0.88,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.translate('screenshot_examples_title'),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                context.translate('screenshot_examples_hint'),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.42),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.lightbulb_outline,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          context.translate('screenshot_import_guide_title'),
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _GuideStep(
+                      text: context.translate('screenshot_import_step_summary'),
+                    ),
+                    const SizedBox(height: 6),
+                    _GuideStep(
+                      text: context.translate('screenshot_import_step_details'),
+                    ),
+                    const SizedBox(height: 6),
+                    _GuideStep(
+                      text: context.translate('screenshot_import_step_clarity'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: widget.examples.length,
+                  onPageChanged: (page) => setState(() => _currentPage = page),
+                  itemBuilder: (context, index) {
+                    final example = widget.examples[index];
+                    return Card(
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: Image.asset(
+                              example.$1,
+                              fit: BoxFit.contain,
+                              semanticLabel: context.translate(example.$2),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              context.translate(example.$2),
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _currentPage == 0
+                        ? null
+                        : () => _goToPage(_currentPage - 1),
+                    icon: const Icon(Icons.arrow_back_ios_new),
+                    tooltip: 'Previous example',
+                  ),
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        widget.examples.length,
+                        (index) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          width: index == _currentPage ? 18 : 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: index == _currentPage
+                                ? colorScheme.primary
+                                : colorScheme.outlineVariant,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _currentPage == widget.examples.length - 1
+                        ? null
+                        : () => _goToPage(_currentPage + 1),
+                    icon: const Icon(Icons.arrow_forward_ios),
+                    tooltip: 'Next example',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GuideStep extends StatelessWidget {
+  const _GuideStep({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 7),
+          child: Icon(Icons.circle, size: 6, color: colorScheme.primary),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

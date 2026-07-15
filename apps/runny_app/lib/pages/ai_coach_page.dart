@@ -63,6 +63,7 @@ class AICoachPage extends StatefulWidget {
 
 class _AICoachPageState extends State<AICoachPage> {
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _inputFocusNode = FocusNode();
   final TrainingService _trainingService = TrainingService();
   final GeminiService _geminiService = GeminiService();
   final ChatService _chatService = ChatService();
@@ -104,6 +105,7 @@ class _AICoachPageState extends State<AICoachPage> {
   void initState() {
     super.initState();
     _controller.addListener(_handlePromptChanged);
+    _inputFocusNode.addListener(_handlePromptChanged);
     _contextActivity = widget.initialActivity;
     _autoSendPending = widget.autoSendInitialPrompt;
     if (widget.initialPrompt != null && widget.initialPrompt!.isNotEmpty) {
@@ -208,6 +210,11 @@ class _AICoachPageState extends State<AICoachPage> {
     if (!mounted) return;
     setState(() {});
   }
+
+  /// Theo kiểu Messenger, các điều khiển phụ chỉ xuất hiện khi ô nhập chưa
+  /// được dùng. Nút gửi luôn được giữ để người dùng có thể gửi ngay.
+  bool get _isComposing =>
+      _inputFocusNode.hasFocus && _controller.text.trim().isNotEmpty;
 
   @override
   void didChangeDependencies() {
@@ -1011,8 +1018,10 @@ $prompt''';
   void dispose() {
     _cancelLongWaitTimer();
     _controller.removeListener(_handlePromptChanged);
+    _inputFocusNode.removeListener(_handlePromptChanged);
     _speech.cancel();
     _controller.dispose();
+    _inputFocusNode.dispose();
     _coachNameController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -1310,7 +1319,8 @@ $prompt''';
                   ),
                 if (_isRecording) _buildListeningIndicator(context),
                 _buildSuggestedQuestions(context),
-                if (!_isAttachmentBarCollapsed) _buildAttachmentBar(context),
+                if (!_isAttachmentBarCollapsed && !_isComposing)
+                  _buildAttachmentBar(context),
                 Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: widget.embedded ? 0.0 : 16.0,
@@ -1318,6 +1328,8 @@ $prompt''';
                   ),
                   child: Row(
                     children: [
+                      // Ghi âm là trạng thái đang chạy; luôn giữ nút hủy để
+                      // người dùng có thể dừng và hoàn tác phần nhận diện.
                       if (_isRecording)
                         Padding(
                           padding: const EdgeInsets.only(right: 4),
@@ -1333,7 +1345,12 @@ $prompt''';
                       Expanded(
                         child: TextField(
                           controller: _controller,
+                          focusNode: _inputFocusNode,
                           style: TextStyle(color: colorScheme.onSurface),
+                          minLines: 1,
+                          maxLines: 5,
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.newline,
                           decoration: InputDecoration(
                             hintText: _isRecording
                                 ? 'Đang nghe...'
@@ -1356,22 +1373,23 @@ $prompt''';
                               vertical: 10,
                             ),
                           ),
-                          onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
-                      if (_isAttachmentBarCollapsed) ...[
+                      if (!_isComposing || _isRecording) ...[
+                        if (_isAttachmentBarCollapsed) ...[
+                          const SizedBox(width: 8),
+                          _AttachmentContextButton(
+                            color: colorScheme.primary,
+                            onTap: _showAttachmentSettings,
+                          ),
+                        ],
                         const SizedBox(width: 8),
-                        _AttachmentContextButton(
+                        _MicButton(
+                          isRecording: _isRecording,
                           color: colorScheme.primary,
-                          onTap: _showAttachmentSettings,
+                          onTap: _toggleRecording,
                         ),
                       ],
-                      const SizedBox(width: 8),
-                      _MicButton(
-                        isRecording: _isRecording,
-                        color: colorScheme.primary,
-                        onTap: _toggleRecording,
-                      ),
                       const SizedBox(width: 8),
                       Container(
                         decoration: BoxDecoration(

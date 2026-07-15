@@ -355,7 +355,11 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       body: Stack(
         children: [
-          DashboardBackgroundLayer(background: appBackground),
+          DashboardBackgroundLayer(
+            background: appBackground,
+            pageIndex: _selectedIndex,
+            pageCount: _pages.length,
+          ),
           SafeArea(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,

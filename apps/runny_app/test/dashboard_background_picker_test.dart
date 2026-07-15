@@ -15,7 +15,50 @@ const _labels = {
 };
 
 void main() {
-  testWidgets('shows the default choice and reports a tapped background', (
+  test('background pages span the image from left to right', () {
+    expect(DashboardBackgroundLayer.alignmentXForPage(0, 7), -1);
+    expect(DashboardBackgroundLayer.alignmentXForPage(3, 7), 0);
+    expect(DashboardBackgroundLayer.alignmentXForPage(6, 7), 1);
+    expect(DashboardBackgroundLayer.alignmentXForPage(99, 7), 1);
+  });
+
+  testWidgets('background crop pans smoothly when the selected page changes', (
+    tester,
+  ) async {
+    Widget buildLayer(int pageIndex) {
+      return MaterialApp(
+        home: SizedBox(
+          width: 390,
+          height: 844,
+          child: DashboardBackgroundLayer(
+            background: AppBackground.flowingMiles,
+            pageIndex: pageIndex,
+            pageCount: 7,
+          ),
+        ),
+      );
+    }
+
+    Alignment imageAlignment() {
+      final image = tester.widget<Image>(
+        find.byKey(const ValueKey('dashboard-background-image')),
+      );
+      return image.alignment as Alignment;
+    }
+
+    await tester.pumpWidget(buildLayer(0));
+    expect(imageAlignment().x, -1);
+
+    await tester.pumpWidget(buildLayer(6));
+    await tester.pump(const Duration(milliseconds: 325));
+    expect(imageAlignment().x, greaterThan(-1));
+    expect(imageAlignment().x, lessThan(1));
+
+    await tester.pump(const Duration(milliseconds: 325));
+    expect(imageAlignment().x, closeTo(1, 0.001));
+  });
+
+  testWidgets('shows the default choice and reports slider navigation', (
     tester,
   ) async {
     AppBackground? tapped;
@@ -37,10 +80,10 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(
-      find.byKey(const ValueKey('background-option-electricPace')),
-    );
-    await tester.pump();
+    for (var index = 0; index < 3; index++) {
+      await tester.tap(find.byKey(const ValueKey('background-next')));
+      await tester.pumpAndSettle();
+    }
 
     expect(tapped, AppBackground.electricPace);
   });

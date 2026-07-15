@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runny_app/widgets/screenshot_import_guidance.dart';
 
 void main() {
-  testWidgets('shows the guidance and opens example screenshots', (
+  testWidgets('shows the capture guide button and opens examples', (
     tester,
   ) async {
     var examplesRequested = false;
@@ -13,21 +13,17 @@ void main() {
         home: Scaffold(
           body: ScreenshotImportGuidance(
             intro: 'Nhập hoạt động từ hầu hết các nền tảng.',
-            guideTitle: 'Chụp ảnh thế nào để nhận diện tốt?',
-            summaryStep: 'Mở trang tổng kết.',
-            detailsStep: 'Chụp đủ quãng đường và thời lượng.',
-            clarityStep: 'Không che dữ liệu.',
-            examplesLabel: 'Xem 3 ảnh mẫu',
+            examplesLabel: 'Hướng dẫn chụp và ví dụ',
             onShowExamples: () => examplesRequested = true,
           ),
         ),
       ),
     );
 
-    expect(find.text('Chụp ảnh thế nào để nhận diện tốt?'), findsOneWidget);
-    expect(find.text('Chụp đủ quãng đường và thời lượng.'), findsOneWidget);
+    expect(find.text('Hướng dẫn chụp và ví dụ'), findsOneWidget);
+    expect(find.byIcon(Icons.lightbulb_outline), findsOneWidget);
 
-    await tester.tap(find.text('Xem 3 ảnh mẫu'));
+    await tester.tap(find.text('Hướng dẫn chụp và ví dụ'));
     await tester.pump();
 
     expect(examplesRequested, isTrue);
