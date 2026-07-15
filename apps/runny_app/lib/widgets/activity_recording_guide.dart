@@ -3,20 +3,9 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 
 class ActivityRecordingGuide extends StatelessWidget {
-  const ActivityRecordingGuide({
-    super.key,
-    required this.stravaConnected,
-    required this.syncing,
-    required this.onFindActivity,
-    required this.onImportActivity,
-    this.onSyncStrava,
-  });
+  const ActivityRecordingGuide({super.key, required this.onImportActivity});
 
-  final bool stravaConnected;
-  final bool syncing;
-  final VoidCallback onFindActivity;
   final VoidCallback onImportActivity;
-  final VoidCallback? onSyncStrava;
 
   @override
   Widget build(BuildContext context) {
@@ -28,12 +17,12 @@ class ActivityRecordingGuide extends StatelessWidget {
         context.translate('recording_guide_step_record_desc'),
       ),
       (
-        Icons.sync,
+        Icons.save_alt_outlined,
         context.translate('recording_guide_step_sync_title'),
         context.translate('recording_guide_step_sync_desc'),
       ),
       (
-        Icons.link,
+        Icons.upload_file_outlined,
         context.translate('recording_guide_step_link_title'),
         context.translate('recording_guide_step_link_desc'),
       ),
@@ -78,29 +67,9 @@ class ActivityRecordingGuide extends StatelessWidget {
               if (index != steps.length - 1) const SizedBox(height: 12),
             ],
             const SizedBox(height: 24),
-            if (stravaConnected)
-              OutlinedButton.icon(
-                key: const ValueKey('recording_guide_sync_strava'),
-                onPressed: syncing ? null : onSyncStrava,
-                icon: syncing
-                    ? const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.sync),
-                label: Text(context.translate('recording_guide_sync_strava')),
-              ),
-            if (stravaConnected) const SizedBox(height: 10),
             FilledButton.icon(
-              key: const ValueKey('recording_guide_find_activity'),
-              onPressed: syncing ? null : onFindActivity,
-              icon: const Icon(Icons.search),
-              label: Text(context.translate('recording_guide_find_activity')),
-            ),
-            const SizedBox(height: 10),
-            TextButton.icon(
               key: const ValueKey('recording_guide_import_activity'),
-              onPressed: syncing ? null : onImportActivity,
+              onPressed: onImportActivity,
               icon: const Icon(Icons.upload_file_outlined),
               label: Text(context.translate('recording_guide_import_activity')),
             ),

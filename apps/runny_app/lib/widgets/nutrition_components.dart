@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:flutter/widget_previews.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/nutrition_models.dart';
 import '../models/weight_models.dart';
@@ -11,11 +13,13 @@ import 'ui_components.dart';
 
 class NutritionOverviewCard extends StatelessWidget {
   final DailyNutritionSummary summary;
+  final DateTime? selectedDate;
   final VoidCallback? onEditGoal;
 
   const NutritionOverviewCard({
     super.key,
     required this.summary,
+    this.selectedDate,
     this.onEditGoal,
   });
 
@@ -23,6 +27,7 @@ class NutritionOverviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = context;
+    final date = selectedDate ?? DateTime.now();
 
     return glassCard(
       context: context,
@@ -36,7 +41,11 @@ class NutritionOverviewCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      l10n.translate('daily_goal'),
+                      DateUtils.isSameDay(date, DateTime.now())
+                          ? l10n.translate('daily_goal')
+                          : l10n.translate('nutrition_log_date', [
+                              _formatDate(date),
+                            ]),
                       style: theme.textTheme.titleMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -104,6 +113,12 @@ class NutritionOverviewCard extends StatelessWidget {
     );
   }
 
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
+  }
+
   Widget _buildCircularProgress(BuildContext context) {
     return SizedBox(
       height: 80,
@@ -164,6 +179,41 @@ class NutritionOverviewCard extends StatelessWidget {
       ],
     );
   }
+}
+
+@Preview(
+  name: 'Nutrition log - selected day',
+  group: 'Nutrition',
+  size: Size(420, 290),
+)
+Widget nutritionLogSelectedDayPreview() {
+  return MaterialApp(
+    locale: const Locale('vi'),
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
+    supportedLocales: const [Locale('en'), Locale('vi')],
+    home: Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: NutritionOverviewCard(
+          selectedDate: DateTime(2026, 7, 14),
+          summary: DailyNutritionSummary(
+            date: DateTime(2026, 7, 14),
+            caloriesIn: 1350,
+            caloriesOut: 420,
+            protein: 82,
+            carbs: 165,
+            fat: 42,
+            goal: NutritionGoal(userId: 'preview', dailyCalories: 2000),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class MacroTrackingCard extends StatelessWidget {

@@ -1335,6 +1335,13 @@ $upcomingSummary
 
   /// Ghi các điều chỉnh đã được người dùng xác nhận vào DB.
   Future<void> applyPlanAdjustments(List<WorkoutAdjustment> adjustments) async {
+    if (adjustments.isEmpty) return;
+    final workout = await _supabase
+        .from('scheduled_workouts')
+        .select('schedule_id')
+        .eq('id', adjustments.first.workoutId)
+        .single();
+    final scheduleId = workout['schedule_id']?.toString();
     for (final adj in adjustments) {
       await _supabase
           .from('scheduled_workouts')
@@ -1346,6 +1353,14 @@ $upcomingSummary
               'description': 'Đã điều chỉnh bởi AI: ${adj.reason}',
           })
           .eq('id', adj.workoutId);
+    }
+    if (scheduleId != null) {
+      await _supabase
+          .from('training_schedules')
+          .update({
+            'last_ai_adjusted_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', scheduleId);
     }
     TrainingRefreshService.instance.notifyTrainingChanged();
   }

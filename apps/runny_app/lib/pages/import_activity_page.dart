@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/activity_parser.dart';
+import '../utils/manual_activity_namer.dart';
 import '../services/activity_screenshot_import_service.dart';
 import '../services/image_compress_service.dart';
 import '../services/paywall_exception.dart';
@@ -10,8 +11,10 @@ import '../services/weather_service.dart';
 import '../services/training_service.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/paywall.dart';
+import '../widgets/screenshot_import_guidance.dart';
 import '../widgets/ui_components.dart';
 import '../models/shoe_models.dart';
+import '../models/workout_models.dart';
 
 enum _ImportOutcome { imported, duplicate, failed }
 
@@ -130,7 +133,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       int imported = 0;
       int duplicate = 0;
       int failed = 0;
-      String? firstImportedId;
+      Activity? firstImportedActivity;
+      Activity? mostRecentImportedActivity;
 
       for (var i = 0; i < result.files.length; i++) {
         final file = result.files[i];
@@ -148,7 +152,16 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           switch (outcome.$1) {
             case _ImportOutcome.imported:
               imported++;
-              firstImportedId ??= outcome.$2;
+              final importedActivity = outcome.$2!;
+              firstImportedActivity ??= importedActivity;
+              // Khi nhập nhiều file, mở buổi có thời điểm chạy mới nhất. Nếu
+              // trùng thời điểm, ưu tiên file được nhập sau cùng.
+              if (mostRecentImportedActivity == null ||
+                  !importedActivity.startedAt.isBefore(
+                    mostRecentImportedActivity.startedAt,
+                  )) {
+                mostRecentImportedActivity = importedActivity;
+              }
               break;
             case _ImportOutcome.duplicate:
               duplicate++;
@@ -164,10 +177,10 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       }
 
       // Mở từ một buổi tập -> gắn hoạt động đầu tiên nhập được vào buổi tập đó.
-      if (widget.scheduledWorkoutId != null && firstImportedId != null) {
+      if (widget.scheduledWorkoutId != null && firstImportedActivity != null) {
         await _trainingService.completeScheduledWorkout(
           workoutId: widget.scheduledWorkoutId!,
-          activityId: firstImportedId,
+          activityId: firstImportedActivity.id!,
         );
       }
 
@@ -183,8 +196,11 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
 
       // Chỉ tự đóng khi có ít nhất 1 hoạt động được nhập.
       if (mounted && imported > 0) {
+        final activityToOpen = widget.scheduledWorkoutId == null
+            ? mostRecentImportedActivity
+            : firstImportedActivity;
         Future.delayed(const Duration(milliseconds: 1300), () {
-          if (mounted) Navigator.pop(context, true);
+          if (mounted) Navigator.pop(context, activityToOpen);
         });
       }
     } catch (e) {
@@ -223,8 +239,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       }
 
       setState(() {
-        _statusMessage =
-            l?.translate('optimizing_image') ?? 'optimizing_image';
+        _statusMessage = l?.translate('optimizing_image') ?? 'optimizing_image';
       });
 
       final compressedBytes = await _compressService.compress(
@@ -306,7 +321,9 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     }
 
     final avgHr = int.tryParse(_screenshotAvgHrController.text.trim());
-    final avgCadence = int.tryParse(_screenshotAvgCadenceController.text.trim());
+    final avgCadence = int.tryParse(
+      _screenshotAvgCadenceController.text.trim(),
+    );
     final elevation = double.tryParse(
       _screenshotElevationController.text.trim().replaceAll(',', '.'),
     );
@@ -356,7 +373,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       if (widget.scheduledWorkoutId != null) {
         await _trainingService.completeScheduledWorkout(
           workoutId: widget.scheduledWorkoutId!,
-          activityId: outcome.$2!,
+          activityId: outcome.$2!.id!,
         );
       }
 
@@ -367,8 +384,9 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       });
 
       if (mounted) {
+        final importedActivity = outcome.$2!;
         Future.delayed(const Duration(milliseconds: 1000), () {
-          if (mounted) Navigator.pop(context, true);
+          if (mounted) Navigator.pop(context, importedActivity);
         });
       }
     } catch (e) {
@@ -382,8 +400,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     }
   }
 
-  /// Nhập một file. Trả về (kết quả, id hoạt động nếu có).
-  Future<(_ImportOutcome, String?)> _importOne(
+  /// Nhập một file. Trả về (kết quả, hoạt động mới nếu có).
+  Future<(_ImportOutcome, Activity?)> _importOne(
     PlatformFile file,
     AppLocalizations? l,
   ) async {
@@ -401,7 +419,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     );
   }
 
-  Future<(_ImportOutcome, String?)> _saveParsedActivity({
+  Future<(_ImportOutcome, Activity?)> _saveParsedActivity({
     required ParsedActivity parsed,
     required String name,
     String? notes,
@@ -417,7 +435,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         .eq('started_at', startedIso)
         .maybeSingle();
     if (existing != null) {
-      return (_ImportOutcome.duplicate, existing['id'] as String);
+      return (_ImportOutcome.duplicate, null);
     }
 
     WeatherSnapshot? weather;
@@ -453,10 +471,13 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           'notes': notes,
           if (_selectedShoeId != null) 'shoe_id': _selectedShoeId,
         })
-        .select('id')
+        .select()
         .single();
 
-    return (_ImportOutcome.imported, res['id'] as String);
+    return (
+      _ImportOutcome.imported,
+      Activity.fromJson(Map<String, dynamic>.from(res)),
+    );
   }
 
   /// Lưu một hoạt động nhập thủ công (không có file/GPS, nên bỏ qua thời tiết).
@@ -524,11 +545,26 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
             'elevation_gain_m': elevation,
             'name': name.isNotEmpty
                 ? name
-                : (l?.translate('manual_logged_note') ?? 'manual_logged_note'),
+                : ManualActivityNamer.create(
+                    distanceKm: distance,
+                    startedAt: _startedAt,
+                    titleTemplate:
+                        l?.translate('manual_activity_default_name') ??
+                        '%s km %s run',
+                    morningLabel:
+                        l?.translate('manual_activity_time_morning') ??
+                        'morning',
+                    afternoonLabel:
+                        l?.translate('manual_activity_time_afternoon') ??
+                        'afternoon',
+                    eveningLabel:
+                        l?.translate('manual_activity_time_evening') ??
+                        'evening',
+                  ),
             'notes': notes.isEmpty ? null : notes,
             if (_selectedShoeId != null) 'shoe_id': _selectedShoeId,
           })
-          .select('id')
+          .select()
           .single();
 
       // Mở từ một buổi tập -> gắn hoạt động vừa lưu vào buổi tập đó.
@@ -544,8 +580,11 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       });
 
       if (mounted) {
+        final importedActivity = Activity.fromJson(
+          Map<String, dynamic>.from(res),
+        );
         Future.delayed(const Duration(milliseconds: 1000), () {
-          if (mounted) Navigator.pop(context, true);
+          if (mounted) Navigator.pop(context, importedActivity);
         });
       }
     } catch (e) {
@@ -617,7 +656,9 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(MediaQuery.of(context).size.width > 900 ? 24.0 : 16.0),
+            padding: EdgeInsets.all(
+              MediaQuery.of(context).size.width > 900 ? 24.0 : 16.0,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
               child: glassCard(
@@ -849,18 +890,119 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
-        Text(
-          context.translate('screenshot_import_hint'),
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-          textAlign: TextAlign.center,
+        ScreenshotImportGuidance(
+          intro: context.translate('screenshot_import_hint'),
+          guideTitle: context.translate('screenshot_import_guide_title'),
+          summaryStep: context.translate('screenshot_import_step_summary'),
+          detailsStep: context.translate('screenshot_import_step_details'),
+          clarityStep: context.translate('screenshot_import_step_clarity'),
+          examplesLabel: context.translate('view_screenshot_examples'),
+          onShowExamples: () => _showScreenshotExamples(context),
         ),
         if (_screenshotPreview != null) ...[
           const SizedBox(height: 24),
           _buildScreenshotPreviewForm(context),
         ],
       ],
+    );
+  }
+
+  void _showScreenshotExamples(BuildContext context) {
+    const examples = [
+      (
+        'assets/images/screenshot-example/strava.jpg',
+        'screenshot_example_strava',
+      ),
+      (
+        'assets/images/screenshot-example/google-fit.jpg',
+        'screenshot_example_google_fit',
+      ),
+      (
+        'assets/images/screenshot-example/watch-app.jpg',
+        'screenshot_example_watch',
+      ),
+    ];
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final width = MediaQuery.sizeOf(sheetContext).width;
+        final columns = width >= 900
+            ? 3
+            : width >= 600
+            ? 2
+            : 1;
+
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * 0.88,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.translate('screenshot_examples_title'),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    context.translate('screenshot_examples_hint'),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: GridView.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 16,
+                        childAspectRatio: columns == 1 ? 0.62 : 0.48,
+                      ),
+                      itemCount: examples.length,
+                      itemBuilder: (context, index) {
+                        final example = examples[index];
+                        return Card(
+                          clipBehavior: Clip.antiAlias,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: Image.asset(
+                                  example.$1,
+                                  fit: BoxFit.contain,
+                                  semanticLabel: context.translate(example.$2),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Text(
+                                  context.translate(example.$2),
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

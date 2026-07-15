@@ -108,6 +108,7 @@ class TrainingCalendarHeatmap extends StatefulWidget {
     required this.workouts,
     required this.totalPlanWorkouts,
     required this.completedPlanWorkouts,
+    this.lastAiAdjustedAt,
     this.month,
     this.selectedDate,
     this.onDateSelected,
@@ -117,6 +118,7 @@ class TrainingCalendarHeatmap extends StatefulWidget {
   final List<TrainingCalendarEntry> workouts;
   final int totalPlanWorkouts;
   final int completedPlanWorkouts;
+  final DateTime? lastAiAdjustedAt;
   final DateTime? month;
   final DateTime? selectedDate;
   final ValueChanged<DateTime?>? onDateSelected;
@@ -320,6 +322,7 @@ class _TrainingCalendarHeatmapState extends State<TrainingCalendarHeatmap> {
                 child: _PlanProgress(
                   completedWorkouts: widget.completedPlanWorkouts,
                   totalWorkouts: widget.totalPlanWorkouts,
+                  lastAiAdjustedAt: widget.lastAiAdjustedAt,
                 ),
               ),
               if (widget.progressFooter != null) ...[
@@ -643,10 +646,12 @@ class _PlanProgress extends StatelessWidget {
   const _PlanProgress({
     required this.completedWorkouts,
     required this.totalWorkouts,
+    this.lastAiAdjustedAt,
   });
 
   final int completedWorkouts;
   final int totalWorkouts;
+  final DateTime? lastAiAdjustedAt;
 
   @override
   Widget build(BuildContext context) {
@@ -697,6 +702,31 @@ class _PlanProgress extends StatelessWidget {
             backgroundColor: colorScheme.surfaceContainerHighest,
           ),
         ),
+        if (lastAiAdjustedAt != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                Icons.auto_awesome_outlined,
+                size: 14,
+                color: colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  context.translate('last_ai_plan_adjustment', [
+                    DateFormat.yMd(
+                      Localizations.localeOf(context).languageCode,
+                    ).add_Hm().format(lastAiAdjustedAt!.toLocal()),
+                  ]),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -854,6 +884,7 @@ Widget trainingCalendarHeatmapPreview() {
             child: TrainingCalendarHeatmap(
               totalPlanWorkouts: 8,
               completedPlanWorkouts: 3,
+              lastAiAdjustedAt: today.subtract(const Duration(hours: 2)),
               workouts: [
                 TrainingCalendarEntry(
                   date: today.subtract(const Duration(days: 3)),

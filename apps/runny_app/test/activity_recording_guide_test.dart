@@ -3,40 +3,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:runny_app/widgets/activity_recording_guide.dart';
 
 void main() {
-  Widget buildSubject({
-    required bool connected,
-    required VoidCallback onFind,
-    required VoidCallback onImport,
-    VoidCallback? onSync,
-  }) {
+  Widget buildSubject({required VoidCallback onImport}) {
     return MaterialApp(
-      home: Scaffold(
-        body: ActivityRecordingGuide(
-          stravaConnected: connected,
-          syncing: false,
-          onFindActivity: onFind,
-          onImportActivity: onImport,
-          onSyncStrava: onSync,
-        ),
-      ),
+      home: Scaffold(body: ActivityRecordingGuide(onImportActivity: onImport)),
     );
   }
 
-  testWidgets('explains the device workflow and finds a recorded activity', (
+  testWidgets('explains the manual import workflow and opens activity import', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(500, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    var findTapped = false;
-    await tester.pumpWidget(
-      buildSubject(
-        connected: false,
-        onFind: () => findTapped = true,
-        onImport: () {},
-      ),
-    );
+    var importTapped = false;
+    await tester.pumpWidget(buildSubject(onImport: () => importTapped = true));
     await tester.pump();
 
     expect(find.byType(ActivityRecordingGuide), findsOneWidget);
@@ -56,38 +37,17 @@ void main() {
       find.byKey(const ValueKey('recording_guide_sync_strava')),
       findsNothing,
     );
-
-    final findButton = find.byKey(
-      const ValueKey('recording_guide_find_activity'),
+    expect(
+      find.byKey(const ValueKey('recording_guide_find_activity')),
+      findsNothing,
     );
-    await tester.ensureVisible(findButton);
-    await tester.tap(findButton);
-    await tester.pump();
-    expect(findTapped, isTrue);
-  });
 
-  testWidgets('shows Strava sync only for a connected account', (tester) async {
-    tester.view.physicalSize = const Size(500, 1400);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    var syncTapped = false;
-    await tester.pumpWidget(
-      buildSubject(
-        connected: true,
-        onFind: () {},
-        onImport: () {},
-        onSync: () => syncTapped = true,
-      ),
+    final importButton = find.byKey(
+      const ValueKey('recording_guide_import_activity'),
     );
+    await tester.ensureVisible(importButton);
+    await tester.tap(importButton);
     await tester.pump();
-
-    final syncButton = find.byKey(
-      const ValueKey('recording_guide_sync_strava'),
-    );
-    await tester.ensureVisible(syncButton);
-    await tester.tap(syncButton);
-    await tester.pump();
-    expect(syncTapped, isTrue);
+    expect(importTapped, isTrue);
   });
 }

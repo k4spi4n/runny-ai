@@ -9,6 +9,7 @@ void main() {
     List<TrainingCalendarEntry> workouts, {
     ValueChanged<DateTime?>? onDateSelected,
     Brightness brightness = Brightness.light,
+    DateTime? lastAiAdjustedAt,
   }) {
     return MaterialApp(
       locale: const Locale('en'),
@@ -35,6 +36,7 @@ void main() {
               workouts: workouts,
               totalPlanWorkouts: 4,
               completedPlanWorkouts: 1,
+              lastAiAdjustedAt: lastAiAdjustedAt,
               onDateSelected: onDateSelected,
             ),
           ),
@@ -149,6 +151,28 @@ void main() {
             )
             .dy,
       ),
+    );
+  });
+
+  testWidgets('shows the last AI plan adjustment below progress', (tester) async {
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        buildSubject(
+          const [],
+          lastAiAdjustedAt: DateTime(2026, 7, 15, 14, 30),
+        ),
+      );
+      await tester.pumpAndSettle();
+    });
+
+    final adjustmentTime = find.textContaining(
+      'AI last analysed and adjusted your plan:',
+    );
+    expect(adjustmentTime, findsOneWidget);
+    expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget);
+    expect(
+      tester.getTopLeft(adjustmentTime).dy,
+      greaterThan(tester.getBottomLeft(find.byType(LinearProgressIndicator)).dy),
     );
   });
 

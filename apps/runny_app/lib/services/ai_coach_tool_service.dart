@@ -306,6 +306,7 @@ class AICoachToolService {
 
   Future<void> applyAction(CoachInteractiveAction action) async {
     if (!action.isPending) return;
+    String? workoutScheduleId;
     if (action.kind == 'workout_update') {
       final row = await _supabase
           .from('scheduled_workouts')
@@ -317,6 +318,7 @@ class AICoachToolService {
       if (row == null || row['schedule_id'] != activeScheduleId) {
         throw StateError('Buổi tập không còn thuộc lịch đang hoạt động.');
       }
+      workoutScheduleId = row['schedule_id']?.toString();
     }
     final table = switch (action.kind) {
       'workout_update' => 'scheduled_workouts',
@@ -330,6 +332,15 @@ class AICoachToolService {
         .eq('user_id', _userId)
         .select('id')
         .single();
+    if (workoutScheduleId != null) {
+      await _supabase
+          .from('training_schedules')
+          .update({
+            'last_ai_adjusted_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', workoutScheduleId)
+          .eq('user_id', _userId);
+    }
   }
 
   Map<String, dynamic> _validatedChanges(

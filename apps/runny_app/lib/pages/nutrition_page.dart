@@ -53,9 +53,17 @@ class _NutritionPageState extends State<NutritionPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
+          TextButton.icon(
             icon: Icon(Icons.calendar_today, color: colorScheme.onSurface),
+            label: Text(
+              _formatSelectedDate(),
+              style: TextStyle(color: colorScheme.onSurface),
+            ),
             onPressed: () => _selectDate(context),
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
           ),
         ],
       ),
@@ -89,6 +97,7 @@ class _NutritionPageState extends State<NutritionPage> {
                     children: [
                       NutritionOverviewCard(
                         summary: summary,
+                        selectedDate: _selectedDate,
                         onEditGoal: () => _showNutritionGoalSheet(
                           context,
                           nutritionService,
@@ -180,11 +189,17 @@ class _NutritionPageState extends State<NutritionPage> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
-    if (picked != null && picked != _selectedDate) {
+    if (picked != null && !DateUtils.isSameDay(picked, _selectedDate)) {
       setState(() {
         _selectedDate = picked;
       });
     }
+  }
+
+  String _formatSelectedDate() {
+    final day = _selectedDate.day.toString().padLeft(2, '0');
+    final month = _selectedDate.month.toString().padLeft(2, '0');
+    return '$day/$month/${_selectedDate.year}';
   }
 
   void _showAddFoodModal(BuildContext context, MealType mealType) {

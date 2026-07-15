@@ -31,10 +31,12 @@ import '../services/payment_redirect.dart';
 import '../services/notification_navigation_service.dart';
 import '../widgets/paywall.dart';
 import '../widgets/dashboard_settings_sheet.dart';
+import '../widgets/dashboard_background_picker.dart';
 import '../widgets/pwa_install_button.dart';
 import '../widgets/weather_location_placeholder.dart';
 import '../widgets/recent_activities_empty_state.dart';
 import '../l10n/app_localizations.dart';
+import '../theme/theme_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 
@@ -132,10 +134,17 @@ class _DashboardPageState extends State<DashboardPage> {
       context,
       MaterialPageRoute(builder: (context) => const ImportActivityPage()),
     );
-    if (result == true && mounted) {
+    if (result is Activity && mounted) {
       _overviewKey.currentState?.refreshActivityData();
       await context.read<NutritionService>().refresh();
       TrainingRefreshService.instance.notifyTrainingChanged();
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ActivityDetailsPage(activity: result),
+        ),
+      );
     }
   }
 
@@ -215,19 +224,14 @@ class _DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
-  /// Mở tùy chọn cấu hình cho màn hình đang hiển thị. Nút này độc lập theo từng
-  /// màn hình: hiện chỉ Tổng quan có tùy chọn, các màn khác báo "chưa có".
+  /// Ảnh nền áp dụng cho toàn bộ khu vực dashboard. Riêng trang Tổng quan có
+  /// thêm tùy chọn ẩn/hiện và sắp xếp các mục.
   void _openScreenSettings() {
-    if (_selectedIndex == 0) {
-      DashboardSettingsSheet.show(context, _dashboardLayout);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.translate('no_screen_settings')),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
+    DashboardSettingsSheet.show(
+      context,
+      _dashboardLayout,
+      showSections: _selectedIndex == 0,
+    );
   }
 
   NavigationRailDestination _buildRailDestination({
@@ -286,6 +290,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final isDesktop = width > 900;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final appBackground = context.watch<ThemeProvider>().background;
 
     final navItems = [
       (
@@ -326,6 +331,7 @@ class _DashboardPageState extends State<DashboardPage> {
     ];
 
     return Scaffold(
+      extendBody: true,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const RunnyLogo(fontSize: 20),
@@ -349,13 +355,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       body: Stack(
         children: [
-          SizedBox.expand(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: sportPlatformGradient(context),
-              ),
-            ),
-          ),
+          DashboardBackgroundLayer(background: appBackground),
           SafeArea(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -700,9 +700,16 @@ class _OverviewContentState extends State<OverviewContent> {
       context,
       MaterialPageRoute(builder: (_) => const ImportActivityPage()),
     );
-    if (result == true && mounted) {
+    if (result is Activity && mounted) {
       refreshActivityData();
       await context.read<NutritionService>().refresh();
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ActivityDetailsPage(activity: result),
+        ),
+      );
     }
   }
 

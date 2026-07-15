@@ -92,6 +92,7 @@ class _AICoachPageState extends State<AICoachPage> {
     _ChatAttachment.plan,
     _ChatAttachment.nutrition,
   };
+  bool _isAttachmentBarCollapsed = false;
 
   final List<String> _suggestedQuestionKeys = List.generate(
     16,
@@ -1309,7 +1310,7 @@ $prompt''';
                   ),
                 if (_isRecording) _buildListeningIndicator(context),
                 _buildSuggestedQuestions(context),
-                _buildAttachmentBar(context),
+                if (!_isAttachmentBarCollapsed) _buildAttachmentBar(context),
                 Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: widget.embedded ? 0.0 : 16.0,
@@ -1358,6 +1359,13 @@ $prompt''';
                           onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
+                      if (_isAttachmentBarCollapsed) ...[
+                        const SizedBox(width: 8),
+                        _AttachmentContextButton(
+                          color: colorScheme.primary,
+                          onTap: _showAttachmentSettings,
+                        ),
+                      ],
                       const SizedBox(width: 8),
                       _MicButton(
                         isRecording: _isRecording,
@@ -1836,12 +1844,22 @@ $prompt''';
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.auto_awesome_outlined,
-                        size: 20,
-                        color: colorScheme.primary,
+                      IconButton(
+                        onPressed: () => setState(
+                          () => _isAttachmentBarCollapsed = true,
+                        ),
+                        tooltip: context.translate('chat_context_collapse'),
+                        icon: Icon(
+                          Icons.keyboard_arrow_down,
+                          color: colorScheme.primary,
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 4),
                       Expanded(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -1877,12 +1895,6 @@ $prompt''';
                           color: colorScheme.primary,
                           fontWeight: FontWeight.w700,
                         ),
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(
-                        Icons.chevron_right,
-                        size: 20,
-                        color: colorScheme.primary,
                       ),
                     ],
                   ),
@@ -1956,6 +1968,24 @@ class _ActionStatusChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Lối tắt mở bảng chọn ngữ cảnh khi thanh tóm tắt đã được thu gọn.
+class _AttachmentContextButton extends StatelessWidget {
+  const _AttachmentContextButton({required this.color, required this.onTap});
+
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+    child: IconButton(
+      onPressed: onTap,
+      tooltip: context.translate('chat_context_quick_access'),
+      icon: const Icon(LucideIcons.text_search, color: Colors.white),
+    ),
+  );
 }
 
 /// Nút Micro với hiệu ứng nhấp nháy đỏ + quầng sáng khi đang ghi âm.

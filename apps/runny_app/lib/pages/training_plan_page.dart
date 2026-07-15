@@ -9,7 +9,6 @@ import '../models/run_reminder_model.dart';
 import '../services/run_reminder_service.dart';
 import '../services/training_service.dart';
 import '../services/training_refresh_service.dart';
-import '../services/integration_service.dart';
 import '../services/readiness_service.dart';
 import '../services/ai_insight_service.dart';
 import '../models/workout_models.dart';
@@ -19,6 +18,7 @@ import '../widgets/activity_recording_guide.dart';
 import '../widgets/post_run_review_card.dart';
 import '../widgets/missed_workout_reschedule_dialog.dart';
 import '../widgets/training_weekly_insight_card.dart';
+import '../widgets/linked_activity_details.dart';
 import '../utils/activity_matcher.dart';
 import 'create_training_plan_page.dart';
 import 'manual_workout_page.dart';
@@ -27,6 +27,7 @@ import 'training_history_page.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'import_activity_page.dart';
+import 'activity_details_page.dart';
 
 const _rescheduleWorkoutIcon = LucideIcons.calendar_sync;
 const _addManualWorkoutIcon = LucideIcons.calendar_plus;
@@ -69,6 +70,48 @@ Widget trainingPlanActionIconsPreview() {
               label: const Text('Thêm lịch cá nhân'),
             ),
           ],
+        ),
+      ),
+    ),
+  );
+}
+
+@Preview(
+  name: 'Completed workout with linked activity',
+  group: 'Training',
+  size: Size(420, 250),
+)
+Widget completedWorkoutWithLinkedActivityPreview() {
+  return MaterialApp(
+    theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue)),
+    home: Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: _WorkoutScheduleCard(
+          workout: {
+            'id': 'preview-workout',
+            'date': '2026-07-15',
+            'title': 'Chạy nhẹ phục hồi',
+            'status': 'completed',
+            'source': 'ai',
+            'linked_activity': {
+              'id': 'preview-activity',
+              'user_id': 'preview-user',
+              'started_at': '2026-07-15T05:30:00Z',
+              'name': 'Morning Run',
+              'distance_km': 5.2,
+              'duration_min': 31.5,
+            },
+          },
+          statusColor: Colors.green,
+          statusIcon: Icons.check_circle,
+          onAddActivity: () {},
+          onRecordGuide: () {},
+          onReschedule: () {},
+          onReminderChanged: (_, _, _) async {},
+          onScheduleChanged: (_, _, _) async {},
+          allowExecution: false,
+          initiallyExpanded: true,
         ),
       ),
     ),
@@ -130,7 +173,6 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   final TrainingService _trainingService = TrainingService();
   final RunReminderService _reminderService = RunReminderService();
-  final IntegrationService _integrationService = IntegrationService();
   final ReadinessService _readinessService = ReadinessService();
   final AiInsightService _aiInsightService = AiInsightService();
   bool _isLoading = true;
@@ -251,6 +293,19 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         );
         try {
           calendarActivities = await _fetchCalendarActivities();
+          final activitiesById = {
+            for (final activity in calendarActivities)
+              activity['id']?.toString(): activity,
+          };
+          workouts = workouts.map((workout) {
+            final activityId = workout['activity_id']?.toString();
+            final activity = activityId == null
+                ? null
+                : activitiesById[activityId];
+            return activity == null
+                ? workout
+                : {...workout, 'linked_activity': activity};
+          }).toList();
         } catch (e) {
           // Hoạt động chỉ làm giàu heatmap; không để lỗi tải chúng làm toàn bộ
           // kế hoạch đang hiển thị bị lỗi.
@@ -705,6 +760,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         workouts: _calendarEntries,
         totalPlanWorkouts: _workouts.length,
         completedPlanWorkouts: completedWorkouts,
+        lastAiAdjustedAt: _lastAiAdjustedAt,
         selectedDate: _selectedCalendarDate,
         onDateSelected: _handleCalendarDateSelected,
         progressFooter: _buildWeeklyInsight(context),
@@ -921,6 +977,11 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           ),
       ],
     );
+  }
+
+  DateTime? get _lastAiAdjustedAt {
+    final raw = _activeSchedule?['last_ai_adjusted_at']?.toString();
+    return raw == null ? null : DateTime.tryParse(raw)?.toLocal();
   }
 
   void _handleCalendarDateSelected(DateTime? date) {
@@ -1752,64 +1813,15 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   }
 
   Future<void> _showRecordingGuide(Map<String, dynamic> workout) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
-    var stravaConnected = false;
-    try {
-      final profile = await _supabase
-          .from('profiles')
-          .select('strava_id')
-          .eq('id', user.id)
-          .maybeSingle();
-      stravaConnected = profile?['strava_id'] != null;
-    } catch (_) {
-      // Hướng dẫn và nhập file vẫn dùng được khi không tải được trạng thái Strava.
-    }
-    if (!mounted) return;
-
-    var syncing = false;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setSheetState) => ActivityRecordingGuide(
-          stravaConnected: stravaConnected,
-          syncing: syncing,
-          onSyncStrava: () async {
-            setSheetState(() => syncing = true);
-            try {
-              final imported = await _integrationService.syncStrava();
-              TrainingRefreshService.instance.notifyTrainingChanged();
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    context.translate('strava_synced', ['$imported']),
-                  ),
-                ),
-              );
-            } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('${context.translate('error')}: $e')),
-                );
-              }
-            } finally {
-              if (sheetContext.mounted) {
-                setSheetState(() => syncing = false);
-              }
-            }
-          },
-          onFindActivity: () {
-            Navigator.pop(sheetContext);
-            _showLinkActivityDialog(workout);
-          },
-          onImportActivity: () {
-            Navigator.pop(sheetContext);
-            _uploadNewActivity(workout);
-          },
-        ),
+      builder: (sheetContext) => ActivityRecordingGuide(
+        onImportActivity: () {
+          Navigator.pop(sheetContext);
+          _uploadNewActivity(workout);
+        },
       ),
     );
   }
@@ -1931,9 +1943,15 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         builder: (_) => ImportActivityPage(scheduledWorkoutId: workout['id']),
       ),
     );
-    if (result == true) {
+    if (result is Activity) {
       await _fetchData();
-      await _openPostRunReviewForWorkout(workout);
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ActivityDetailsPage(activity: result),
+        ),
+      );
     }
   }
 
@@ -2154,7 +2172,6 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         .from('activities')
         .select()
         .eq('user_id', user.id)
-        .gt('distance_km', 0)
         .order('started_at', ascending: false);
     return List<Map<String, dynamic>>.from(response as List);
   }
@@ -2259,30 +2276,6 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _openPostRunReviewForWorkout(
-    Map<String, dynamic> workout,
-  ) async {
-    try {
-      final linked = await _supabase
-          .from('scheduled_workouts')
-          .select('activity_id')
-          .eq('id', workout['id'])
-          .maybeSingle();
-      final activityId = linked?['activity_id']?.toString();
-      if (activityId == null) return;
-      final activity = await _supabase
-          .from('activities')
-          .select()
-          .eq('id', activityId)
-          .single();
-      if (mounted) {
-        await _showPostRunReview(workout, Map<String, dynamic>.from(activity));
-      }
-    } catch (e) {
-      debugPrint('Unable to open post-run review: $e');
     }
   }
 
@@ -2612,24 +2605,7 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
                             label: Text(context.translate('attach_activity')),
                           ),
                         ] else if (workout['status'] != 'planned')
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                widget.statusIcon,
-                                color: widget.statusColor,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                context.translate(
-                                  'status_${workout['status']}',
-                                ),
-                                style: TextStyle(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
+                          _buildWorkoutStatus(context, workout),
                         if (widget.onEditManual != null)
                           OutlinedButton.icon(
                             onPressed: widget.onEditManual,
@@ -2705,6 +2681,45 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
       parts.add('${context.translate('pace')} ${_formatPace(pace)}');
     }
     return parts.join(' • ');
+  }
+
+  Widget _buildWorkoutStatus(
+    BuildContext context,
+    Map<String, dynamic> workout,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final activityJson = workout['linked_activity'] as Map<String, dynamic>?;
+    final activity = activityJson == null
+        ? null
+        : Activity.fromJson(activityJson);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(widget.statusIcon, color: widget.statusColor),
+            const SizedBox(width: 8),
+            Text(
+              context.translate('status_${workout['status']}'),
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+        if (workout['status'] == 'completed' && activity != null) ...[
+          const SizedBox(height: 4),
+          LinkedActivityDetails(
+            activity: activity,
+            onOpenDetails: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ActivityDetailsPage(activity: activity),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   String _formatPace(double paceDecimal) {
