@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'ui_components.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/activity_formatters.dart';
 
 class ActivityChart extends StatelessWidget {
   final String title;
@@ -31,22 +32,19 @@ class ActivityChart extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    // Subsample if there are too many points for performance
     const maxPoints = 200;
-    List<FlSpot> spots = [];
+    final allSpots = <FlSpot>[];
     final pointCount = xValues.length < yValues.length
         ? xValues.length
         : yValues.length;
-    int step = (pointCount / maxPoints).ceil();
-    if (step < 1) step = 1;
-
-    for (int i = 0; i < pointCount; i += step) {
+    for (int i = 0; i < pointCount; i++) {
       final x = xValues[i];
       final y = yValues[i];
       if (x.isFinite && y.isFinite) {
-        spots.add(FlSpot(x, y));
+        allSpots.add(FlSpot(x, y));
       }
     }
+    final spots = downsampleSpots(allSpots, maxPoints: maxPoints);
 
     if (spots.isEmpty) {
       return const SizedBox.shrink();
@@ -154,7 +152,7 @@ class ActivityChart extends StatelessWidget {
                           axisSide: meta.axisSide,
                           child: Text(
                             isPace
-                                ? _formatPace(value)
+                                ? formatPace(value, zeroAsValid: true)
                                 : _formatAxisValue(value),
                             style: TextStyle(
                               color: Colors.white.withValues(alpha: 0.5),
@@ -216,7 +214,7 @@ class ActivityChart extends StatelessWidget {
                         final timeStr =
                             '$minutes:${seconds.toString().padLeft(2, '0')}';
                         final valStr = isPace
-                            ? _formatPace(barSpot.y)
+                            ? formatPace(barSpot.y, zeroAsValid: true)
                             : barSpot.y.toStringAsFixed(1);
                         return LineTooltipItem(
                           '$timeStr\n$valStr $yAxisLabel',
@@ -235,6 +233,46 @@ class ActivityChart extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  /// Min/max bucket sampling preserves short peaks that fixed-step sampling can
+  /// skip entirely. Points stay in chronological order and include endpoints.
+  static List<FlSpot> downsampleSpots(
+    List<FlSpot> spots, {
+    int maxPoints = 200,
+  }) {
+    if (spots.length <= maxPoints) return List.of(spots);
+    if (maxPoints < 3) {
+      return [spots.first, spots.last].take(maxPoints).toList();
+    }
+
+    final result = <FlSpot>[spots.first];
+    final interiorCount = spots.length - 2;
+    final bucketCount = ((maxPoints - 2) / 2).floor().clamp(1, interiorCount);
+
+    for (var bucket = 0; bucket < bucketCount; bucket++) {
+      final start = 1 + (bucket * interiorCount / bucketCount).floor();
+      final end = 1 + ((bucket + 1) * interiorCount / bucketCount).floor();
+      var minIndex = start;
+      var maxIndex = start;
+      for (var index = start + 1; index < end; index++) {
+        if (spots[index].y < spots[minIndex].y) minIndex = index;
+        if (spots[index].y > spots[maxIndex].y) maxIndex = index;
+      }
+      if (minIndex == maxIndex) {
+        result.add(spots[minIndex]);
+      } else if (minIndex < maxIndex) {
+        result
+          ..add(spots[minIndex])
+          ..add(spots[maxIndex]);
+      } else {
+        result
+          ..add(spots[maxIndex])
+          ..add(spots[minIndex]);
+      }
+    }
+    result.add(spots.last);
+    return result;
   }
 
   _ChartBounds _chartBounds(
@@ -274,7 +312,11 @@ class ActivityChart extends StatelessWidget {
   double _leftTitleReservedSize(double min, double max) {
     final samples = [min, max, (min + max) / 2];
     final longest = samples
-        .map((value) => isPace ? _formatPace(value) : _formatAxisValue(value))
+        .map(
+          (value) => isPace
+              ? formatPace(value, zeroAsValid: true)
+              : _formatAxisValue(value),
+        )
         .fold<int>(
           0,
           (length, label) => label.length > length ? label.length : length,
@@ -300,13 +342,6 @@ class ActivityChart extends StatelessWidget {
       return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
     }
     return '${safeSeconds ~/ 60} ${context.translate('minute_short')}';
-  }
-
-  String _formatPace(double paceDecimal) {
-    if (paceDecimal == 0) return "0:00";
-    int minutes = paceDecimal.floor();
-    int seconds = ((paceDecimal - minutes) * 60).round();
-    return "$minutes:${seconds.toString().padLeft(2, '0')}";
   }
 }
 

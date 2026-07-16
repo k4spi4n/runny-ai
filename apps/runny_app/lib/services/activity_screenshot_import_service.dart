@@ -31,7 +31,6 @@ class ScreenshotActivityResult {
 
 class ActivityScreenshotImportService {
   static const int maxImageBytes = 2900000;
-  static const String groqVisionModel = 'qwen/qwen3.6-27b';
 
   final SupabaseClient _supabase;
 
@@ -69,10 +68,8 @@ class ActivityScreenshotImportService {
       final response = await _supabase.functions.invoke(
         'openrouter',
         body: {
-          'provider_preference': 'groq',
-          'preferred_model': groqVisionModel,
+          'feature': 'activity_screenshot',
           'messages': [
-            {'role': 'system', 'content': _systemPrompt},
             {
               'role': 'user',
               'content': [
@@ -84,9 +81,7 @@ class ActivityScreenshotImportService {
               ],
             },
           ],
-          'reasoning_effort': 'none',
-          'temperature': 0.1,
-          'max_tokens': 800,
+          'response_format': {'type': 'json_object'},
         },
       );
 
@@ -158,16 +153,7 @@ class ActivityScreenshotImportService {
     }
 
     final defaultStartedAt = _defaultStartedAtToday();
-    var startedAtRaw = parsed['started_at']?.toString().trim();
-    if (startedAtRaw != null && startedAtRaw.isNotEmpty) {
-      if (startedAtRaw.endsWith('Z')) {
-        startedAtRaw = startedAtRaw.substring(0, startedAtRaw.length - 1);
-      } else if (startedAtRaw.endsWith('+00:00') || startedAtRaw.endsWith('-00:00')) {
-        startedAtRaw = startedAtRaw.substring(0, startedAtRaw.length - 6);
-      } else if (startedAtRaw.endsWith('+00') || startedAtRaw.endsWith('-00')) {
-        startedAtRaw = startedAtRaw.substring(0, startedAtRaw.length - 3);
-      }
-    }
+    final startedAtRaw = parsed['started_at']?.toString().trim();
     var startedAt = startedAtRaw == null || startedAtRaw.isEmpty
         ? defaultStartedAt
         : DateTime.tryParse(startedAtRaw) ?? defaultStartedAt;
@@ -200,7 +186,8 @@ class ActivityScreenshotImportService {
         ? avgHrRaw.round()
         : null;
     final avgCadenceRaw = _number(parsed['avg_cadence']);
-    final avgCadence = avgCadenceRaw != null && avgCadenceRaw >= 30 && avgCadenceRaw <= 300
+    final avgCadence =
+        avgCadenceRaw != null && avgCadenceRaw >= 30 && avgCadenceRaw <= 300
         ? avgCadenceRaw.round()
         : null;
     final elevationRaw = _number(parsed['elevation_gain_m']);
@@ -323,13 +310,6 @@ class ActivityScreenshotImportService {
     }
     return 'Dịch vụ AI đang bận. Vui lòng thử lại sau.';
   }
-
-  static const String _systemPrompt =
-      'Bạn là bộ đọc ảnh chụp màn hình hoạt động chạy bộ cho Runny AI. '
-      'Chỉ trích xuất dữ liệu buổi chạy/đi bộ/tập cardio hiển thị trong ảnh. '
-      'Không bịa số liệu không có trong ảnh, nhưng có thể quy đổi đơn vị phổ biến. '
-      'Nếu ảnh không phải màn hình kết quả buổi tập, trả về is_activity=false. '
-      'CHỈ trả về JSON hợp lệ, không markdown, không giải thích.';
 
   static String _userPrompt(String todayIso) =>
       'Đọc ảnh chụp màn hình buổi tập và trả về JSON theo schema: '

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../models/nutrition_models.dart';
 import '../models/weight_models.dart';
 import '../services/weight_service.dart';
@@ -142,7 +141,8 @@ class NutritionOverviewCard extends StatelessWidget {
               summary.isOverCalories
                   ? '${(summary.caloriesOver).toInt()}+'
                   : '${(summary.calorieCompletion * 100).toInt()}%',
-              style: GoogleFonts.lexend(
+              style: const TextStyle(
+                fontFamily: 'Lexend',
                 fontWeight: FontWeight.w700,
                 fontSize: 16,
               ),
@@ -163,7 +163,8 @@ class NutritionOverviewCard extends StatelessWidget {
       children: [
         Text(
           value,
-          style: GoogleFonts.lexend(
+          style: TextStyle(
+            fontFamily: 'Lexend',
             fontWeight: FontWeight.w800,
             fontSize: 18,
             color: color,
@@ -492,7 +493,8 @@ class MealSection extends StatelessWidget {
           ),
           Text(
             '${log.calories.toInt()} kcal',
-            style: GoogleFonts.lexend(
+            style: const TextStyle(
+              fontFamily: 'Lexend',
               fontWeight: FontWeight.w800,
               fontSize: 16,
               color: AppTheme.primary,
@@ -681,7 +683,8 @@ class _WeightSummaryCardState extends State<WeightSummaryCard> {
           children: [
             Text(
               '${goal.current!.toStringAsFixed(1)} kg',
-              style: GoogleFonts.lexend(
+              style: TextStyle(
+                fontFamily: 'Lexend',
                 fontWeight: FontWeight.w800,
                 fontSize: 24,
                 color: cs.onSurface,

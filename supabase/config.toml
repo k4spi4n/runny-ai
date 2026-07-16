@@ -38,6 +38,9 @@ enable_confirmations = false
 [functions.openrouter]
 verify_jwt = true
 
+[functions.training-plan]
+verify_jwt = true
+
 [functions.food-recognition]
 verify_jwt = true
 
@@ -53,6 +56,15 @@ verify_jwt = true
 # Strava goi webhook khong kem JWT cua Supabase -> tat xac thuc JWT cho rieng
 # function nay (tren cloud: tat "Verify JWT" cho strava_webhook trong Dashboard).
 [functions.strava_webhook]
+verify_jwt = false
+
+# Retry worker is called only by a Dashboard cron/monitor with
+# STRAVA_WEBHOOK_WORKER_TOKEN, not by end-user JWTs.
+[functions.strava-webhook-worker]
+verify_jwt = false
+
+# Durable plan retry worker is called by a Dashboard cron with a secret token.
+[functions.training-plan-worker]
 verify_jwt = false
 
 # PayOS goi webhook khong kem JWT cua Supabase -> tat xac thuc JWT; tu xac thuc

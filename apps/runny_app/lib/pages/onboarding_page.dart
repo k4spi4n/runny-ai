@@ -89,6 +89,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
   final _heightController = TextEditingController();
   final _maxHrController = TextEditingController();
   final _goalController = TextEditingController();
+  final _constraintsController = TextEditingController();
 
   String? _gender;
   bool _isLoading = false;
@@ -99,6 +100,8 @@ class _OnboardingContentState extends State<OnboardingContent> {
   DateTime _startDate = DateTime.now();
   DateTime? _endDate;
   bool _letAiDecideEnd = true;
+  int _trainingDaysPerWeek = 4;
+  String _preferredTime = 'flexible';
 
   @override
   void dispose() {
@@ -107,6 +110,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
     _heightController.dispose();
     _maxHrController.dispose();
     _goalController.dispose();
+    _constraintsController.dispose();
     super.dispose();
   }
 
@@ -308,10 +312,22 @@ class _OnboardingContentState extends State<OnboardingContent> {
             'has_completed_onboarding': true,
           })
           .eq('id', user.id);
+      if (!mounted) return;
+
+      final constraints = _constraintsController.text.trim();
+      final goalWithPreferences = context
+          .translate('plan_goal_with_preferences', [
+            goal,
+            '$_trainingDaysPerWeek',
+            context.translate('plan_time_$_preferredTime'),
+            constraints.isEmpty
+                ? context.translate('plan_constraints_none')
+                : constraints,
+          ]);
 
       // Khởi tạo lịch tập ở chế độ nền — không chặn người dùng chờ AI.
       await _trainingService.startPlanGeneration(
-        goal: goal,
+        goal: goalWithPreferences,
         startDate: _startDate,
         endDate: _letAiDecideEnd ? null : _endDate,
       );
@@ -351,6 +367,9 @@ Thong tin nguoi dung:
 - Nhip tim toi da: ${_maxHrController.text.trim().isEmpty ? 'chua ro' : '${_maxHrController.text.trim()} bpm'}
 - Ngay bat dau: ${DateFormat('yyyy-MM-dd').format(_startDate)}
 - Ngay ket thuc: ${_letAiDecideEnd ? 'de AI tu quyet dinh' : (_endDate == null ? 'chua chon' : DateFormat('yyyy-MM-dd').format(_endDate!))}
+- So buoi co the tap moi tuan: $_trainingDaysPerWeek
+- Thoi gian uu tien: ${context.translate('plan_time_$_preferredTime')}
+- Gioi han/luu y suc khoe: ${_constraintsController.text.trim().isEmpty ? 'khong co' : _constraintsController.text.trim()}
 
 Yeu cau:
 - Moi muc tieu la mot cau ngan, cu the, phu hop nguoi moi/nguoi quay lai tap.
@@ -361,15 +380,7 @@ Yeu cau:
 
       final content = await _geminiService.generateResponse(
         prompt,
-        history: [
-          {
-            'role': 'system',
-            'content':
-                'Ban la HLV chay bo AI. Chi tra ve JSON hop le, khong markdown.',
-          },
-        ],
-        preferredProvider: 'groq',
-        preferredModel: 'openai/gpt-oss-20b',
+        feature: AiFeature.onboardingGoals,
       );
       final suggestions = _parseGoalSuggestions(content);
 
@@ -571,13 +582,15 @@ Yeu cau:
                 icon: Icons.play_circle_outline,
                 label: context.translate('plan_start_date'),
                 value: DateFormat('dd/MM/yyyy').format(_startDate),
-                onTap: _pickStartDate,
+                onTap: _isSuggestingGoals ? null : _pickStartDate,
               ),
               const SizedBox(height: 12),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _letAiDecideEnd,
-                onChanged: (v) => setState(() => _letAiDecideEnd = v),
+                onChanged: _isSuggestingGoals
+                    ? null
+                    : (v) => setState(() => _letAiDecideEnd = v),
                 title: Text(
                   context.translate('let_ai_decide_end'),
                   style: TextStyle(
@@ -601,7 +614,7 @@ Yeu cau:
                   value: _endDate != null
                       ? DateFormat('dd/MM/yyyy').format(_endDate!)
                       : context.translate('plan_end_date_hint'),
-                  onTap: _pickEndDate,
+                  onTap: _isSuggestingGoals ? null : _pickEndDate,
                 ),
               ],
               const SizedBox(height: 20),
@@ -615,6 +628,61 @@ Yeu cau:
                   hint: context.translate('goal_hint'),
                   icon: Icons.flag_circle,
                   isRequired: true,
+                ),
+                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                context.translate('plan_days_per_week', [
+                  '$_trainingDaysPerWeek',
+                ]),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: isDark ? Colors.white : Colors.black87,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Slider(
+                value: _trainingDaysPerWeek.toDouble(),
+                min: 2,
+                max: 6,
+                divisions: 4,
+                label: '$_trainingDaysPerWeek',
+                onChanged: _isSuggestingGoals
+                    ? null
+                    : (value) =>
+                          setState(() => _trainingDaysPerWeek = value.round()),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: _preferredTime,
+                decoration: themedInputDecoration(
+                  context,
+                  context.translate('plan_preferred_time'),
+                  icon: Icons.schedule,
+                ),
+                items: ['flexible', 'morning', 'evening']
+                    .map(
+                      (value) => DropdownMenuItem(
+                        value: value,
+                        child: Text(context.translate('plan_time_$value')),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _isSuggestingGoals
+                    ? null
+                    : (value) =>
+                          setState(() => _preferredTime = value ?? 'flexible'),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _constraintsController,
+                maxLines: 3,
+                enabled: !_isSuggestingGoals,
+                decoration: themedInputDecoration(
+                  context,
+                  context.translate('plan_constraints_label'),
+                  hint: context.translate('plan_constraints_hint'),
+                  icon: Icons.health_and_safety_outlined,
                 ),
                 style: TextStyle(color: isDark ? Colors.white : Colors.black87),
               ),
@@ -649,6 +717,25 @@ Yeu cau:
                   }).toList(),
                 ),
               ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      context.translate('plan_ai_context_note'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: isDark ? Colors.white70 : Colors.black54,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: _isSuggestingGoals ? null : _nextPage,
@@ -824,13 +911,13 @@ class _OnboardingDateTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _OnboardingDateTile({
     required this.icon,
     required this.label,
     required this.value,
-    required this.onTap,
+    this.onTap,
   });
 
   @override

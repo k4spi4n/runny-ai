@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import '../l10n/app_localizations.dart';
 import '../models/workout_models.dart';
 import '../theme/app_theme.dart';
+import '../utils/activity_formatters.dart';
 import 'ui_components.dart';
 
 /// Hero summary for an activity, inspired by the information hierarchy of
@@ -169,7 +170,7 @@ class ActivitySummaryCard extends StatelessWidget {
 
   List<_ActivityMetric> _metrics(BuildContext context) {
     final pace = activity.distanceKm > 0
-        ? _formatPace(activity.durationMin / activity.distanceKm)
+        ? formatPace(activity.durationMin / activity.distanceKm)
         : '-:--';
     return [
       _ActivityMetric(
@@ -189,7 +190,7 @@ class ActivitySummaryCard extends StatelessWidget {
         keyName: 'duration',
         icon: Icons.timer_outlined,
         label: context.translate('duration'),
-        value: _formatDuration(activity.durationMin),
+        value: formatDurationMinutes(activity.durationMin),
       ),
       _ActivityMetric(
         keyName: 'elevation',
@@ -215,26 +216,6 @@ class ActivitySummaryCard extends StatelessWidget {
             : '${activity.avgCadence} ${context.translate('spm')}',
       ),
     ];
-  }
-
-  static String _formatDuration(double minutes) {
-    final totalSeconds = (minutes * 60).round();
-    final hours = totalSeconds ~/ 3600;
-    final remaining = totalSeconds % 3600;
-    final mins = remaining ~/ 60;
-    final seconds = remaining % 60;
-    if (hours > 0) {
-      return '$hours:${mins.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    }
-    return '$mins:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  static String _formatPace(double paceMinutes) {
-    if (!paceMinutes.isFinite) return '-:--';
-    final totalSeconds = (paceMinutes * 60).round();
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 }
 

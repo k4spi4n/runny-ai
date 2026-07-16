@@ -1,7 +1,11 @@
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/activity_import_policy.dart';
 import '../utils/activity_parser.dart';
 import '../utils/manual_activity_namer.dart';
 import '../services/activity_screenshot_import_service.dart';
@@ -18,6 +22,13 @@ import '../models/workout_models.dart';
 enum _ImportOutcome { imported, duplicate, failed }
 
 enum _InputMode { file, screenshot, manual }
+
+Future<ParsedActivity> _parseActivityOnWorker(Map<String, Object> input) {
+  return ActivityParser.parse(
+    input['bytes']! as Uint8List,
+    input['extension']! as String,
+  );
+}
 
 class ImportActivityPage extends StatefulWidget {
   final String? scheduledWorkoutId;
@@ -117,7 +128,8 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
         type: FileType.custom,
         allowedExtensions: ['gpx', 'fit', 'tcx'],
         allowMultiple: true,
-        withData: true,
+        withData: kIsWeb,
+        withReadStream: !kIsWeb,
       );
 
       if (result == null || result.files.isEmpty) {
@@ -126,6 +138,33 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               l?.translate('import_cancelled') ?? 'import_cancelled';
         });
         return;
+      }
+
+      if (result.files.length > maxActivityImportFiles) {
+        throw FormatException(
+          l?.translate('import_too_many_files', ['$maxActivityImportFiles']) ??
+              'Select at most $maxActivityImportFiles files.',
+        );
+      }
+      final totalBytes = result.files.fold<int>(
+        0,
+        (sum, file) => sum + file.size,
+      );
+      final oversized = result.files
+          .where((file) => file.size > maxActivityImportFileBytes)
+          .map((file) => file.name)
+          .toList();
+      if (oversized.isNotEmpty) {
+        throw FormatException(
+          l?.translate('import_file_too_large', [oversized.first, '25']) ??
+              '${oversized.first} exceeds 25 MB.',
+        );
+      }
+      if (totalBytes > maxActivityImportBatchBytes) {
+        throw FormatException(
+          l?.translate('import_batch_too_large', ['50']) ??
+              'The selected batch exceeds 50 MB.',
+        );
       }
 
       int imported = 0;
@@ -388,13 +427,12 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     PlatformFile file,
     AppLocalizations? l,
   ) async {
-    final bytes = file.bytes;
-    if (bytes == null) return (_ImportOutcome.failed, null);
+    final bytes = await _readPlatformFile(file);
 
-    final parsed = await ActivityParser.parse(
-      bytes,
-      file.extension?.toLowerCase() ?? '',
-    );
+    final parsed = await compute(_parseActivityOnWorker, <String, Object>{
+      'bytes': bytes,
+      'extension': file.extension?.toLowerCase() ?? '',
+    });
 
     return _saveParsedActivity(
       parsed: parsed,
@@ -422,7 +460,9 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     }
 
     WeatherSnapshot? weather;
-    if (parsed.startLat != null && parsed.startLon != null) {
+    if (parsed.startLat != null &&
+        parsed.startLon != null &&
+        shouldAttachCurrentWeather(parsed.startedAt)) {
       try {
         weather = await _weatherService.fetchWeatherSnapshot(
           lat: parsed.startLat!,
@@ -454,6 +494,31 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       _ImportOutcome.imported,
       Activity.fromJson(Map<String, dynamic>.from(res)),
     );
+  }
+
+  Future<Uint8List> _readPlatformFile(PlatformFile file) async {
+    final bytes = file.bytes;
+    if (bytes != null) {
+      if (bytes.length > maxActivityImportFileBytes) {
+        throw const FormatException('Activity file exceeds 25 MB.');
+      }
+      return bytes;
+    }
+
+    final stream = file.readStream;
+    if (stream == null) {
+      throw const FormatException('Unable to read the selected file.');
+    }
+    final builder = BytesBuilder(copy: false);
+    var received = 0;
+    await for (final chunk in stream) {
+      received += chunk.length;
+      if (received > maxActivityImportFileBytes) {
+        throw const FormatException('Activity file exceeds 25 MB.');
+      }
+      builder.add(chunk);
+    }
+    return builder.takeBytes();
   }
 
   /// Lưu một hoạt động nhập thủ công (không có file/GPS, nên bỏ qua thời tiết).

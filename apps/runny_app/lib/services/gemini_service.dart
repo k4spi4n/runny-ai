@@ -8,34 +8,23 @@ import '../models/ai_coach_tool_models.dart';
 import '../models/coach_persona.dart';
 import 'paywall_exception.dart';
 
+abstract final class AiFeature {
+  static const chat = 'chat';
+  static const coach = 'coach';
+  static const activityInsight = 'activity_insight';
+  static const onboardingGoals = 'onboarding_goals';
+  static const nutritionSuggestions = 'nutrition_suggestions';
+  static const trainingPlan = 'training_plan';
+  static const trainingAdjustment = 'training_adjustment';
+  static const activityScreenshot = 'activity_screenshot';
+}
+
 class GeminiService {
-  static const String _coachGroqModel = 'openai/gpt-oss-120b';
-  final String _modelName;
-  final List<String> _modelList;
   static _CoachPreference? _cachedCoachPreference;
 
-  GeminiService()
-    : _modelName = dotenv.env['OPENROUTER_MODEL'] ?? 'openai/gpt-oss-120b',
-      _modelList = _parseModels(dotenv.env['OPENROUTER_MODELS']) {
-    debugPrint(
-      'GeminiService: Using Supabase Edge Function AI proxy (Groq primary, Cerebras/OpenRouter fallback).',
-    );
+  GeminiService() {
+    debugPrint('GeminiService: Using server-owned AI feature policies.');
   }
-
-  /// Tach chuoi model phan tach boi dau phay (vd: "a:free, b:free") thanh danh sach.
-  static List<String> _parseModels(String? raw) {
-    if (raw == null || raw.trim().isEmpty) return const [];
-    return raw
-        .split(',')
-        .map((m) => m.trim())
-        .where((m) => m.isNotEmpty)
-        .toList();
-  }
-
-  /// Phan model cho body request: uu tien danh sach fallback (mang `models`)
-  /// neu duoc cau hinh, nguoc lai gui `model` don le (Edge Function se tu bao fallback).
-  Map<String, dynamic> get _modelPayload =>
-      _modelList.isNotEmpty ? {'models': _modelList} : {'model': _modelName};
 
   bool get isConfigured => true;
 
@@ -77,14 +66,11 @@ class GeminiService {
   ) async {
     final preference = await _loadCoachPreference();
     messages.insert(0, {
-      'role': 'system',
+      'role': 'user',
       'content':
-          'Tên bạn dùng khi trò chuyện với người dùng là ${preference.coachName}. '
-          'Bạn là HLV chạy bộ AI cá nhân của họ trong ứng dụng Runny AI. '
-          'Tính cách huấn luyện: ${preference.persona.promptDescription} '
-          'Không tự nhận là bác sĩ, không chẩn đoán bệnh, không ép tập quá sức. '
-          'Khi bàn về dữ liệu buổi tập hoặc bữa ăn cụ thể, hãy dùng tool đọc dữ liệu thay vì đoán. '
-          'Khi người dùng muốn sửa, chỉ dùng tool tạo đề xuất và nói rõ thay đổi chưa được lưu cho tới khi họ xác nhận trên thẻ tương tác.',
+          'Tùy chọn cá nhân hóa của tôi: gọi HLV là '
+          '${preference.coachName}; phong cách mong muốn: '
+          '${preference.persona.promptDescription}',
     });
   }
 
@@ -120,18 +106,17 @@ class GeminiService {
   Future<String> generateResponse(
     String prompt, {
     List<Map<String, String>>? history,
-    String? preferredProvider,
-    String? preferredModel,
     bool includeCoachPersona = false,
+    String feature = AiFeature.chat,
   }) async {
     try {
       final messages = <Map<String, dynamic>>[];
 
       if (history != null) {
         for (final m in history) {
-          final role = m['role'] == 'model'
+          final role = m['role'] == 'model' || m['role'] == 'assistant'
               ? 'assistant'
-              : (m['role'] ?? 'user');
+              : 'user';
           messages.add({'role': role, 'content': m['content'] ?? ''});
         }
       }
@@ -141,17 +126,9 @@ class GeminiService {
         await _addCoachPersonaMessage(messages);
       }
 
-      final providerPayload = <String, dynamic>{};
-      if (preferredProvider != null) {
-        providerPayload['provider_preference'] = preferredProvider;
-      }
-      if (preferredModel != null) {
-        providerPayload['preferred_model'] = preferredModel;
-      }
-
       final response = await Supabase.instance.client.functions.invoke(
         'openrouter',
-        body: {..._modelPayload, ...providerPayload, 'messages': messages},
+        body: {'feature': feature, 'messages': messages},
       );
 
       if (response.status != 200) {
@@ -196,7 +173,6 @@ class GeminiService {
   Future<CoachTurnResult> generateCoachTurn(
     String prompt, {
     List<Map<String, dynamic>>? history,
-    required List<Map<String, dynamic>> tools,
     required Future<CoachToolExecution> Function(
       String name,
       Map<String, dynamic> arguments,
@@ -209,7 +185,7 @@ class GeminiService {
         final role = item['role'] == 'model'
             ? 'assistant'
             : (item['role'] as String? ?? 'user');
-        if (role != 'user' && role != 'assistant' && role != 'system') {
+        if (role != 'user' && role != 'assistant') {
           continue;
         }
         messages.add({
@@ -228,14 +204,7 @@ class GeminiService {
       for (var round = 0; round < 5; round++) {
         final response = await Supabase.instance.client.functions.invoke(
           'openrouter',
-          body: {
-            ..._modelPayload,
-            'provider_preference': 'groq',
-            'preferred_model': _coachGroqModel,
-            'messages': messages,
-            'tools': tools,
-            'tool_choice': 'auto',
-          },
+          body: {'feature': AiFeature.coach, 'messages': messages},
         );
         if (response.status != 200) {
           if (PaywallException.isUpgradeSignal(
@@ -351,7 +320,9 @@ class GeminiService {
     final messages = <Map<String, dynamic>>[];
     if (history != null) {
       for (final m in history) {
-        final role = m['role'] == 'model' ? 'assistant' : (m['role'] ?? 'user');
+        final role = m['role'] == 'model' || m['role'] == 'assistant'
+            ? 'assistant'
+            : 'user';
         messages.add({'role': role, 'content': m['content'] ?? ''});
       }
     }
@@ -369,11 +340,19 @@ class GeminiService {
     final token =
         Supabase.instance.client.auth.currentSession?.accessToken ?? anonKey;
 
-    final result = await postStreaming(url, {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-      'apikey': anonKey,
-    }, jsonEncode({..._modelPayload, 'messages': messages, 'stream': true}));
+    final result = await postStreaming(
+      url,
+      {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+        'apikey': anonKey,
+      },
+      jsonEncode({
+        'feature': AiFeature.chat,
+        'messages': messages,
+        'stream': true,
+      }),
+    );
 
     if (result.statusCode != 200) {
       final errText = await _collectText(result.stream);
@@ -417,22 +396,21 @@ class GeminiService {
   Future<Map<String, dynamic>> generateStructuredResponse(
     String prompt,
     String systemPrompt, {
-    String? preferredProvider,
-    String? preferredModel,
+    required String feature,
     Map<String, dynamic>? responseFormat,
   }) async {
     try {
       final messages = [
-        {'role': 'system', 'content': systemPrompt},
-        {'role': 'user', 'content': prompt},
+        {
+          'role': 'user',
+          'content': 'Yêu cầu tác vụ:\n$systemPrompt\n\nDữ liệu:\n$prompt',
+        },
       ];
 
       final response = await Supabase.instance.client.functions.invoke(
         'openrouter',
         body: {
-          ..._modelPayload,
-          'provider_preference': ?preferredProvider,
-          'preferred_model': ?preferredModel,
+          'feature': feature,
           'messages': messages,
           'response_format': responseFormat ?? {'type': 'json_object'},
         },

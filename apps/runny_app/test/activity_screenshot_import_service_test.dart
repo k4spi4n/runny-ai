@@ -32,6 +32,21 @@ void main() {
       expect(result.confidence, 0.91);
       expect(result.sourceApp, 'Strava');
       expect(result.notes, 'Morning run');
+      expect(result.activity.startedAt.isUtc, isTrue);
+      expect(result.activity.startedAt, DateTime.utc(2026, 7, 7, 23, 30));
+    });
+
+    test('preserves a UTC timestamp as an absolute instant', () {
+      final result = ActivityScreenshotImportService.parseModelContent(
+        '{"is_activity": true, "distance_km": 5, "duration_min": 30, '
+        '"started_at": "2026-07-08T06:30:00Z"}',
+      );
+
+      expect(result.activity.startedAt, DateTime.utc(2026, 7, 8, 6, 30));
+      expect(
+        result.activity.toDatabaseFields()['started_at'],
+        '2026-07-08T06:30:00.000Z',
+      );
     });
 
     test('rejects non-activity payload', () {

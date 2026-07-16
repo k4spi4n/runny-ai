@@ -6,6 +6,7 @@ import '../models/social_models.dart';
 import '../services/social_service.dart';
 import '../widgets/ui_components.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/activity_formatters.dart';
 
 /// Phân hệ 4: Động lực & Tương tác (Gamification & Social).
 class CommunityPage extends StatefulWidget {
@@ -996,7 +997,7 @@ class _SuggestionCard extends StatelessWidget {
                             _meta(
                               context,
                               Icons.speed,
-                              '${_formatPace(pace)} /km',
+                              '${formatPace(pace)} /km',
                             ),
                           _meta(
                             context,
@@ -1116,15 +1117,6 @@ Widget _emptyView(BuildContext context, String message) => Center(
     ),
   ),
 );
-
-String _formatPace(double paceDecimal) {
-  if (paceDecimal.isInfinite || paceDecimal.isNaN || paceDecimal <= 0) {
-    return '-:--';
-  }
-  final minutes = paceDecimal.floor();
-  final seconds = ((paceDecimal - minutes) * 60).round();
-  return '$minutes:${seconds.toString().padLeft(2, '0')}';
-}
 
 IconData _iconFor(String name) {
   switch (name) {

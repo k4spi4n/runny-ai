@@ -3,6 +3,7 @@ import 'package:flutter_lucide/flutter_lucide.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/workout_models.dart';
+import '../utils/activity_formatters.dart';
 
 /// Tóm tắt một hoạt động đã gắn với buổi tập, kèm lối tắt mở trang chi tiết.
 class LinkedActivityDetails extends StatelessWidget {
@@ -70,35 +71,13 @@ class LinkedActivityDetails extends StatelessWidget {
 
   String _summary(BuildContext context) {
     final pace = activity.distanceKm > 0 && activity.durationMin > 0
-        ? '${context.translate('pace')} ${_formatPace(activity.durationMin / activity.distanceKm)}'
+        ? '${context.translate('pace')} ${formatPace(activity.durationMin / activity.distanceKm)}'
         : null;
     final parts = <String>[
       '${activity.distanceKm.toStringAsFixed(2)} km',
-      _formatDuration(activity.durationMin),
+      formatDurationMinutes(activity.durationMin),
     ];
     if (pace != null) parts.add(pace);
     return parts.join(' • ');
-  }
-
-  String _formatDuration(double minutes) {
-    final totalSeconds = (minutes * 60).round();
-    final hours = totalSeconds ~/ 3600;
-    final remainingSeconds = totalSeconds % 3600;
-    final remainingMinutes = remainingSeconds ~/ 60;
-    final seconds = remainingSeconds % 60;
-    if (hours > 0) {
-      return '$hours:${remainingMinutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    }
-    return '$remainingMinutes:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  String _formatPace(double paceDecimal) {
-    if (paceDecimal.isInfinite || paceDecimal.isNaN || paceDecimal <= 0) {
-      return '-:--';
-    }
-    final totalSeconds = (paceDecimal * 60).round();
-    final minutes = totalSeconds ~/ 60;
-    final seconds = totalSeconds % 60;
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 }

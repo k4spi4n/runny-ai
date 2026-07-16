@@ -4,6 +4,25 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/subscription_models.dart';
 import 'subscription_service.dart';
 
+abstract interface class EntitlementDataSource {
+  String? get currentUserId;
+
+  Future<Object?> getEntitlementStatus();
+}
+
+class SupabaseEntitlementDataSource implements EntitlementDataSource {
+  SupabaseEntitlementDataSource(this._supabase);
+
+  final SupabaseClient _supabase;
+
+  @override
+  String? get currentUserId => _supabase.auth.currentUser?.id;
+
+  @override
+  Future<Object?> getEntitlementStatus() =>
+      _supabase.rpc('get_entitlement_status');
+}
+
 /// Tier quyền lợi của người dùng. Nguồn sự thật ở server (RPC check_ai_access);
 /// đây là bản phản chiếu phía client để quyết định UX (gate nút, banner trial).
 enum AccessTier { unknown, trial, paid, free }
@@ -17,13 +36,16 @@ class EntitlementProvider extends ChangeNotifier {
   static const int trialLengthDays = 14;
 
   final SubscriptionService _subscriptionService;
-  final SupabaseClient _supabase;
+  final EntitlementDataSource _dataSource;
 
   EntitlementProvider({
     SubscriptionService? subscriptionService,
+    EntitlementDataSource? dataSource,
     SupabaseClient? supabase,
-  })  : _subscriptionService = subscriptionService ?? SubscriptionService(),
-        _supabase = supabase ?? Supabase.instance.client;
+  }) : _subscriptionService = subscriptionService ?? SubscriptionService(),
+       _dataSource =
+           dataSource ??
+           SupabaseEntitlementDataSource(supabase ?? Supabase.instance.client);
 
   AccessTier _tier = AccessTier.unknown;
   DateTime? _trialEndsAt;
@@ -53,9 +75,9 @@ class EntitlementProvider extends ChangeNotifier {
   }
 
   /// Quy tắc gate phía client (đồng bộ với RPC check_ai_access):
-  /// 'chat' luôn cho phép; 'plan'/'food' yêu cầu không phải tier free.
+  /// 'chat' luôn cho phép; 'plan'/'vision'/'food' yêu cầu không phải tier free.
   bool canUse(String feature) {
-    if (feature == 'plan' || feature == 'food') {
+    if (feature == 'plan' || feature == 'vision' || feature == 'food') {
       return _tier != AccessTier.free;
     }
     return true;
@@ -64,8 +86,7 @@ class EntitlementProvider extends ChangeNotifier {
   /// Tải lại tier từ Supabase. Gọi sau đăng nhập, khi mở Dashboard, và sau khi
   /// quay lại từ cổng thanh toán.
   Future<void> refresh() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) {
+    if (_dataSource.currentUserId == null) {
       _tier = AccessTier.unknown;
       _trialEndsAt = null;
       _subscription = null;
@@ -77,24 +98,18 @@ class EntitlementProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final sub = await _subscriptionService.getActiveSubscription();
-      final profile = await _supabase
-          .from('profiles')
-          .select('trial_ends_at')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      final trialRaw = profile?['trial_ends_at'];
+      final entitlement = await _dataSource.getEntitlementStatus();
+      final trialRaw = entitlement is Map ? entitlement['trial_ends_at'] : null;
       _trialEndsAt = trialRaw is String ? DateTime.tryParse(trialRaw) : null;
       _subscription = sub;
 
-      final now = DateTime.now();
-      if (sub != null && sub.isActive) {
-        _tier = AccessTier.paid;
-      } else if (_trialEndsAt != null && _trialEndsAt!.isAfter(now)) {
-        _tier = AccessTier.trial;
-      } else {
-        _tier = AccessTier.free;
-      }
+      final tier = entitlement is Map ? entitlement['tier'] : null;
+      _tier = switch (tier) {
+        'paid' => AccessTier.paid,
+        'trial' => AccessTier.trial,
+        'free' => AccessTier.free,
+        _ => sub != null && sub.isActive ? AccessTier.paid : AccessTier.unknown,
+      };
     } catch (e) {
       debugPrint('Entitlement refresh failed: $e');
       // Giữ tier hiện tại nếu lỗi mạng — tránh hạ quyền oan người dùng.

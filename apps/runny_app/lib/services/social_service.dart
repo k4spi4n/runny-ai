@@ -29,7 +29,9 @@ class SocialService {
     final earnedMap = <String, DateTime>{};
     for (final b in earned as List) {
       if (b['code'] != null) {
-        earnedMap[b['code'] as String] = DateTime.parse(b['created_at'] as String);
+        earnedMap[b['code'] as String] = DateTime.parse(
+          b['created_at'] as String,
+        );
       }
     }
 
@@ -42,13 +44,21 @@ class SocialService {
   // ----- 4.2 Bảng xếp hạng -----
 
   Future<LeaderboardSnapshot> fetchLeaderboard({int limit = 50}) async {
-    final response = await _supabase.rpc('get_leaderboard_snapshot', params: {'p_limit': limit});
-    return LeaderboardSnapshot.fromJson((response as Map).cast<String, dynamic>());
+    final response = await _supabase.rpc(
+      'get_leaderboard_snapshot',
+      params: {'p_limit': limit},
+    );
+    return LeaderboardSnapshot.fromJson(
+      (response as Map).cast<String, dynamic>(),
+    );
   }
 
   /// Thành tích chỉ xuất hiện với người khác sau khi chủ tài khoản tự bật.
   Future<void> setLeaderboardVisibility(bool visible) {
-    return _supabase.from('profiles').update({'leaderboard_visible': visible}).eq('id', _uid);
+    return _supabase
+        .from('profiles')
+        .update({'leaderboard_visible': visible})
+        .eq('id', _uid);
   }
 
   // ----- 4.3 Ghép đôi bạn chạy -----
@@ -60,37 +70,46 @@ class SocialService {
     String? city,
     String? bio,
   }) async {
-    await _supabase.from('profiles').update({
-      'looking_for_partner': lookingForPartner,
-      'preferred_pace_min_per_km': preferredPace,
-      'city': city,
-      'bio': bio,
-    }).eq('id', _uid);
+    await _supabase
+        .from('profiles')
+        .update({
+          'looking_for_partner': lookingForPartner,
+          'preferred_pace_min_per_km': preferredPace,
+          'city': city,
+          'bio': bio,
+        })
+        .eq('id', _uid);
   }
 
   Future<List<MatchSuggestion>> fetchSuggestions({int limit = 20}) async {
-    final response = await _supabase.rpc('get_match_suggestions', params: {'p_limit': limit});
+    final response = await _supabase.rpc(
+      'get_match_suggestions',
+      params: {'p_limit': limit},
+    );
     return (response as List).map((e) => MatchSuggestion.fromJson(e)).toList();
   }
 
   /// Gửi lời mời ghép đôi tới một runner khác.
   Future<void> sendMatchRequest(String addresseeId) async {
-    await _supabase.from('run_matches').insert({
-      'requester_id': _uid,
-      'addressee_id': addresseeId,
-      'status': 'pending',
-    });
+    await _supabase.rpc(
+      'request_run_match',
+      params: {'p_addressee_id': addresseeId},
+    );
   }
 
   /// Lời mời mình đã nhận đang chờ phản hồi.
   Future<List<RunMatch>> fetchIncomingRequests() async {
     final response = await _supabase
         .from('run_matches')
-        .select('*, requester:profiles!run_matches_requester_id_fkey(display_name, city)')
+        .select(
+          '*, requester:profiles!run_matches_requester_id_fkey(display_name, city)',
+        )
         .eq('addressee_id', _uid)
         .eq('status', 'pending')
         .order('created_at', ascending: false);
-    return (response as List).map((e) => RunMatch.fromJson(e, isIncoming: true)).toList();
+    return (response as List)
+        .map((e) => RunMatch.fromJson(e, isIncoming: true))
+        .toList();
   }
 
   /// Các kết nối đã được chấp nhận (bạn chạy của mình).
@@ -98,7 +117,8 @@ class SocialService {
     final response = await _supabase
         .from('run_matches')
         .select(
-            '*, requester:profiles!run_matches_requester_id_fkey(display_name, city), addressee:profiles!run_matches_addressee_id_fkey(display_name, city)')
+          '*, requester:profiles!run_matches_requester_id_fkey(display_name, city), addressee:profiles!run_matches_addressee_id_fkey(display_name, city)',
+        )
         .or('requester_id.eq.$_uid,addressee_id.eq.$_uid')
         .eq('status', 'accepted')
         .order('updated_at', ascending: false);
@@ -109,10 +129,10 @@ class SocialService {
   }
 
   Future<void> respondToRequest(String matchId, {required bool accept}) async {
-    await _supabase.rpc('respond_to_match', params: {
-      'p_match_id': matchId,
-      'p_accept': accept,
-    });
+    await _supabase.rpc(
+      'respond_to_match',
+      params: {'p_match_id': matchId, 'p_accept': accept},
+    );
   }
 
   Future<void> cancelMatchRequest(String matchId) =>

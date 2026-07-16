@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../models/workout_models.dart';
+import '../utils/activity_formatters.dart';
 import 'gemini_service.dart';
 
 class WeeklyTrainingMetrics {
@@ -45,8 +46,7 @@ class AiInsightService {
         languageCode: languageCode,
         today: today,
       ),
-      preferredProvider: 'groq',
-      preferredModel: 'llama-3.1-8b-instant',
+      feature: AiFeature.activityInsight,
     );
   }
 
@@ -69,8 +69,7 @@ class AiInsightService {
         languageCode: languageCode,
         today: today,
       ),
-      preferredProvider: 'groq',
-      preferredModel: 'llama-3.1-8b-instant',
+      feature: AiFeature.activityInsight,
     );
   }
 
@@ -87,7 +86,7 @@ class AiInsightService {
           return '- ${DateFormat('yyyy-MM-dd').format(activity.startedAt.toLocal())}: '
               '${activity.distanceKm.toStringAsFixed(1)} km, '
               '${activity.durationMin.toStringAsFixed(0)} min, '
-              'pace ${_formatPace(pace)}/km'
+              'pace ${formatPace(pace, invalid: '--')}/km'
               '${activity.avgHr == null ? '' : ', HR ${activity.avgHr} bpm'}';
         })
         .join('\n');
@@ -132,14 +131,7 @@ Return exactly one short conclusion sentence in $language, at most 24 words. Foc
     return '${metrics.activityCount} activities, '
         '${metrics.distanceKm.toStringAsFixed(1)} km, '
         '${metrics.durationMin.toStringAsFixed(0)} min, '
-        'average pace ${_formatPace(metrics.averagePaceMinPerKm)}/km';
-  }
-
-  static String _formatPace(double? pace) {
-    if (pace == null || !pace.isFinite || pace <= 0) return '--';
-    final minutes = pace.floor();
-    final seconds = ((pace - minutes) * 60).round();
-    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+        'average pace ${formatPace(metrics.averagePaceMinPerKm, invalid: '--')}/km';
   }
 
   static String _todayContext(DateTime today) {

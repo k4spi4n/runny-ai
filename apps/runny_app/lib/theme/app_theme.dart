@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // Brand Colors
   static const Color primary = Color(0xFFFA6B27);
   static const Color primaryLight = Color(0xFFFF8E53);
   static const Color primaryDark = Color(0xFFC44A10);
-  
+
   static const Color secondary = Color(0xFF3CABFF);
   static const Color accent = Color(0xFFFFC66A);
-  
+
   // Status Colors
   static const Color success = Color(0xFF4ADE80);
   static const Color warning = Color(0xFFFACC15);
@@ -36,6 +35,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: 'Lexend',
       primaryColor: primary,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primary,
@@ -64,14 +64,16 @@ class AppTheme {
         backgroundColor: lightBg,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.lexend(
+        titleTextStyle: const TextStyle(
+          fontFamily: 'Lexend',
           color: lightTextPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w800,
         ),
         iconTheme: const IconThemeData(color: lightTextPrimary),
       ),
-      textTheme: GoogleFonts.lexendTextTheme().apply(
+      textTheme: ThemeData.light().textTheme.apply(
+        fontFamily: 'Lexend',
         bodyColor: lightTextPrimary,
         displayColor: lightTextPrimary,
       ),
@@ -97,6 +99,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: 'Lexend',
       primaryColor: primary,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primary,
@@ -125,14 +128,16 @@ class AppTheme {
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.lexend(
+        titleTextStyle: const TextStyle(
+          fontFamily: 'Lexend',
           color: darkTextPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w800,
         ),
         iconTheme: const IconThemeData(color: darkTextPrimary),
       ),
-      textTheme: GoogleFonts.lexendTextTheme(baseDark.textTheme).apply(
+      textTheme: baseDark.textTheme.apply(
+        fontFamily: 'Lexend',
         bodyColor: darkTextPrimary,
         displayColor: darkTextPrimary,
       ),

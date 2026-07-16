@@ -4,7 +4,7 @@
 # Publish Directory: apps/runny_app/build/web
 set -euo pipefail
 
-FLUTTER_VERSION="stable"
+FLUTTER_VERSION="3.44.0"
 
 # 1. Cai Flutter SDK (Render khong co san)
 if [ ! -d "_flutter" ]; then
@@ -17,10 +17,8 @@ cd apps/runny_app
 cat > .env <<EOF
 SUPABASE_URL=${SUPABASE_URL:-}
 SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
-OPENROUTER_MODEL=${OPENROUTER_MODEL:-meta-llama/llama-3.3-70b-instruct:free}
-OPENROUTER_MODELS=${OPENROUTER_MODELS:-}
 EOF
 
 # 3. Build
 flutter pub get
-flutter build web --release
+flutter build web --release --no-web-resources-cdn

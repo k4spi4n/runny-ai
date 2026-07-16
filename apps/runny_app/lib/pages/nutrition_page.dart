@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import 'dart:convert';
 import '../services/gemini_service.dart';
 import '../widgets/ui_components.dart';
+import '../utils/date_time_utils.dart';
 
 class NutritionPage extends StatefulWidget {
   /// [embedded] = true khi hiển thị bên trong khung tab của Dashboard: bỏ nền
@@ -121,6 +122,7 @@ class _NutritionPageState extends State<NutritionPage> {
                           context,
                           MealType.breakfast,
                           summary,
+                          _selectedDate,
                         ),
                         onEdit: (log) => _showEditMealLogModal(context, log),
                         onDelete: (log) => _confirmDeleteMealLog(context, log),
@@ -136,6 +138,7 @@ class _NutritionPageState extends State<NutritionPage> {
                           context,
                           MealType.lunch,
                           summary,
+                          _selectedDate,
                         ),
                         onEdit: (log) => _showEditMealLogModal(context, log),
                         onDelete: (log) => _confirmDeleteMealLog(context, log),
@@ -152,6 +155,7 @@ class _NutritionPageState extends State<NutritionPage> {
                           context,
                           MealType.dinner,
                           summary,
+                          _selectedDate,
                         ),
                         onEdit: (log) => _showEditMealLogModal(context, log),
                         onDelete: (log) => _confirmDeleteMealLog(context, log),
@@ -167,6 +171,7 @@ class _NutritionPageState extends State<NutritionPage> {
                           context,
                           MealType.snack,
                           summary,
+                          _selectedDate,
                         ),
                         onEdit: (log) => _showEditMealLogModal(context, log),
                         onDelete: (log) => _confirmDeleteMealLog(context, log),
@@ -267,13 +272,17 @@ class _NutritionPageState extends State<NutritionPage> {
     BuildContext context,
     MealType mealType,
     DailyNutritionSummary summary,
+    DateTime selectedDate,
   ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) =>
-          _AISuggestionsView(mealType: mealType, summary: summary),
+      builder: (context) => _AISuggestionsView(
+        mealType: mealType,
+        summary: summary,
+        selectedDate: selectedDate,
+      ),
     );
   }
 
@@ -909,8 +918,13 @@ class _EditMealLogViewState extends State<_EditMealLogView> {
 class _AISuggestionsView extends StatefulWidget {
   final MealType mealType;
   final DailyNutritionSummary summary;
+  final DateTime selectedDate;
 
-  const _AISuggestionsView({required this.mealType, required this.summary});
+  const _AISuggestionsView({
+    required this.mealType,
+    required this.summary,
+    required this.selectedDate,
+  });
 
   @override
   State<_AISuggestionsView> createState() => _AISuggestionsViewState();
@@ -981,7 +995,10 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
       ]
       """;
 
-      final response = await _geminiService.generateResponse(prompt);
+      final response = await _geminiService.generateResponse(
+        prompt,
+        feature: AiFeature.nutritionSuggestions,
+      );
 
       // Clean up markdown markers if any
       var cleanResponse = response.trim();
@@ -1036,7 +1053,7 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
         amount: (suggestion['amount'] as num).toDouble(),
         unit: suggestion['unit'] ?? defaultUnit,
         mealType: widget.mealType,
-        consumedAt: DateTime.now(),
+        consumedAt: dateWithTime(widget.selectedDate, DateTime.now()),
       );
       final successMessage = context.translate('meal_added_menu', [
         log.foodName,

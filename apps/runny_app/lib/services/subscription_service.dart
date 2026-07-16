@@ -1,32 +1,96 @@
-
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/subscription_models.dart';
+import 'edge_function_result.dart';
 
-class SubscriptionService {
-  final _supabase = Supabase.instance.client;
+abstract interface class SubscriptionDataSource {
+  String? get currentUserId;
 
-  Future<List<SubscriptionPlan>> getPlans() async {
+  Future<List<Map<String, dynamic>>> fetchPlans();
+
+  Future<Map<String, dynamic>?> fetchActiveSubscription(String userId);
+
+  Future<EdgeFunctionResult> createPayment(
+    String planId,
+    String idempotencyKey,
+  );
+
+  Future<void> requestCancellation();
+}
+
+class SupabaseSubscriptionDataSource implements SubscriptionDataSource {
+  SupabaseSubscriptionDataSource(this._supabase);
+
+  final SupabaseClient _supabase;
+
+  @override
+  String? get currentUserId => _supabase.auth.currentUser?.id;
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchPlans() async {
     final response = await _supabase
         .from('subscription_plans')
         .select()
         .eq('is_active', true)
         .order('price', ascending: true);
-    
-    return (response as List).map((json) => SubscriptionPlan.fromJson(json)).toList();
+    return (response as List)
+        .map((json) => Map<String, dynamic>.from(json as Map))
+        .toList();
   }
 
-  Future<UserSubscription?> getActiveSubscription() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return null;
-
+  @override
+  Future<Map<String, dynamic>?> fetchActiveSubscription(String userId) async {
     final response = await _supabase
         .from('user_subscriptions')
         .select('*, subscription_plans(*)')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('status', 'active')
         .maybeSingle();
-    
+    return response == null ? null : Map<String, dynamic>.from(response);
+  }
+
+  @override
+  Future<EdgeFunctionResult> createPayment(
+    String planId,
+    String idempotencyKey,
+  ) async {
+    final response = await _supabase.functions.invoke(
+      'payos-create-payment',
+      body: {'plan_id': planId, 'idempotency_key': idempotencyKey},
+    );
+    return EdgeFunctionResult(status: response.status, data: response.data);
+  }
+
+  @override
+  Future<void> requestCancellation() async {
+    await _supabase.rpc('request_subscription_cancellation');
+  }
+}
+
+class SubscriptionService {
+  SubscriptionService({
+    SubscriptionDataSource? dataSource,
+    int Function()? timestampMicros,
+  }) : _dataSource =
+           dataSource ??
+           SupabaseSubscriptionDataSource(Supabase.instance.client),
+       _timestampMicros =
+           timestampMicros ?? (() => DateTime.now().microsecondsSinceEpoch);
+
+  final SubscriptionDataSource _dataSource;
+  final int Function() _timestampMicros;
+  final Map<String, String> _paymentIdempotencyKeys = {};
+
+  Future<List<SubscriptionPlan>> getPlans() async {
+    final response = await _dataSource.fetchPlans();
+    return response.map((json) => SubscriptionPlan.fromJson(json)).toList();
+  }
+
+  Future<UserSubscription?> getActiveSubscription() async {
+    final userId = _dataSource.currentUserId;
+    if (userId == null) return null;
+
+    final response = await _dataSource.fetchActiveSubscription(userId);
     if (response == null) return null;
     return UserSubscription.fromJson(response);
   }
@@ -36,13 +100,14 @@ class SubscriptionService {
   /// Việc kích hoạt/gia hạn subscription do webhook `payos-webhook` thực hiện
   /// sau khi thanh toán thành công (không tin client tự ghi subscription).
   Future<String> createPaymentLink(SubscriptionPlan plan) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    final res = await _supabase.functions.invoke(
-      'payos-create-payment',
-      body: {'plan_id': plan.id},
+    final userId = _dataSource.currentUserId;
+    if (userId == null) throw Exception('User not logged in');
+    final idempotencyKey = _paymentIdempotencyKeys.putIfAbsent(
+      plan.id,
+      () => 'pay:$userId:${plan.id}:${_timestampMicros()}',
     );
+
+    final res = await _dataSource.createPayment(plan.id, idempotencyKey);
 
     if (res.status != 200) {
       final data = res.data;
@@ -64,6 +129,6 @@ class SubscriptionService {
   /// Đi qua RPC `request_subscription_cancellation` (SECURITY DEFINER) vì client
   /// KHÔNG còn quyền ghi thẳng vào `user_subscriptions` (chống tự cấp "paid").
   Future<void> cancelSubscription() async {
-    await _supabase.rpc('request_subscription_cancellation');
+    await _dataSource.requestCancellation();
   }
 }

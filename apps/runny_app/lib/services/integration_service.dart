@@ -69,7 +69,7 @@ class IntegrationService {
     // Garmin OAuth is more complex (OAuth 1.0a or 2.0 depending on API)
     // For now, we'll just show a placeholder URL or message
     final authUrl = Uri.parse('https://connect.garmin.com/oauth/authorize');
-    
+
     if (await canLaunchUrl(authUrl)) {
       await launchUrl(authUrl, mode: LaunchMode.externalApplication);
     } else {
@@ -78,15 +78,15 @@ class IntegrationService {
   }
 
   Future<void> disconnectStrava() async {
-    await _supabase.functions.invoke('strava_oauth', body: {'action': 'disconnect'});
+    await _supabase.functions.invoke(
+      'strava_oauth',
+      body: {'action': 'disconnect'},
+    );
   }
 
   Future<void> disconnectGarmin() async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) return;
-
-    await _supabase.from('profiles').update({
-      'garmin_id': null,
-    }).eq('id', user.id);
+    // Garmin OAuth is not implemented yet, so there is no trusted server-side
+    // connection to revoke. Provider-owned profile identifiers are never
+    // writable by the client.
   }
 }

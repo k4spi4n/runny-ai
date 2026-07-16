@@ -304,10 +304,18 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final dataPoints = _activity.dataPoints;
-    final List<double> times = _convertToList(dataPoints?['times']);
-    final List<double> paces = _convertToList(dataPoints?['paces']);
-    final List<double> elevations = _convertToList(dataPoints?['elevations']);
-    final List<double> hrs = _convertToList(dataPoints?['hrs']);
+    final paceSeries = _alignedSeries(
+      dataPoints?['times'],
+      dataPoints?['paces'],
+    );
+    final elevationSeries = _alignedSeries(
+      dataPoints?['times'],
+      dataPoints?['elevations'],
+    );
+    final heartRateSeries = _alignedSeries(
+      dataPoints?['times'],
+      dataPoints?['hrs'],
+    );
 
     return PopScope(
       canPop: false,
@@ -408,10 +416,12 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
                     builder: (context, constraints) => _buildAdaptiveBody(
                       context,
                       maxWidth: constraints.maxWidth,
-                      times: times,
-                      paces: paces,
-                      heartRates: hrs,
-                      elevations: elevations,
+                      paceTimes: paceSeries.$1,
+                      paces: paceSeries.$2,
+                      heartRateTimes: heartRateSeries.$1,
+                      heartRates: heartRateSeries.$2,
+                      elevationTimes: elevationSeries.$1,
+                      elevations: elevationSeries.$2,
                     ),
                   ),
                 ),
@@ -426,18 +436,22 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
   Widget _buildAdaptiveBody(
     BuildContext context, {
     required double maxWidth,
-    required List<double> times,
+    required List<double> paceTimes,
     required List<double> paces,
+    required List<double> heartRateTimes,
     required List<double> heartRates,
+    required List<double> elevationTimes,
     required List<double> elevations,
   }) {
     final isWide = maxWidth >= _wideLayoutBreakpoint;
     final contextCards = _buildContextCards(context);
     final performanceColumn = _buildPerformanceColumn(
       context,
-      times: times,
+      paceTimes: paceTimes,
       paces: paces,
+      heartRateTimes: heartRateTimes,
       heartRates: heartRates,
+      elevationTimes: elevationTimes,
       elevations: elevations,
     );
 
@@ -502,9 +516,11 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
 
   Widget _buildPerformanceColumn(
     BuildContext context, {
-    required List<double> times,
+    required List<double> paceTimes,
     required List<double> paces,
+    required List<double> heartRateTimes,
     required List<double> heartRates,
+    required List<double> elevationTimes,
     required List<double> elevations,
   }) {
     final colors = Theme.of(context).colorScheme;
@@ -533,7 +549,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         if (paces.isNotEmpty) ...[
           ActivityChart(
             title: context.translate('pace_title'),
-            xValues: times,
+            xValues: paceTimes,
             yValues: paces,
             color: const Color(0xFFFA6B27),
             yAxisLabel: context.translate('min_km'),
@@ -546,7 +562,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         if (heartRates.isNotEmpty) ...[
           ActivityChart(
             title: context.translate('heart_rate'),
-            xValues: times,
+            xValues: heartRateTimes,
             yValues: heartRates,
             color: Colors.redAccent,
             yAxisLabel: context.translate('bpm'),
@@ -558,7 +574,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         if (elevations.isNotEmpty) ...[
           ActivityChart(
             title: context.translate('elevation'),
-            xValues: times,
+            xValues: elevationTimes,
             yValues: elevations,
             color: const Color(0xFF3CABFF),
             yAxisLabel: context.translate('m'),
@@ -819,12 +835,44 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
     );
   }
 
-  List<double> _convertToList(dynamic data) {
-    if (data == null) return [];
-    if (data is List) {
-      return data.map((e) => (e as num).toDouble()).toList();
+  (List<double>, List<double>) _alignedSeries(
+    dynamic rawTimes,
+    dynamic rawValues,
+  ) {
+    if (rawTimes is! List || rawValues is! List || rawValues.isEmpty) {
+      return (const [], const []);
     }
-    return [];
+    final numericTimes = rawTimes
+        .whereType<num>()
+        .map((value) => value.toDouble())
+        .toList();
+    if (numericTimes.isEmpty) return (const [], const []);
+
+    final x = <double>[];
+    final y = <double>[];
+    if (rawTimes.length == rawValues.length) {
+      for (var index = 0; index < rawValues.length; index++) {
+        final time = rawTimes[index];
+        final value = rawValues[index];
+        if (time is num && value is num) {
+          x.add(time.toDouble());
+          y.add(value.toDouble());
+        }
+      }
+      return (x, y);
+    }
+
+    // Legacy imports stored sparse HR/cadence arrays without timestamps. Their
+    // exact alignment cannot be recovered, so distribute them across the known
+    // elapsed range instead of falsely pairing them with the earliest samples.
+    final values = rawValues.whereType<num>().toList();
+    final maxTime = numericTimes.last;
+    for (var index = 0; index < values.length; index++) {
+      final fraction = values.length <= 1 ? 0.0 : index / (values.length - 1);
+      x.add(maxTime * fraction);
+      y.add(values[index].toDouble());
+    }
+    return (x, y);
   }
 
   Future<void> _fetchShoeInfo() async {

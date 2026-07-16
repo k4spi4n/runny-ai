@@ -20,6 +20,7 @@ import '../widgets/missed_workout_reschedule_dialog.dart';
 import '../widgets/training_weekly_insight_card.dart';
 import '../widgets/linked_activity_details.dart';
 import '../utils/activity_matcher.dart';
+import '../utils/activity_formatters.dart';
 import 'create_training_plan_page.dart';
 import 'manual_workout_page.dart';
 import 'ai_coach_page.dart';
@@ -59,11 +60,7 @@ Widget trainingPlanActionIconsPreview() {
         child: Wrap(
           spacing: 12,
           children: [
-            OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(_rescheduleWorkoutIcon, size: 18),
-              label: const Text('Đặt lịch'),
-            ),
+            WorkoutRescheduleAction(onReschedule: () {}, label: 'Đặt lịch'),
             OutlinedButton.icon(
               onPressed: () {},
               icon: const Icon(_addManualWorkoutIcon, size: 18),
@@ -185,7 +182,7 @@ class WorkoutRescheduleAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const color = Color(0xFF8B5CF6);
+    final color = Theme.of(context).colorScheme.primary;
     return OutlinedButton.icon(
       key: buttonKey,
       onPressed: onReschedule,
@@ -2787,7 +2784,7 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
       }
     }
     if (pace != null && pace > 0) {
-      parts.add('${context.translate('pace')} ${_formatPace(pace)}');
+      parts.add('${context.translate('pace')} ${formatPace(pace)}');
     }
     return parts.join(' • ');
   }
@@ -2829,15 +2826,6 @@ class _WorkoutScheduleCardState extends State<_WorkoutScheduleCard> {
         ],
       ],
     );
-  }
-
-  String _formatPace(double paceDecimal) {
-    if (paceDecimal == 0 || paceDecimal.isInfinite || paceDecimal.isNaN) {
-      return "-:--";
-    }
-    int minutes = paceDecimal.floor();
-    int seconds = ((paceDecimal - minutes) * 60).round();
-    return "$minutes:${seconds.toString().padLeft(2, '0')}";
   }
 
   String? _formatStartTime(String? raw) {

@@ -4,11 +4,53 @@
 // (Strava đẩy sự kiện). API key/secret luôn ở server, không bao giờ lộ ra client.
 // =============================================================================
 
-const STRAVA_TOKEN_URL = 'https://www.strava.com/oauth/token';
-const STRAVA_API = 'https://www.strava.com/api/v3';
+import { envInt, fetchWithTimeout, readTextLimited } from "./http.ts";
+
+const STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token";
+const STRAVA_API = "https://www.strava.com/api/v3";
 
 // Chỉ tự nhập các hoạt động dạng chạy bộ (sản phẩm là HLV chạy bộ).
-const RUN_TYPES = new Set(['Run', 'TrailRun', 'VirtualRun']);
+const RUN_TYPES = new Set(["Run", "TrailRun", "VirtualRun"]);
+
+export class StravaApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "StravaApiError";
+  }
+}
+
+function stravaTimeoutMs(): number {
+  return envInt(
+    "STRAVA_PROVIDER_TIMEOUT_MS",
+    12_000,
+    { min: 3_000, max: 30_000 },
+  );
+}
+
+async function stravaFetch(
+  url: string,
+  init: RequestInit = {},
+  { retries = 0 } = {},
+): Promise<Response> {
+  return await fetchWithTimeout(url, init, {
+    timeoutMs: stravaTimeoutMs(),
+    retries,
+  });
+}
+
+async function throwStravaError(
+  response: Response,
+  operation: string,
+): Promise<never> {
+  await readTextLimited(response);
+  throw new StravaApiError(
+    `Strava ${operation} thất bại (${response.status}).`,
+    response.status,
+  );
+}
 
 export interface StravaCredentials {
   clientId: string;
@@ -16,10 +58,12 @@ export interface StravaCredentials {
 }
 
 export function getStravaCredentials(): StravaCredentials {
-  const clientId = Deno.env.get('STRAVA_CLIENT_ID') ?? '';
-  const clientSecret = Deno.env.get('STRAVA_CLIENT_SECRET') ?? '';
+  const clientId = Deno.env.get("STRAVA_CLIENT_ID") ?? "";
+  const clientSecret = Deno.env.get("STRAVA_CLIENT_SECRET") ?? "";
   if (!clientId || !clientSecret) {
-    throw new Error('Thiếu STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET trên server.');
+    throw new Error(
+      "Thiếu STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET trên server.",
+    );
   }
   return { clientId, clientSecret };
 }
@@ -34,19 +78,18 @@ export interface StravaTokenResult {
 /// Đổi authorization code (từ luồng OAuth) lấy access/refresh token + athlete id.
 export async function exchangeCode(code: string): Promise<StravaTokenResult> {
   const { clientId, clientSecret } = getStravaCredentials();
-  const res = await fetch(STRAVA_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await stravaFetch(STRAVA_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       client_id: clientId,
       client_secret: clientSecret,
       code,
-      grant_type: 'authorization_code',
+      grant_type: "authorization_code",
     }),
   });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Strava token exchange thất bại (${res.status}): ${text}`);
+    await throwStravaError(res, "token exchange");
   }
   const data = await res.json();
   return {
@@ -78,39 +121,43 @@ export async function ensureFreshToken(
     : 0;
 
   // Còn hạn (đệm 60s) -> dùng luôn.
-  if (!connection.requires_reauth && connection.access_token && expiresAtSec - 60 > nowSec) {
+  if (
+    !connection.requires_reauth && connection.access_token &&
+    expiresAtSec - 60 > nowSec
+  ) {
     return connection.access_token;
   }
 
   if (connection.requires_reauth || !connection.refresh_token) {
-    throw new Error('Người dùng chưa kết nối Strava (thiếu refresh token).');
+    throw new Error("Người dùng chưa kết nối Strava (thiếu refresh token).");
   }
 
   const { clientId, clientSecret } = getStravaCredentials();
-  const res = await fetch(STRAVA_TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await stravaFetch(STRAVA_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       client_id: clientId,
       client_secret: clientSecret,
-      grant_type: 'refresh_token',
+      grant_type: "refresh_token",
       refresh_token: connection.refresh_token,
     }),
   });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Strava refresh token thất bại (${res.status}): ${text}`);
+    await throwStravaError(res, "refresh token");
   }
   const data = await res.json();
 
-  const { error } = await supabase.rpc('save_strava_connection', {
+  const { error } = await supabase.rpc("save_strava_connection", {
     p_user_id: connection.user_id,
     p_athlete_id: connection.athlete_id,
     p_access_token: data.access_token,
     p_refresh_token: data.refresh_token,
     p_expires_at: new Date(data.expires_at * 1000).toISOString(),
   });
-  if (error) throw new Error(`Không thể lưu Strava token mới: ${error.message}`);
+  if (error) {
+    throw new Error(`Không thể lưu Strava token mới: ${error.message}`);
+  }
 
   return data.access_token;
 }
@@ -120,12 +167,13 @@ export async function fetchActivity(
   accessToken: string,
   activityId: number | string,
 ): Promise<any> {
-  const res = await fetch(`${STRAVA_API}/activities/${activityId}`, {
+  const res = await stravaFetch(`${STRAVA_API}/activities/${activityId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+  }, {
+    retries: 1,
   });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Strava lấy hoạt động thất bại (${res.status}): ${text}`);
+    await throwStravaError(res, "lấy hoạt động");
   }
   return await res.json();
 }
@@ -136,39 +184,47 @@ export async function fetchRecentActivities(
   { perPage = 30, after }: { perPage?: number; after?: number } = {},
 ): Promise<any[]> {
   const params = new URLSearchParams({ per_page: String(perPage) });
-  if (after) params.set('after', String(after));
-  const res = await fetch(`${STRAVA_API}/athlete/activities?${params}`, {
+  if (after) params.set("after", String(after));
+  const res = await stravaFetch(`${STRAVA_API}/athlete/activities?${params}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+  }, {
+    retries: 1,
   });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Strava lấy danh sách hoạt động thất bại (${res.status}): ${text}`);
+    await throwStravaError(res, "lấy danh sách hoạt động");
   }
   return await res.json();
 }
 
 // deno-lint-ignore no-explicit-any
 export function isRunActivity(act: any): boolean {
-  const type = act?.sport_type ?? act?.type ?? '';
+  const type = act?.sport_type ?? act?.type ?? "";
   return RUN_TYPES.has(type);
 }
 
 // deno-lint-ignore no-explicit-any
 export function mapActivity(userId: string, act: any): Record<string, unknown> {
-  const latlng: number[] | null = Array.isArray(act.start_latlng) && act.start_latlng.length === 2
-    ? act.start_latlng
-    : null;
+  const latlng: number[] | null =
+    Array.isArray(act.start_latlng) && act.start_latlng.length === 2
+      ? act.start_latlng
+      : null;
   return {
     user_id: userId,
-    source: 'strava',
+    source: "strava",
+    source_status: "active",
+    source_deleted_at: null,
     strava_activity_id: act.id,
     started_at: act.start_date,
     distance_km: (act.distance ?? 0) / 1000,
     duration_min: (act.moving_time ?? 0) / 60,
-    avg_hr: act.average_heartrate != null ? Math.round(act.average_heartrate) : null,
-    avg_cadence: act.average_cadence != null ? Math.round(act.average_cadence * 2) : null,
+    avg_hr: act.average_heartrate != null
+      ? Math.round(act.average_heartrate)
+      : null,
+    avg_cadence: act.average_cadence != null
+      ? Math.round(act.average_cadence * 2)
+      : null,
     elevation_gain_m: act.total_elevation_gain ?? null,
-    name: act.name ?? 'Strava activity',
+    name: act.name ?? "Strava activity",
     notes: null,
     start_lat: latlng ? latlng[0] : null,
     start_lon: latlng ? latlng[1] : null,
@@ -190,11 +246,10 @@ export async function upsertRunActivity(
   if (!isRunActivity(act)) return false;
   const row = mapActivity(userId, act);
   const { error } = await supabase
-    .from('activities')
-    .upsert(row, { onConflict: 'user_id,strava_activity_id' });
+    .from("activities")
+    .upsert(row, { onConflict: "user_id,strava_activity_id" });
   if (error) {
-    console.error('upsertRunActivity error:', error);
-    return false;
+    throw new Error(`Không thể lưu hoạt động Strava: ${error.message}`);
   }
   return true;
 }

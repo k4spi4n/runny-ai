@@ -1,4 +1,4 @@
-package com.example.runny_app
+package com.runnyai.app
 
 import io.flutter.embedding.android.FlutterActivity
 

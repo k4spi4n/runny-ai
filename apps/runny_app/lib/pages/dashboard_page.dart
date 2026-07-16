@@ -20,6 +20,7 @@ import '../models/workout_models.dart';
 import '../services/weather_service.dart';
 import '../services/ai_insight_service.dart';
 import '../services/dashboard_layout.dart';
+import '../utils/activity_formatters.dart';
 import '../services/readiness_service.dart';
 import '../models/readiness_models.dart';
 import '../widgets/readiness_components.dart';
@@ -1091,11 +1092,11 @@ class _OverviewContentState extends State<OverviewContent> {
       parts.add('${w.targetDistanceKm!.toStringAsFixed(1)} km');
     }
     if (w.targetDurationMin != null) {
-      parts.add(_formatDuration(w.targetDurationMin!));
+      parts.add(formatDurationMinutes(w.targetDurationMin!));
     }
     if (w.targetPaceMinPerKm != null) {
       parts.add(
-        '${context.translate('pace')} ${_formatPace(w.targetPaceMinPerKm!)}',
+        '${context.translate('pace')} ${formatPace(w.targetPaceMinPerKm!)}',
       );
     }
     if (parts.isNotEmpty) {
@@ -1606,7 +1607,7 @@ class _OverviewContentState extends State<OverviewContent> {
               final activities = snapshot.data!;
               return Column(
                 children: activities.map((activity) {
-                  final paceStr = _formatPace(
+                  final paceStr = formatPace(
                     activity.durationMin / activity.distanceKm,
                   );
 
@@ -1669,7 +1670,7 @@ class _OverviewContentState extends State<OverviewContent> {
                                     ? ' • ${extraMetrics.join(" • ")}'
                                     : '';
                                 return Text(
-                                  '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr$extraStr',
+                                  '${activity.distanceKm.toStringAsFixed(2)} km • ${formatDurationMinutes(activity.durationMin)} • ${context.translate('pace')} $paceStr$extraStr',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
@@ -1759,19 +1760,6 @@ class _OverviewContentState extends State<OverviewContent> {
         ],
       ),
     );
-  }
-
-  String _formatDuration(double minutes) {
-    int m = minutes.toInt();
-    int s = ((minutes - m) * 60).round();
-    return "$m:${s.toString().padLeft(2, '0')}";
-  }
-
-  String _formatPace(double paceDecimal) {
-    if (paceDecimal.isInfinite || paceDecimal.isNaN) return "-:--";
-    int minutes = paceDecimal.floor();
-    int seconds = ((paceDecimal - minutes) * 60).round();
-    return "$minutes:${seconds.toString().padLeft(2, '0')}";
   }
 
   void _showAQIDialog(BuildContext context, String? locationName) {

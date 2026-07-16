@@ -1,5 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/widget_previews.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/gemini_service.dart';
 import '../services/training_service.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/paywall.dart';
@@ -18,6 +23,8 @@ class CreateTrainingPlanPage extends StatefulWidget {
 
 class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
   final TrainingService _trainingService = TrainingService();
+  final GeminiService _geminiService = GeminiService();
+  final _supabase = Supabase.instance.client;
   final TextEditingController _goalController = TextEditingController();
   final TextEditingController _constraintsController = TextEditingController();
 
@@ -25,8 +32,10 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
   DateTime? _endDate;
   bool _letAiDecideEnd = true;
   bool _isSubmitting = false;
+  bool _isSuggestingGoals = false;
   int _trainingDaysPerWeek = 4;
   String _preferredTime = 'flexible';
+  List<String> _goalSuggestions = const [];
 
   @override
   void dispose() {
@@ -112,6 +121,82 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
     }
   }
 
+  Future<void> _suggestGoals() async {
+    setState(() => _isSuggestingGoals = true);
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+      final profile = await _supabase
+          .from('profiles')
+          .select('gender, weight_kg, height_cm, max_hr')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (!mounted) return;
+      final constraints = _constraintsController.text.trim();
+      final prompt =
+          '''
+Tao 2 den 4 muc tieu chay bo an toan, cu the va phu hop nguoi dung Runny AI.
+
+Thong tin nguoi dung:
+- Gioi tinh: ${profile?['gender'] ?? 'chua ro'}
+- Can nang: ${profile?['weight_kg'] ?? 'chua ro'} kg
+- Chieu cao: ${profile?['height_cm'] ?? 'chua ro'} cm
+- Nhip tim toi da: ${profile?['max_hr'] ?? 'chua ro'} bpm
+- Muc tieu dang nhap: ${_goalController.text.trim().isEmpty ? 'chua co' : _goalController.text.trim()}
+- Ngay bat dau: ${DateFormat('yyyy-MM-dd').format(_startDate)}
+- Ngay ket thuc: ${_letAiDecideEnd ? 'de AI tu quyet dinh' : (_endDate == null ? 'chua chon' : DateFormat('yyyy-MM-dd').format(_endDate!))}
+- So buoi co the tap moi tuan: $_trainingDaysPerWeek
+- Thoi gian uu tien: ${context.translate('plan_time_$_preferredTime')}
+- Gioi han/luu y suc khoe: ${constraints.isEmpty ? 'khong co' : constraints}
+
+Yeu cau:
+- Moi muc tieu la mot cau ngan, cu the va phu hop the trang hien tai.
+- Co the gom cu ly, tan suat, thoi gian, muc do an toan.
+- Khong tao lich tap chi tiet.
+- Tra ve JSON dung schema: {"goals":["..."]}.
+''';
+      final content = await _geminiService.generateResponse(
+        prompt,
+        feature: AiFeature.onboardingGoals,
+      );
+      final suggestions = _parseGoalSuggestions(content);
+
+      if (!mounted) return;
+      if (suggestions.length < 2) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.translate('goal_suggestions_empty'))),
+        );
+        return;
+      }
+      setState(() {
+        _goalSuggestions = suggestions;
+        _goalController.text = suggestions.first;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${context.translate('error')}: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSuggestingGoals = false);
+    }
+  }
+
+  List<String> _parseGoalSuggestions(String content) {
+    final trimmed = content.trim();
+    final start = trimmed.indexOf('{');
+    final end = trimmed.lastIndexOf('}');
+    if (start < 0 || end <= start) return const [];
+    final decoded = jsonDecode(trimmed.substring(start, end + 1));
+    final rawGoals = decoded is Map ? decoded['goals'] : null;
+    if (rawGoals is! List) return const [];
+    return rawGoals
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .take(4)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -165,14 +250,16 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
                         icon: Icons.play_circle_outline,
                         label: context.translate('plan_start_date'),
                         value: dateFmt.format(_startDate),
-                        onTap: _isSubmitting ? null : _pickStartDate,
+                        onTap: _isSubmitting || _isSuggestingGoals
+                            ? null
+                            : _pickStartDate,
                       ),
                       const SizedBox(height: 16),
                       // Ngày kết thúc (tùy chọn)
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         value: _letAiDecideEnd,
-                        onChanged: _isSubmitting
+                        onChanged: _isSubmitting || _isSuggestingGoals
                             ? null
                             : (v) => setState(() => _letAiDecideEnd = v),
                         title: Text(
@@ -198,7 +285,9 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
                           value: _endDate != null
                               ? dateFmt.format(_endDate!)
                               : context.translate('plan_end_date_hint'),
-                          onTap: _isSubmitting ? null : _pickEndDate,
+                          onTap: _isSubmitting || _isSuggestingGoals
+                              ? null
+                              : _pickEndDate,
                         ),
                       ],
                       const SizedBox(height: 20),
@@ -206,7 +295,7 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
                       TextField(
                         controller: _goalController,
                         maxLines: 4,
-                        enabled: !_isSubmitting,
+                        enabled: !_isSubmitting && !_isSuggestingGoals,
                         decoration: themedInputDecoration(
                           context,
                           context.translate('plan_goal_label'),
@@ -234,7 +323,7 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
                         max: 6,
                         divisions: 4,
                         label: '$_trainingDaysPerWeek',
-                        onChanged: _isSubmitting
+                        onChanged: _isSubmitting || _isSuggestingGoals
                             ? null
                             : (value) => setState(
                                 () => _trainingDaysPerWeek = value.round(),
@@ -258,7 +347,7 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
                               ),
                             )
                             .toList(),
-                        onChanged: _isSubmitting
+                        onChanged: _isSubmitting || _isSuggestingGoals
                             ? null
                             : (value) => setState(
                                 () => _preferredTime = value ?? 'flexible',
@@ -268,7 +357,7 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
                       TextField(
                         controller: _constraintsController,
                         maxLines: 3,
-                        enabled: !_isSubmitting,
+                        enabled: !_isSubmitting && !_isSuggestingGoals,
                         decoration: themedInputDecoration(
                           context,
                           context.translate('plan_constraints_label'),
@@ -279,6 +368,39 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
                           color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _isSubmitting || _isSuggestingGoals
+                            ? null
+                            : _suggestGoals,
+                        style: secondaryActionButton(context),
+                        icon: _isSuggestingGoals
+                            ? SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colorScheme.primary,
+                                ),
+                              )
+                            : const Icon(Icons.auto_awesome),
+                        label: Text(context.translate('ai_suggest_goals')),
+                      ),
+                      if (_goalSuggestions.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Column(
+                          children: _goalSuggestions.map((goal) {
+                            final selected =
+                                _goalController.text.trim() == goal;
+                            return _GoalSuggestionTile(
+                              goal: goal,
+                              selected: selected,
+                              onTap: () =>
+                                  setState(() => _goalController.text = goal),
+                            );
+                          }).toList(),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -301,7 +423,9 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
                       ),
                       const SizedBox(height: 28),
                       ElevatedButton(
-                        onPressed: _isSubmitting ? null : _submit,
+                        onPressed: _isSubmitting || _isSuggestingGoals
+                            ? null
+                            : _submit,
                         style: primaryActionButton(context),
                         child: _isSubmitting
                             ? const SizedBox(
@@ -324,6 +448,118 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
       ),
     );
   }
+}
+
+class _GoalSuggestionTile extends StatelessWidget {
+  const _GoalSuggestionTile({
+    required this.goal,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String goal;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: selected
+                ? colorScheme.primary.withValues(alpha: isDark ? 0.24 : 0.12)
+                : (isDark
+                      ? Colors.white.withValues(alpha: 0.07)
+                      : Colors.black.withValues(alpha: 0.035)),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? colorScheme.primary.withValues(alpha: 0.72)
+                  : theme.dividerColor.withValues(alpha: 0.16),
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                selected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                size: 20,
+                color: selected
+                    ? colorScheme.primary
+                    : colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  goal,
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    height: 1.25,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+@Preview(
+  name: 'Goal suggestions - Light',
+  group: 'Training plan',
+  size: Size(420, 220),
+  brightness: Brightness.light,
+)
+@Preview(
+  name: 'Goal suggestions - Dark',
+  group: 'Training plan',
+  size: Size(420, 220),
+  brightness: Brightness.dark,
+)
+Widget createPlanGoalSuggestionsPreview() {
+  return MaterialApp(
+    theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue)),
+    darkTheme: ThemeData(
+      brightness: Brightness.dark,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: Colors.blue,
+        brightness: Brightness.dark,
+      ),
+    ),
+    home: Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _GoalSuggestionTile(
+              goal: 'Chạy liên tục 5 km trong 8 tuần, 3 buổi mỗi tuần.',
+              selected: true,
+              onTap: () {},
+            ),
+            _GoalSuggestionTile(
+              goal: 'Duy trì 4 buổi chạy nhẹ mỗi tuần trong 1 tháng.',
+              selected: false,
+              onTap: () {},
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 class _DateTile extends StatelessWidget {

@@ -39,7 +39,13 @@ jobs:
           cd apps/runny_app
           flutter analyze
 
-      - name: Run Tests
+      - name: Run Tests and P0/P1 Coverage Gates
         run: |
           cd apps/runny_app
-          flutter test
+          flutter test --coverage
+          dart run tool/check_coverage.dart
+
+      - name: Build Release Web
+        run: |
+          cd apps/runny_app
+          flutter build web --release --no-web-resources-cdn

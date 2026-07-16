@@ -8,6 +8,7 @@ import '../models/workout_models.dart';
 import '../models/shoe_models.dart';
 import '../widgets/ui_components.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/activity_formatters.dart';
 import 'activity_details_page.dart';
 import 'dart:math' as math;
 
@@ -85,10 +86,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   }
 
   Future<List<Activity>> _fetchActivityPage(String userId) async {
-    var query = _supabase
-        .from('activities')
-        .select()
-        .eq('user_id', userId);
+    var query = _supabase.from('activities').select().eq('user_id', userId);
     if (_activityCursorStartedAt != null && _activityCursorId != null) {
       query = query.or(
         'started_at.lt.$_activityCursorStartedAt,and(started_at.eq.$_activityCursorStartedAt,id.lt.$_activityCursorId)',
@@ -111,7 +109,9 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
 
   Future<void> _loadMoreActivities() async {
     final userId = _supabase.auth.currentUser?.id;
-    if (userId == null || !_hasMoreActivities || _isLoadingMoreActivities) return;
+    if (userId == null || !_hasMoreActivities || _isLoadingMoreActivities) {
+      return;
+    }
     setState(() => _isLoadingMoreActivities = true);
     try {
       final page = await _fetchActivityPage(userId);
@@ -154,21 +154,6 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
         .toList();
     if (hrs.isEmpty) return 0.0;
     return hrs.reduce((a, b) => a + b) / hrs.length;
-  }
-
-  String _formatPace(double paceDecimal) {
-    if (paceDecimal == 0 || paceDecimal.isInfinite || paceDecimal.isNaN) {
-      return "-:--";
-    }
-    int minutes = paceDecimal.floor();
-    int seconds = ((paceDecimal - minutes) * 60).round();
-    return "$minutes:${seconds.toString().padLeft(2, '0')}";
-  }
-
-  String _formatDuration(double minutes) {
-    int m = minutes.toInt();
-    int s = ((minutes - m) * 60).round();
-    return "$m:${s.toString().padLeft(2, '0')}";
   }
 
   // Group distance by date
@@ -285,10 +270,16 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
           hrs.length == times.length &&
           hrs.isNotEmpty) {
         for (int i = 0; i < hrs.length; i++) {
-          final hr = (hrs[i] as num).toInt();
+          final rawHr = hrs[i];
+          final rawTime = times[i];
+          if (rawHr is! num || rawTime is! num) continue;
+          final hr = rawHr.toInt();
+          final previousTime = i > 0 && times[i - 1] is num
+              ? (times[i - 1] as num).toDouble()
+              : rawTime.toDouble() - 1;
           final interval = (i == 0)
               ? 1
-              : ((times[i] as num) - (times[i - 1] as num)).toInt();
+              : math.max(1, (rawTime.toDouble() - previousTime).round());
 
           int zone = 1;
           if (hr >= z4Max) {
@@ -566,158 +557,162 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-          // Range Filter Chip Row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                context.translate('history_analytics'),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              DropdownButton<String>(
-                value: _selectedRange,
-                dropdownColor: colorScheme.surface,
-                style: TextStyle(
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.bold,
-                ),
-                underline: const SizedBox(),
-                icon: Icon(Icons.tune, color: colorScheme.primary, size: 20),
-                onChanged: (String? newValue) {
-                  if (newValue != null) {
-                    setState(() => _selectedRange = newValue);
-                  }
-                },
-                items: [
-                  DropdownMenuItem(
-                    value: '7',
-                    child: Text(context.translate('filter_7d')),
+              // Range Filter Chip Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    context.translate('history_analytics'),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: colorScheme.onSurface,
+                    ),
                   ),
-                  DropdownMenuItem(
-                    value: '30',
-                    child: Text(context.translate('filter_30d')),
-                  ),
-                  DropdownMenuItem(
-                    value: '90',
-                    child: Text(context.translate('filter_90d')),
-                  ),
-                  DropdownMenuItem(
-                    value: 'all',
-                    child: Text(context.translate('filter_all')),
+                  DropdownButton<String>(
+                    value: _selectedRange,
+                    dropdownColor: colorScheme.surface,
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    underline: const SizedBox(),
+                    icon: Icon(
+                      Icons.tune,
+                      color: colorScheme.primary,
+                      size: 20,
+                    ),
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        setState(() => _selectedRange = newValue);
+                      }
+                    },
+                    items: [
+                      DropdownMenuItem(
+                        value: '7',
+                        child: Text(context.translate('filter_7d')),
+                      ),
+                      DropdownMenuItem(
+                        value: '30',
+                        child: Text(context.translate('filter_30d')),
+                      ),
+                      DropdownMenuItem(
+                        value: '90',
+                        child: Text(context.translate('filter_90d')),
+                      ),
+                      DropdownMenuItem(
+                        value: 'all',
+                        child: Text(context.translate('filter_all')),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-          // Period Statistics Grid
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 2.2,
-            children: [
-              _buildMiniStatCard(
-                title: context.translate('distance'),
-                value: '${_totalDistance.toStringAsFixed(1)} km',
-                icon: Icons.straighten,
-                gradient: accentPulseGradient,
+              // Period Statistics Grid
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 2.2,
+                children: [
+                  _buildMiniStatCard(
+                    title: context.translate('distance'),
+                    value: '${_totalDistance.toStringAsFixed(1)} km',
+                    icon: Icons.straighten,
+                    gradient: accentPulseGradient,
+                  ),
+                  _buildMiniStatCard(
+                    title: context.translate('sessions'),
+                    value:
+                        '${filtered.length} ${context.translate('run_count').toLowerCase()}',
+                    icon: LucideIcons.sport_shoe,
+                    gradient: secondaryPulseGradient,
+                  ),
+                  _buildMiniStatCard(
+                    title: context.translate('pace'),
+                    value: '${formatPace(_avgPace)} /km',
+                    icon: Icons.speed,
+                    gradient: secondaryPulseGradient,
+                  ),
+                  _buildMiniStatCard(
+                    title: context.translate('avg_hr'),
+                    value: _avgHr > 0 ? '${_avgHr.round()} bpm' : '--',
+                    icon: Icons.favorite,
+                    gradient: accentPulseGradient,
+                  ),
+                ],
               ),
-              _buildMiniStatCard(
-                title: context.translate('sessions'),
-                value:
-                    '${filtered.length} ${context.translate('run_count').toLowerCase()}',
-                icon: LucideIcons.sport_shoe,
-                gradient: secondaryPulseGradient,
-              ),
-              _buildMiniStatCard(
-                title: context.translate('pace'),
-                value: '${_formatPace(_avgPace)} /km',
-                icon: Icons.speed,
-                gradient: secondaryPulseGradient,
-              ),
-              _buildMiniStatCard(
-                title: context.translate('avg_hr'),
-                value: _avgHr > 0 ? '${_avgHr.round()} bpm' : '--',
-                icon: Icons.favorite,
-                gradient: accentPulseGradient,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-          if (filtered.isEmpty) ...[
-            glassCard(
-              context: context,
-              padding: const EdgeInsets.all(40),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.query_stats_rounded,
-                      size: 48,
-                      color: colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.3,
-                      ),
+              if (filtered.isEmpty) ...[
+                glassCard(
+                  context: context,
+                  padding: const EdgeInsets.all(40),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.query_stats_rounded,
+                          size: 48,
+                          color: colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          context.translate('no_data_range'),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      context.translate('no_data_range'),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ] else ...[
-            // 1. Weekly/Daily Running Distance Chart
-            _buildSectionTitle(context.translate('distance_chart')),
-            const SizedBox(height: 12),
-            _buildDistanceChartSection(),
-            const SizedBox(height: 24),
+                const SizedBox(height: 24),
+              ] else ...[
+                // 1. Weekly/Daily Running Distance Chart
+                _buildSectionTitle(context.translate('distance_chart')),
+                const SizedBox(height: 12),
+                _buildDistanceChartSection(),
+                const SizedBox(height: 24),
 
-            // 2. Heart Rate Zones Donut Chart
-            _buildSectionTitle(context.translate('hr_zones_chart')),
-            const SizedBox(height: 12),
-            _buildHrZonesDonutChartSection(),
-            const SizedBox(height: 24),
+                // 2. Heart Rate Zones Donut Chart
+                _buildSectionTitle(context.translate('hr_zones_chart')),
+                const SizedBox(height: 12),
+                _buildHrZonesDonutChartSection(),
+                const SizedBox(height: 24),
 
-            // 3. Performance Trends Chart
-            _buildSectionTitle(context.translate('trends_chart')),
-            const SizedBox(height: 12),
-            _buildTrendsChartSection(),
-            const SizedBox(height: 24),
+                // 3. Performance Trends Chart
+                _buildSectionTitle(context.translate('trends_chart')),
+                const SizedBox(height: 12),
+                _buildTrendsChartSection(),
+                const SizedBox(height: 24),
 
-            // 4. Race Predictor Table
-            _buildSectionTitle(context.translate('race_predictor')),
-            const SizedBox(height: 12),
-            _buildRacePredictorSection(estimatedVo2),
-            const SizedBox(height: 24),
-          ],
+                // 4. Race Predictor Table
+                _buildSectionTitle(context.translate('race_predictor')),
+                const SizedBox(height: 12),
+                _buildRacePredictorSection(estimatedVo2),
+                const SizedBox(height: 24),
+              ],
 
-          // 5. Shoe Tracker Section
-          _buildSectionTitle(context.translate('shoe_tracker')),
-          const SizedBox(height: 12),
-          _buildShoeTrackerSection(),
-          const SizedBox(height: 24),
+              // 5. Shoe Tracker Section
+              _buildSectionTitle(context.translate('shoe_tracker')),
+              const SizedBox(height: 12),
+              _buildShoeTrackerSection(),
+              const SizedBox(height: 24),
 
-          // 6. Detailed Activities List
-          _buildSectionTitle(context.translate('recent_activities')),
-          const SizedBox(height: 12),
-          _buildActivitiesList(context),
-          const SizedBox(height: 24),
+              // 6. Detailed Activities List
+              _buildSectionTitle(context.translate('recent_activities')),
+              const SizedBox(height: 12),
+              _buildActivitiesList(context),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -1126,7 +1121,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                       getTitlesWidget: (value, meta) {
                         String label = '';
                         if (_selectedTrendTab == 'pace') {
-                          label = _formatPace(value);
+                          label = formatPace(value, zeroAsValid: true);
                         } else {
                           label = '${value.toStringAsFixed(0)} bpm';
                         }
@@ -1181,7 +1176,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                     getTooltipItems: (touchedSpots) {
                       return touchedSpots.map((spot) {
                         final valStr = _selectedTrendTab == 'pace'
-                            ? _formatPace(spot.y)
+                            ? formatPace(spot.y, zeroAsValid: true)
                             : '${spot.y.toStringAsFixed(0)} bpm';
                         return LineTooltipItem(
                           'Run ${spot.x.toInt() + 1}\n$valStr',
@@ -1524,99 +1519,110 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
     return Column(
       children: [
         ...filtered.map((activity) {
-        final paceStr = _formatPace(activity.durationMin / activity.distanceKm);
+          final paceStr = formatPace(
+            activity.durationMin / activity.distanceKm,
+          );
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: glassCard(
-            context: context,
-            padding: EdgeInsets.zero,
-            child: ListTile(
-              onTap: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        ActivityDetailsPage(activity: activity),
-                  ),
-                );
-                if (result == true) {
-                  _fetchData();
-                }
-              },
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 8,
-              ),
-              leading: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  gradient: accentPulseGradient,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  LucideIcons.sport_shoe,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-              title: MarqueeText(
-                activity.name ??
-                    activity.notes ??
-                    context.translate('run_activity'),
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Builder(
-                    builder: (context) {
-                      final extraMetrics = [
-                        if (activity.avgHr != null) '${activity.avgHr} bpm',
-                        if (activity.avgCadence != null) '${activity.avgCadence} spm',
-                      ];
-                      final extraStr = extraMetrics.isNotEmpty ? ' • ${extraMetrics.join(" • ")}' : '';
-                      return Text(
-                        '${activity.distanceKm.toStringAsFixed(2)} km • ${_formatDuration(activity.durationMin)} • ${context.translate('pace')} $paceStr$extraStr',
-                        style: TextStyle(
-                          color: colorScheme.onSurfaceVariant,
-                          fontSize: 13,
-                        ),
-                      );
-                    }
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    DateFormat('HH:mm dd/MM/yyyy').format(activity.startedAt),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: glassCard(
+              context: context,
+              padding: EdgeInsets.zero,
+              child: ListTile(
+                onTap: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          ActivityDetailsPage(activity: activity),
                     ),
+                  );
+                  if (result == true) {
+                    _fetchData();
+                  }
+                },
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    gradient: accentPulseGradient,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
-              ),
-              trailing: Icon(
-                Icons.chevron_right,
-                color: colorScheme.onSurfaceVariant,
+                  child: const Icon(
+                    LucideIcons.sport_shoe,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                title: MarqueeText(
+                  activity.name ??
+                      activity.notes ??
+                      context.translate('run_activity'),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Builder(
+                      builder: (context) {
+                        final extraMetrics = [
+                          if (activity.avgHr != null) '${activity.avgHr} bpm',
+                          if (activity.avgCadence != null)
+                            '${activity.avgCadence} spm',
+                        ];
+                        final extraStr = extraMetrics.isNotEmpty
+                            ? ' • ${extraMetrics.join(" • ")}'
+                            : '';
+                        return Text(
+                          '${activity.distanceKm.toStringAsFixed(2)} km • ${formatDurationMinutes(activity.durationMin)} • ${context.translate('pace')} $paceStr$extraStr',
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
+                            fontSize: 13,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      DateFormat('HH:mm dd/MM/yyyy').format(activity.startedAt),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.75,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                trailing: Icon(
+                  Icons.chevron_right,
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
-          ),
-        );
+          );
         }),
         if (_hasMoreActivities)
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: OutlinedButton(
-            onPressed: _isLoadingMoreActivities ? null : _loadMoreActivities,
-            child: _isLoadingMoreActivities
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Tải thêm'),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: OutlinedButton(
+              onPressed: _isLoadingMoreActivities ? null : _loadMoreActivities,
+              child: _isLoadingMoreActivities
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Tải thêm'),
+            ),
           ),
-        ),
       ],
     );
   }

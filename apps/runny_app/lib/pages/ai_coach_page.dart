@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -16,19 +14,20 @@ import '../services/chat_service.dart';
 import '../services/ai_coach_tool_service.dart';
 import '../services/speech_service.dart';
 import '../services/nutrition_service.dart';
-import '../services/weather_service.dart';
 import '../services/readiness_service.dart';
 import '../services/run_reminder_service.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/device_permission_dialog.dart';
 import '../widgets/paywall.dart';
 import '../services/paywall_exception.dart';
+import '../utils/activity_formatters.dart';
 import '../models/workout_models.dart';
 import '../models/nutrition_models.dart';
 import '../models/weight_models.dart';
 import '../models/coach_persona.dart';
 import '../models/ai_coach_tool_models.dart';
 import '../l10n/app_localizations.dart';
+import 'create_training_plan_page.dart';
 
 /// Các loại dữ liệu người dùng có thể đính kèm cho HLV AI phân tích kèm câu hỏi.
 enum _ChatAttachment { activities, metrics, plan, nutrition }
@@ -68,7 +67,6 @@ class _AICoachPageState extends State<AICoachPage> {
   final GeminiService _geminiService = GeminiService();
   final ChatService _chatService = ChatService();
   final SpeechService _speech = SpeechService();
-  final WeatherService _weatherService = WeatherService();
   final AICoachToolService _coachToolService = AICoachToolService();
   final RunReminderService _runReminderService = RunReminderService();
   final List<Map<String, dynamic>> _messages = [];
@@ -334,7 +332,6 @@ class _AICoachPageState extends State<AICoachPage> {
 
     // Cache context-dependent translations before any async gaps
     final errorOccurredTranslation = context.translate('error_occurred');
-    final planCreatedTranslation = context.translate('plan_created_assistant');
 
     String prompt = text;
     final contextActivity = _contextActivity;
@@ -395,99 +392,55 @@ $prompt''';
     await _chatService.saveMessage('user', text);
 
     try {
-      // Chỉ mở luồng tạo kế hoạch mới khi người dùng thực sự yêu cầu tạo. Các
-      // câu hỏi xem/sửa lịch hiện có phải đi qua tool để có thẻ xác nhận.
-      final lowercaseText = text.toLowerCase();
-      final mentionsPlan =
-          lowercaseText.contains('lịch tập') ||
-          lowercaseText.contains('kế hoạch') ||
-          lowercaseText.contains('training plan') ||
-          lowercaseText.contains('schedule');
-      final asksToCreate =
-          lowercaseText.contains('tạo') ||
-          lowercaseText.contains('lập') ||
-          lowercaseText.contains('lên lịch') ||
-          lowercaseText.contains('cho tôi') ||
-          lowercaseText.contains('muốn có') ||
-          lowercaseText.contains('cần một') ||
-          lowercaseText.contains('xây dựng') ||
-          lowercaseText.contains('create') ||
-          lowercaseText.contains('i want') ||
-          lowercaseText.contains('i need') ||
-          lowercaseText.contains('make me') ||
-          lowercaseText.contains('build');
-      final asksToEdit = RegExp(
-        r'sửa|đổi|dời|chỉnh|giảm|tăng|update|edit|change|move|reschedule',
-      ).hasMatch(lowercaseText);
-      final isRequestingPlan = mentionsPlan && asksToCreate && !asksToEdit;
-
-      if (isRequestingPlan) {
-        // Tạo kế hoạch là tính năng cao cấp: chặn sớm với tier free (UX).
-        if (!mounted) return;
-        if (!await ensurePaywall(context, 'plan')) {
-          return; // sheet nâng cấp đã hiện; finally sẽ tắt loading
-        }
-        await _trainingService.createGoalBasedPlan(text);
-        if (!mounted) return;
-        setState(() {
-          _messages.add({
-            'role': 'assistant',
-            'content': planCreatedTranslation,
-          });
+      // Chat never creates a plan from keyword matching. Plan creation is an
+      // explicit app-bar action and is authorized by the dedicated endpoint.
+      final allHistory = _messages.sublist(0, _messages.length - 1);
+      final history = allHistory.length <= 30
+          ? allHistory
+          : allHistory.sublist(allHistory.length - 30);
+      final result = await _geminiService.generateCoachTurn(
+        prompt,
+        history: history,
+        executeTool: _coachToolService.execute,
+      );
+      final savedReply = await _chatService.saveMessage(
+        'assistant',
+        result.content,
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages.add({
+          'role': 'assistant',
+          'content': result.content,
+          if (savedReply?['id'] != null) 'id': savedReply!['id'],
         });
-        await _chatService.saveMessage('assistant', planCreatedTranslation);
-      } else {
-        // Tool-aware completion: model có thể tự lấy workout/meal hiện có và
-        // tạo đề xuất, nhưng không có tool nào được phép ghi dữ liệu trực tiếp.
-        final allHistory = _messages.sublist(0, _messages.length - 1);
-        final history = allHistory.length <= 30
-            ? allHistory
-            : allHistory.sublist(allHistory.length - 30);
-        final result = await _geminiService.generateCoachTurn(
-          prompt,
-          history: history,
-          tools: AICoachToolService.definitions,
-          executeTool: _coachToolService.execute,
+      });
+
+      for (final action in result.actions) {
+        final metadata = {'interactive_action': action.toJson()};
+        final cardText = context.translate(
+          action.kind == 'workout_update'
+              ? 'coach_workout_proposal'
+              : 'coach_meal_proposal',
+          [action.title],
         );
-        final savedReply = await _chatService.saveMessage(
+        final savedCard = await _chatService.saveMessage(
           'assistant',
-          result.content,
+          cardText,
+          metadata: metadata,
         );
         if (!mounted) return;
         setState(() {
           _messages.add({
             'role': 'assistant',
-            'content': result.content,
-            if (savedReply?['id'] != null) 'id': savedReply!['id'],
+            'content': cardText,
+            'metadata': metadata,
+            if (savedCard?['id'] != null) 'id': savedCard!['id'],
           });
         });
-
-        for (final action in result.actions) {
-          final metadata = {'interactive_action': action.toJson()};
-          final cardText = context.translate(
-            action.kind == 'workout_update'
-                ? 'coach_workout_proposal'
-                : 'coach_meal_proposal',
-            [action.title],
-          );
-          final savedCard = await _chatService.saveMessage(
-            'assistant',
-            cardText,
-            metadata: metadata,
-          );
-          if (!mounted) return;
-          setState(() {
-            _messages.add({
-              'role': 'assistant',
-              'content': cardText,
-              'metadata': metadata,
-              if (savedCard?['id'] != null) 'id': savedCard!['id'],
-            });
-          });
-        }
-        _cancelLongWaitTimer();
-        _scrollToBottom();
       }
+      _cancelLongWaitTimer();
+      _scrollToBottom();
     } on PaywallException catch (e) {
       // Hết quyền (vd hết trial) ngay khi gọi: mở luồng nâng cấp thay vì báo lỗi.
       if (!mounted) return;
@@ -529,6 +482,13 @@ $prompt''';
     _controller.text = question;
     _controller.selection = TextSelection.collapsed(offset: question.length);
     _sendMessage();
+  }
+
+  Future<void> _openCreatePlan() async {
+    if (!await ensurePaywall(context, 'plan') || !mounted) return;
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const CreateTrainingPlanPage()));
   }
 
   /// Tổng hợp dữ liệu người dùng đã chọn thành một khối văn bản để gửi kèm câu
@@ -618,9 +578,16 @@ $prompt''';
         }
       }
       try {
+        final metricsSince = DateTime.now()
+            .subtract(const Duration(days: 365))
+            .toUtc()
+            .toIso8601String();
         final rows = await supabase
             .from('activities')
-            .select('distance_km, duration_min, avg_hr, avg_cadence');
+            .select('distance_km, duration_min, avg_hr, avg_cadence')
+            .gte('started_at', metricsSince)
+            .order('started_at', ascending: false)
+            .limit(500);
         final list = rows as List;
         double dist = 0, dur = 0;
         int hrSum = 0, hrCount = 0;
@@ -640,18 +607,13 @@ $prompt''';
         final pace = dist > 0 ? dur / dist : 0.0;
         buffer.writeln(
           '• Chỉ số tổng: ${list.length} buổi, ${dist.toStringAsFixed(1)} km, '
-          'pace TB ${_fmtPace(pace)}/km'
+          'pace TB ${formatPace(pace, invalid: '--')}/km'
           '${hrCount > 0 ? ', HR TB ${(hrSum / hrCount).round()} bpm' : ''}'
           '${cadCount > 0 ? ', Cadence TB ${(cadSum / cadCount).round()} spm' : ''}.',
         );
       } catch (e) {
         debugPrint('Attach metrics error: $e');
       }
-
-      // Thời tiết hiện tại tại vị trí người dùng (giúp AI tư vấn theo điều kiện
-      // chạy thực tế). Fail-soft: bỏ qua nếu không lấy được vị trí/thời tiết.
-      final weatherLine = await _fetchWeatherLine();
-      if (weatherLine != null) buffer.writeln(weatherLine);
     }
 
     // --- Kế hoạch tập đang hoạt động ---
@@ -745,72 +707,6 @@ $prompt''';
     }
   }
 
-  /// Lấy thời tiết hiện tại tại vị trí người dùng và định dạng thành một dòng
-  /// để đính kèm cho AI. Trả về null nếu không có vị trí hoặc lỗi (fail-soft).
-  Future<String?> _fetchWeatherLine() async {
-    try {
-      final position = await _getCurrentPosition();
-      if (position == null) return null;
-      final w = await _weatherService.fetchWeatherSnapshot(
-        lat: position.latitude,
-        lon: position.longitude,
-      );
-      final parts = <String>[];
-      if (w.temperatureC != null) {
-        parts.add('${w.temperatureC!.toStringAsFixed(1)}°C');
-      }
-      if (w.summary != null) parts.add(w.summary!.toLowerCase());
-      if (w.humidity != null) parts.add('độ ẩm ${w.humidity}%');
-      if (w.windKph != null) {
-        parts.add('gió ${w.windKph!.toStringAsFixed(0)} km/h');
-      }
-      if (w.aqi != null) parts.add('AQI ${w.aqi} (${w.aqiLabel})');
-      if (parts.isEmpty) return null;
-      final place = w.locationName != null ? ' tại ${w.locationName}' : '';
-      return '• Thời tiết hiện tại$place: ${parts.join(', ')}.';
-    } catch (e) {
-      debugPrint('Attach weather error: $e');
-      return null;
-    }
-  }
-
-  /// Lấy vị trí hiện tại (độ chính xác thấp, đủ cho thời tiết). Web/Debug dùng
-  /// vị trí mặc định (Hà Nội) nếu định vị thất bại.
-  Future<Position?> _getCurrentPosition() async {
-    if (!await Geolocator.isLocationServiceEnabled()) return null;
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      return null;
-    }
-    try {
-      return await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.low,
-        timeLimit: const Duration(seconds: 15),
-      );
-    } catch (e) {
-      debugPrint('AI coach position error: $e');
-      if (kIsWeb || kDebugMode) {
-        return Position(
-          latitude: 21.0285,
-          longitude: 105.8342,
-          timestamp: DateTime.now(),
-          accuracy: 0,
-          altitude: 0,
-          altitudeAccuracy: 0,
-          heading: 0,
-          headingAccuracy: 0,
-          speed: 0,
-          speedAccuracy: 0,
-        );
-      }
-      return Geolocator.getLastKnownPosition();
-    }
-  }
-
   /// Nhãn tiếng Việt cho giới tính (null nếu chưa đặt) để ghép vào dòng thể trạng.
   String? _genderLabel(dynamic gender) {
     switch (gender) {
@@ -825,18 +721,11 @@ $prompt''';
     }
   }
 
-  String _fmtPace(double pace) {
-    if (pace <= 0 || pace.isInfinite || pace.isNaN) return '--';
-    final m = pace.floor();
-    final s = ((pace - m) * 60).round();
-    return '$m:${s.toString().padLeft(2, '0')}';
-  }
-
   String _fmtActivityLine(Activity a) {
     final date = DateFormat('dd/MM').format(a.startedAt.toLocal());
     final pace = a.distanceKm > 0 ? a.durationMin / a.distanceKm : 0.0;
     return '$date: ${a.distanceKm.toStringAsFixed(1)} km, '
-        '${a.durationMin.toStringAsFixed(0)} phút, pace ${_fmtPace(pace)}/km'
+        '${a.durationMin.toStringAsFixed(0)} phút, pace ${formatPace(pace, invalid: '--')}/km'
         '${a.avgHr != null ? ', HR ${a.avgHr} bpm' : ''}';
   }
 
@@ -1154,6 +1043,11 @@ $prompt''';
               )
             : null,
         actions: [
+          IconButton(
+            onPressed: _openCreatePlan,
+            icon: Icon(LucideIcons.calendar_plus, color: colorScheme.onSurface),
+            tooltip: context.translate('create_plan_title'),
+          ),
           IconButton(
             onPressed: _showCoachSettings,
             icon: Icon(
@@ -1793,9 +1687,7 @@ $prompt''';
                         TextButton(
                           onPressed: selectedAttachments.isEmpty
                               ? null
-                              : () => setSheetState(
-                                  selectedAttachments.clear,
-                                ),
+                              : () => setSheetState(selectedAttachments.clear),
                           child: Text(
                             context.translate('chat_context_clear_all'),
                           ),
@@ -1862,9 +1754,8 @@ $prompt''';
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () => setState(
-                          () => _isAttachmentBarCollapsed = true,
-                        ),
+                        onPressed: () =>
+                            setState(() => _isAttachmentBarCollapsed = true),
                         tooltip: context.translate('chat_context_collapse'),
                         icon: Icon(
                           Icons.keyboard_arrow_down,

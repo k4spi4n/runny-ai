@@ -1,11 +1,13 @@
 import 'dart:convert';
-import 'dart:async';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/workout_models.dart';
 import '../models/run_reminder_model.dart';
+import 'edge_function_result.dart';
 import 'gemini_service.dart';
 import 'notification_service.dart';
+import 'paywall_exception.dart';
 import 'readiness_service.dart';
 import 'training_refresh_service.dart';
 
@@ -66,69 +68,43 @@ class RescheduledWorkout {
   final DateTime workoutAt;
 }
 
+abstract interface class TrainingPlanJobClient {
+  String? get currentUserId;
+
+  Future<EdgeFunctionResult> enqueue(Map<String, Object?> body);
+}
+
+class SupabaseTrainingPlanJobClient implements TrainingPlanJobClient {
+  SupabaseTrainingPlanJobClient(this._supabase);
+
+  final SupabaseClient _supabase;
+
+  @override
+  String? get currentUserId => _supabase.auth.currentUser?.id;
+
+  @override
+  Future<EdgeFunctionResult> enqueue(Map<String, Object?> body) async {
+    final response = await _supabase.functions.invoke(
+      'training-plan',
+      body: body,
+    );
+    return EdgeFunctionResult(status: response.status, data: response.data);
+  }
+}
+
 class TrainingService {
-  final SupabaseClient _supabase = Supabase.instance.client;
+  TrainingService({
+    SupabaseClient? supabase,
+    TrainingPlanJobClient? planJobClient,
+  }) : _supabase = supabase ?? Supabase.instance.client,
+       _planJobClient =
+           planJobClient ??
+           SupabaseTrainingPlanJobClient(supabase ?? Supabase.instance.client);
+
+  final SupabaseClient _supabase;
+  final TrainingPlanJobClient _planJobClient;
   final GeminiService _gemini = GeminiService();
   static const String _manualMetadataPrefix = 'RUNNY_MANUAL_WORKOUT_V1:';
-
-  // Groq JSON Object Mode co the tra 400 neu model tu sinh JSON sai cu phap.
-  // Schema strict rang buoc decoding o cap token va giu output on dinh de luu DB.
-  static const Map<String, dynamic> _planResponseFormat = {
-    'type': 'json_schema',
-    'json_schema': {
-      'name': 'training_plan',
-      'strict': true,
-      'schema': {
-        'type': 'object',
-        'additionalProperties': false,
-        'properties': {
-          'title': {'type': 'string'},
-          'target_distance_km': {'type': 'number'},
-          'target_pace_min_per_km': {'type': 'number'},
-          'weeks': {'type': 'integer'},
-          'workouts': {
-            'type': 'array',
-            'items': {
-              'type': 'object',
-              'additionalProperties': false,
-              'properties': {
-                'day_offset': {'type': 'integer'},
-                'title': {'type': 'string'},
-                'description': {'type': 'string'},
-                'target_distance_km': {'type': 'number'},
-                'target_duration_min': {'type': 'number'},
-                'target_pace_min_per_km': {'type': 'number'},
-                'source': {
-                  'type': 'string',
-                  'enum': ['ai', 'manual'],
-                },
-                'workout_type': {'type': 'string'},
-                'start_time': {'type': 'string'},
-              },
-              'required': [
-                'day_offset',
-                'title',
-                'description',
-                'target_distance_km',
-                'target_duration_min',
-                'target_pace_min_per_km',
-                'source',
-                'workout_type',
-                'start_time',
-              ],
-            },
-          },
-        },
-        'required': [
-          'title',
-          'target_distance_km',
-          'target_pace_min_per_km',
-          'weeks',
-          'workouts',
-        ],
-      },
-    },
-  };
 
   Future<void> completeScheduledWorkout({
     required String workoutId,
@@ -178,91 +154,27 @@ class TrainingService {
     required DateTime workoutAt,
     bool shiftFollowingWorkouts = false,
   }) async {
-    final workout = await _supabase
-        .from('scheduled_workouts')
-        .select('id, schedule_id, status, date')
-        .eq('id', workoutId)
-        .single();
-
-    if (workout['status'] == 'completed') {
-      throw StateError('Completed workouts cannot be rescheduled');
-    }
-
-    final originalDate = DateTime.parse(workout['date'] as String);
-    final dayShift = workoutAt
-        .difference(
-          DateTime(originalDate.year, originalDate.month, originalDate.day),
-        )
-        .inDays;
-    final rescheduledWorkouts = <RescheduledWorkout>[
-      RescheduledWorkout(workoutId: workoutId, workoutAt: workoutAt),
-    ];
-
-    if (shiftFollowingWorkouts && dayShift != 0) {
-      final followingWorkouts = List<Map<String, dynamic>>.from(
-        await _supabase
-            .from('scheduled_workouts')
-            .select('id, date, start_time')
-            .eq('schedule_id', workout['schedule_id'])
-            .gt('date', _dateOnly(originalDate))
-            .inFilter('status', ['planned', 'rescheduled']),
+    final rows = List<Map<String, dynamic>>.from(
+      await _supabase.rpc(
+            'reschedule_scheduled_workout',
+            params: {
+              'p_workout_id': workoutId,
+              'p_new_date': _dateOnly(workoutAt),
+              'p_start_time':
+                  '${workoutAt.hour.toString().padLeft(2, '0')}:'
+                  '${workoutAt.minute.toString().padLeft(2, '0')}:00',
+              'p_shift_following': shiftFollowingWorkouts,
+            },
+          )
+          as List,
+    );
+    final rescheduledWorkouts = rows.map((row) {
+      final date = DateTime.parse(row['workout_date'] as String);
+      return RescheduledWorkout(
+        workoutId: row['workout_id'] as String,
+        workoutAt: _withStartTime(date, row['workout_start_time']?.toString()),
       );
-
-      final shiftedWorkouts = followingWorkouts.map((followingWorkout) {
-        final followingDate = DateTime.parse(
-          followingWorkout['date'] as String,
-        );
-        final shiftedDate = followingDate.add(Duration(days: dayShift));
-        return RescheduledWorkout(
-          workoutId: followingWorkout['id'] as String,
-          workoutAt: _withStartTime(
-            shiftedDate,
-            followingWorkout['start_time']?.toString(),
-          ),
-        );
-      }).toList();
-
-      await Future.wait(
-        shiftedWorkouts.map((shiftedWorkout) async {
-          await _supabase
-              .from('scheduled_workouts')
-              .update({
-                'date': _dateOnly(shiftedWorkout.workoutAt),
-                'status': 'planned',
-              })
-              .eq('id', shiftedWorkout.workoutId);
-        }),
-      );
-      rescheduledWorkouts.addAll(shiftedWorkouts);
-    }
-
-    await _supabase
-        .from('scheduled_workouts')
-        .update({
-          'date': _dateOnly(workoutAt),
-          'start_time':
-              '${workoutAt.hour.toString().padLeft(2, '0')}:${workoutAt.minute.toString().padLeft(2, '0')}:00',
-          'status': 'planned',
-        })
-        .eq('id', workoutId);
-
-    final schedule = await _supabase
-        .from('training_schedules')
-        .select()
-        .eq('id', workout['schedule_id'])
-        .maybeSingle();
-    if (schedule != null) {
-      final affectedDates =
-          rescheduledWorkouts
-              .map((rescheduled) => rescheduled.workoutAt)
-              .toList()
-            ..sort();
-      await _expandScheduleRangeIfNeeded(
-        schedule: schedule,
-        earliestWorkoutDate: affectedDates.first,
-        latestWorkoutDate: affectedDates.last,
-      );
-    }
+    }).toList();
     TrainingRefreshService.instance.notifyTrainingChanged();
     return rescheduledWorkouts;
   }
@@ -369,58 +281,6 @@ class TrainingService {
     final d = value is num ? value.toDouble() : double.tryParse('$value');
     if (d == null || d.isNaN || d.isInfinite) return null;
     return d.clamp(min, max);
-  }
-
-  String? _safeTime(dynamic value) {
-    if (value == null) return null;
-    final s = value.toString().trim();
-    if (s.isEmpty) return null;
-
-    // Match HH:mm:ss or HH:mm
-    final regExp = RegExp(r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$');
-    if (regExp.hasMatch(s)) {
-      return s;
-    }
-
-    // Match single hour (e.g. "6" or "18")
-    final hourOnly = RegExp(r'^([0-1]?[0-9]|2[0-3])$');
-    if (hourOnly.hasMatch(s)) {
-      final hour = int.parse(s);
-      final pad = hour.toString().padLeft(2, '0');
-      return '$pad:00:00';
-    }
-
-    // Match pattern like "6 AM", "6PM", "06:00 PM"
-    final amPm = RegExp(
-      r'^([0-1]?[0-9])(:[0-5][0-9])?\s*(am|pm)$',
-      caseSensitive: false,
-    );
-    final match = amPm.firstMatch(s);
-    if (match != null) {
-      var hour = int.parse(match.group(1)!);
-      final minute = match.group(2) ?? ':00';
-      final isPm = match.group(3)!.toLowerCase() == 'pm';
-      if (isPm && hour < 12) {
-        hour += 12;
-      } else if (!isPm && hour == 12) {
-        hour = 0;
-      }
-      final pad = hour.toString().padLeft(2, '0');
-      return '$pad$minute:00';
-    }
-
-    final lower = s.toLowerCase();
-    if (lower.contains('sáng') || lower.contains('morning')) {
-      return '06:00:00';
-    }
-    if (lower.contains('chiều') ||
-        lower.contains('tối') ||
-        lower.contains('afternoon') ||
-        lower.contains('evening')) {
-      return '18:00:00';
-    }
-
-    return null;
   }
 
   double _safeRequiredNumber(double value, {required double max}) {
@@ -733,446 +593,71 @@ class TrainingService {
     }
   }
 
-  /// Bắt đầu tạo lịch tập ở CHẾ ĐỘ NỀN.
-  ///
-  /// Chèn ngay một bản ghi `training_schedules` ở trạng thái `generating`
-  /// (thao tác nhanh, có await) rồi gọi AI bất đồng bộ mà KHÔNG chờ. Nhờ vậy
-  /// người dùng có thể rời màn hình ngay; khi AI xong, bản ghi được cập nhật
-  /// sang `active` (hoặc `failed` nếu lỗi) và trang Lịch tập sẽ hiển thị.
-  Future<void> startPlanGeneration({
+  /// Enqueue a durable server-side plan job and return its placeholder schedule.
+  Future<String> startPlanGeneration({
     required String goal,
     required DateTime startDate,
     DateTime? endDate,
   }) async {
-    _ensureGeminiReady();
-    final user = _supabase.auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    // Dọn các placeholder generating/failed cũ để tránh tồn đọng.
-    await _supabase
-        .from('training_schedules')
-        .delete()
-        .eq('user_id', user.id)
-        .inFilter('status', ['generating', 'failed', 'draft']);
-
-    final placeholder = await _supabase
-        .from('training_schedules')
-        .insert({
-          'user_id': user.id,
-          'title': 'AI đang tạo lịch tập...',
-          'goal_description': goal,
-          'start_date': _dateOnly(startDate),
-          if (endDate != null) 'end_date': _dateOnly(endDate),
-          'status': 'generating',
-        })
-        .select()
-        .single();
-
-    final scheduleId = placeholder['id'] as String;
-
-    // Fire-and-forget: chạy nền, không await để người dùng có thể rời màn hình.
-    unawaited(
-      _runGeneration(
-        scheduleId: scheduleId,
-        userId: user.id,
-        goal: goal,
-        startDate: startDate,
-        endDate: endDate,
-      ),
-    );
-  }
-
-  Future<void> _runGeneration({
-    required String scheduleId,
-    required String userId,
-    required String goal,
-    required DateTime startDate,
-    DateTime? endDate,
-  }) async {
+    if (_planJobClient.currentUserId == null) {
+      throw Exception('User not logged in');
+    }
+    final random = Random.secure();
+    final nonce = List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+    final idempotencyKey =
+        'plan:${DateTime.now().microsecondsSinceEpoch}:$nonce';
     try {
-      final planJson = await _generatePlanJson(goal, startDate, endDate);
-      await _persistPlan(
-        userId: userId,
-        goal: goal,
-        startDate: startDate,
-        endDate: endDate,
-        planJson: planJson,
-        scheduleId: scheduleId,
-      );
-    } catch (e) {
-      debugPrint('Background plan generation failed: $e');
-      try {
-        await _supabase
-            .from('training_schedules')
-            .update({'status': 'failed', 'error_message': e.toString()})
-            .eq('id', scheduleId);
-      } catch (_) {
-        // Bỏ qua: không thể đánh dấu thất bại thì trang sẽ vẫn thấy 'generating'.
+      final response = await _planJobClient.enqueue({
+        'idempotency_key': idempotencyKey,
+        'goal': goal,
+        'start_date': _dateOnly(startDate),
+        if (endDate != null) 'end_date': _dateOnly(endDate),
+      });
+      final data = response.data is Map
+          ? Map<String, dynamic>.from(response.data as Map)
+          : const <String, dynamic>{};
+      if (response.status != 200 && response.status != 202) {
+        final message = data['error']?.toString() ?? 'Unable to create plan.';
+        if (PaywallException.isUpgradeSignal(response.status, data)) {
+          throw PaywallException(message);
+        }
+        throw Exception(message);
       }
+      final scheduleId = data['schedule_id']?.toString();
+      if (scheduleId == null || scheduleId.isEmpty) {
+        throw Exception('Training plan service returned no schedule.');
+      }
+      TrainingRefreshService.instance.notifyTrainingChanged();
+      return scheduleId;
+    } on FunctionException catch (error) {
+      if (PaywallException.isUpgradeSignal(error.status, error.details)) {
+        final details = error.details;
+        final message = details is Map && details['error'] is String
+            ? details['error'] as String
+            : 'Tính năng này dành cho gói trả phí.';
+        throw PaywallException(message);
+      }
+      rethrow;
+    } catch (e) {
+      debugPrint('Training plan enqueue failed: $e');
+      rethrow;
     }
   }
 
-  /// Tạo lịch tập đồng bộ (chờ AI xong rồi lưu). Dùng cho luồng chat HLV AI.
+  /// Compatibility entry point; generation is still queued on the server.
   Future<String> createGoalBasedPlan(
     String goalPrompt, {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    _ensureGeminiReady();
-    final user = _supabase.auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    await _supabase
-        .from('training_schedules')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('status', 'draft');
-
-    final start = startDate ?? DateTime.now();
-    final planJson = await _generatePlanJson(goalPrompt, start, endDate);
-    return _persistPlan(
-      userId: user.id,
+    return startPlanGeneration(
       goal: goalPrompt,
-      startDate: start,
+      startDate: startDate ?? DateTime.now(),
       endDate: endDate,
-      planJson: planJson,
     );
-  }
-
-  /// Gọi AI sinh JSON lịch tập dựa trên thể trạng + 5 hoạt động gần nhất.
-  Future<Map<String, dynamic>> _generatePlanJson(
-    String goal,
-    DateTime startDate,
-    DateTime? endDate,
-  ) async {
-    final user = _supabase.auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    final profile = await _supabase
-        .from('profiles')
-        .select()
-        .eq('id', user.id)
-        .single();
-    final recentActivities = await _supabase
-        .from('activities')
-        .select()
-        .eq('user_id', user.id)
-        .order('started_at', ascending: false)
-        .limit(5);
-    String readinessContext = 'Dữ liệu readiness chưa sẵn sàng.';
-    try {
-      final readiness = await ReadinessService().getSnapshot();
-      readinessContext =
-          'Readiness: ${readiness.score}/100 (${readiness.status}); tải 7 ngày ${readiness.acuteLoad.toStringAsFixed(0)}, tải nền 28 ngày ${readiness.chronicLoad.toStringAsFixed(0)}, ACWR ${readiness.acwr?.toStringAsFixed(2) ?? 'chưa đủ dữ liệu'}, đau bất thường: ${readiness.painFlag ? 'có' : 'không'}. ${readiness.painFlag ? 'KHÔNG tạo bài chạy; ưu tiên nghỉ và khuyên tìm tư vấn y tế phù hợp.' : 'Nếu readiness thấp hoặc caution, giảm cường độ và xen ngày hồi phục.'}';
-    } catch (_) {}
-
-    // Truy vấn các buổi tập do người dùng tự đặt trong lịch đang hoạt động (active) mà sắp tới (ngày >= ngày bắt đầu).
-    final activeSchedule = await _supabase
-        .from('training_schedules')
-        .select()
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-
-    List<Map<String, dynamic>> manualWorkouts = [];
-    if (activeSchedule != null) {
-      final wList = await _supabase
-          .from('scheduled_workouts')
-          .select()
-          .eq('schedule_id', activeSchedule['id'])
-          .eq('source', 'manual')
-          .gte('date', _dateOnly(startDate))
-          .order('date', ascending: true);
-      manualWorkouts = List<Map<String, dynamic>>.from(wList);
-    }
-
-    const systemPrompt = '''
-Bạn là một Huấn luyện viên Chạy bộ Ảo chuyên nghiệp cho Runny AI.
-Nhiệm vụ: tạo lịch tập chạy bộ thực tế, an toàn và đủ chi tiết dựa trên mục tiêu, thể trạng và lịch sử tập luyện của người dùng.
-
-QUY TẮC OUTPUT BẮT BUỘC:
-- Chỉ trả về MỘT JSON object hợp lệ. Không dùng Markdown, không giải thích ngoài JSON, không thêm comment.
-- Tất cả khóa phải đúng như schema bên dưới. Không thêm khóa mới.
-- Tất cả chuỗi hiển thị cho người dùng phải viết bằng tiếng Việt tự nhiên.
-- Các số phải dùng đơn vị km, phút, phút/km. Không dùng mét, giây, giờ hoặc pace dạng "06:30".
-- Nếu không chắc một giá trị số, hãy chọn giá trị bảo thủ và hợp lý thay vì để null.
-
-QUY TẮC THỜI GIAN:
-- Mỗi buổi tập dùng "day_offset" là SỐ NGÀY tính từ ngày bắt đầu; day_offset = 0 nghĩa là đúng ngày bắt đầu.
-- Nếu người dùng có ngày kết thúc, mọi day_offset phải nằm trong khoảng cho phép và "weeks" phải khớp với khoảng thời gian đó.
-- Nếu không có ngày kết thúc, tự chọn "weeks" hợp lý theo mục tiêu; ưu tiên 4-8 tuần cho mục tiêu phổ thông.
-- Không tạo quá 1 buổi tập trong cùng một ngày, trừ khi đó là buổi manual đã được cung cấp.
-- Mỗi tuần nên có ngày nhẹ hoặc nghỉ ngầm giữa các bài nặng; không xếp interval/tempo/long_run sát nhau nếu không cần thiết.
-
-WORKOUT TYPE BẮT BUỘC:
-- Với mọi buổi "source": "ai", "workout_type" CHỈ được là một trong 5 giá trị sau:
-  "easy_run", "long_run", "interval", "tempo", "recovery".
-- Tuyệt đối không sinh các giá trị khác như "endurance_run", "speed_run", "hill_run", "fartlek", "test_run", "race", "strength", "rest".
-- Nếu bài là chạy bền/aerobic/base/endurance/steady nhẹ -> dùng "easy_run".
-- Nếu bài là chạy dài cuối tuần hoặc dài nhất tuần -> dùng "long_run".
-- Nếu bài là chạy nhanh, biến tốc, fartlek, hill repeats, VO2max, speed work -> dùng "interval".
-- Nếu bài là tempo, threshold, kiểm tra thể lực, time trial ngắn, progression run -> dùng "tempo".
-- Nếu bài là phục hồi, rất nhẹ sau bài nặng hoặc sau chạy dài -> dùng "recovery".
-
-QUY TẮC NỘI DUNG BÀI TẬP:
-- "title" ngắn gọn, dễ hiểu, không lặp lại workout_type dạng key kỹ thuật.
-- "description" mô tả mục đích và cách chạy trong 1 câu ngắn; không nhồi quá nhiều chỉ dẫn.
-- "target_distance_km" phải thực tế với lịch sử gần đây và mục tiêu.
-- "target_duration_min" phải tương thích với distance và pace.
-- "target_pace_min_per_km" là số thập phân phút/km, ví dụ 6.5 nghĩa là 6 phút 30 giây/km.
-- "start_time" dùng định dạng HH:mm:ss, ưu tiên "06:00:00" hoặc "18:00:00" nếu người dùng không nói rõ.
-- "source" của bài AI luôn là "ai".
-
-ĐẶC BIỆT LƯU Ý VỀ CÁC BUỔI TẬP DO NGƯỜI DÙNG TỰ ĐẶT:
-- Nếu ngữ cảnh có "LỊCH TẬP DO NGƯỜI DÙNG TỰ ĐẶT", bạn PHẢI đưa toàn bộ các buổi này vào mảng "workouts" của JSON.
-- Giữ nguyên tuyệt đối mọi thông tin của các buổi manual: day_offset, ngày tập, cự ly, thời gian, tên, mô tả, start_time, workout_type.
-- Với buổi manual, đặt "source": "manual" và copy "start_time", "workout_type" y hệt dữ liệu được cung cấp, kể cả khi workout_type không nằm trong enum AI.
-- Không thay đổi, không xóa, không đổi ngày, không đổi cự ly của buổi manual.
-- Chỉ phân bổ các buổi "source": "ai" xen kẽ quanh lịch manual để tránh trùng ngày và tránh quá tải.
-
-Phản hồi PHẢI là JSON theo cấu trúc sau:
-{
-  "title": "Tên lịch tập",
-  "target_distance_km": 5.0,
-  "target_pace_min_per_km": 6.0,
-  "weeks": 4,
-  "workouts": [
-    {
-      "day_offset": 0,
-      "title": "Chạy nhẹ nhàng",
-      "description": "Chạy chậm để làm quen",
-      "target_distance_km": 2.0,
-      "target_duration_min": 15.0,
-      "target_pace_min_per_km": 7.5,
-      "source": "ai",
-      "workout_type": "easy_run",
-      "start_time": "18:00:00"
-    },
-    {
-      "day_offset": 3,
-      "title": "Chạy dài cuối tuần",
-      "description": "Duy trì thể lực",
-      "target_distance_km": 5.0,
-      "target_duration_min": 35.0,
-      "target_pace_min_per_km": 7.0,
-      "source": "manual",
-      "workout_type": "long_run",
-      "start_time": "06:00:00"
-    }
-  ]
-}
-''';
-
-    final durationConstraint = endDate != null
-        ? 'Ngày kết thúc mong muốn: ${_dateOnly(endDate)} (${_weekdayVi(endDate)}) (khoảng ${endDate.difference(startDate).inDays} ngày kể từ ngày bắt đầu). Hãy phân bổ buổi tập trong khoảng này.'
-        : 'Người dùng không chỉ định ngày kết thúc — hãy tự chọn số tuần ("weeks") hợp lý cho mục tiêu.';
-
-    String manualWorkoutsSection = '';
-    if (manualWorkouts.isNotEmpty) {
-      manualWorkoutsSection =
-          '\nLỊCH TẬP DO NGƯỜI DÙNG TỰ ĐẶT (BẮT BUỘC giữ nguyên, không thay đổi, chỉ sắp xếp các buổi tập AI xoay quanh các buổi này):\n';
-      for (final mw in manualWorkouts) {
-        final dateStr = mw['date'] as String;
-        final dateVal = DateTime.tryParse(dateStr);
-        final offset = dateVal != null
-            ? dateVal.difference(startDate).inDays
-            : 0;
-        final targets = _formatWorkoutTargets(mw);
-        manualWorkoutsSection +=
-            '- day_offset $offset: ${mw['title']} (${_weekdayVi(dateVal ?? startDate)}, ngày $dateStr), mục tiêu [$targets], source: "manual", start_time: "${mw['start_time'] ?? ''}", workout_type: "${mw['workout_type'] ?? ''}"\n';
-      }
-    }
-
-    final userContext =
-        '''
-Thời gian hiện tại: ${_dateTimeFullStr(DateTime.now())}
-Mục tiêu người dùng: $goal
-Ngày bắt đầu: ${_dateOnly(startDate)} (${_weekdayVi(startDate)})
-$durationConstraint
-Thông tin thể trạng: Giới tính ${_genderLabel(profile['gender'])}, Cân nặng ${profile['weight_kg']}kg, Chiều cao ${profile['height_cm']}cm, BMI ${profile['bmi']}, Nhịp tim tối đa ${profile['max_hr'] ?? 'chưa rõ'} bpm.
-Dữ liệu ${recentActivities.length} buổi tập gần nhất: ${_summariseActivities(recentActivities)}
-$readinessContext
-$manualWorkoutsSection
-''';
-
-    return _gemini.generateStructuredResponse(
-      userContext,
-      systemPrompt,
-      preferredProvider: 'groq',
-      preferredModel: 'openai/gpt-oss-120b',
-      responseFormat: _planResponseFormat,
-    );
-  }
-
-  /// Chuyển giá trị giới tính chuẩn ('male'/'female'/'other') sang nhãn tiếng
-  /// Việt để đưa vào prompt cho AI.
-  String _genderLabel(dynamic gender) {
-    switch (gender) {
-      case 'male':
-        return 'Nam';
-      case 'female':
-        return 'Nữ';
-      case 'other':
-        return 'Khác';
-      default:
-        return 'chưa rõ';
-    }
-  }
-
-  String _summariseActivities(List<dynamic> activities) {
-    if (activities.isEmpty) return 'Chưa có dữ liệu hoạt động.';
-    return activities
-        .map((a) {
-          final dist = (a['distance_km'] as num?)?.toDouble() ?? 0;
-          final dur = (a['duration_min'] as num?)?.toDouble() ?? 0;
-          final pace = dist > 0 ? (dur / dist).toStringAsFixed(2) : 'N/A';
-          return 'Quãng đường: ${dist}km, Pace: $pace';
-        })
-        .join('; ');
-  }
-
-  /// Lưu lịch tập vào Supabase. Nếu [scheduleId] có giá trị thì cập nhật bản
-  /// ghi placeholder (luồng nền); ngược lại chèn mới (luồng đồng bộ).
-  Future<String> _persistPlan({
-    required String userId,
-    required String goal,
-    required DateTime startDate,
-    DateTime? endDate,
-    required Map<String, dynamic> planJson,
-    String? scheduleId,
-  }) async {
-    final weeks = (planJson['weeks'] as num?)?.toInt() ?? 4;
-    final computedEnd = endDate ?? startDate.add(Duration(days: weeks * 7));
-
-    // Truy vấn các buổi tập do người dùng tự đặt (manual) từ lịch hoạt động cũ trước khi lưu trữ
-    final activeSchedule = await _supabase
-        .from('training_schedules')
-        .select()
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .order('created_at', ascending: false)
-        .limit(1)
-        .maybeSingle();
-
-    List<Map<String, dynamic>> manualWorkouts = [];
-    if (activeSchedule != null) {
-      final wList = await _supabase
-          .from('scheduled_workouts')
-          .select()
-          .eq('schedule_id', activeSchedule['id'])
-          .eq('source', 'manual')
-          .gte('date', _dateOnly(startDate))
-          .order('date', ascending: true);
-      manualWorkouts = List<Map<String, dynamic>>.from(wList);
-    }
-
-    final generatedWorkouts = planJson['workouts'];
-    if ((generatedWorkouts is! List || generatedWorkouts.isEmpty) &&
-        manualWorkouts.isEmpty) {
-      throw const FormatException('AI không trả về buổi tập hợp lệ.');
-    }
-
-    final values = {
-      'user_id': userId,
-      'title': planJson['title'] ?? 'Lịch tập của bạn',
-      'target_distance_km': _safeNumeric(
-        planJson['target_distance_km'],
-        max: 99999.99,
-      ),
-      'target_pace_min_per_km': _safeNumeric(
-        planJson['target_pace_min_per_km'],
-        max: 999.99,
-      ),
-      'goal_description': goal,
-      'start_date': _dateOnly(startDate),
-      'end_date': _dateOnly(computedEnd),
-      'status': 'draft',
-    };
-
-    final Map<String, dynamic> schedule;
-    if (scheduleId != null) {
-      schedule = await _supabase
-          .from('training_schedules')
-          .update(values)
-          .eq('id', scheduleId)
-          .select()
-          .single();
-    } else {
-      schedule = await _supabase
-          .from('training_schedules')
-          .insert(values)
-          .select()
-          .single();
-    }
-
-    final workouts = <Map<String, dynamic>>[];
-    if (generatedWorkouts is List) {
-      for (final w in generatedWorkouts) {
-        final offset = (w['day_offset'] as num?)?.toInt() ?? 0;
-        final dateStr = _dateOnly(startDate.add(Duration(days: offset)));
-
-        // Kiểm tra xem ngày này có trùng với buổi tập thủ công nào không để tránh đè hoặc tạo trùng
-        final isDuplicateOfManual = manualWorkouts.any(
-          (mw) => mw['date'] == dateStr,
-        );
-        final isAiSourceManual = w['source'] == 'manual';
-
-        if (isDuplicateOfManual || isAiSourceManual) {
-          continue;
-        }
-
-        workouts.add({
-          'schedule_id': schedule['id'],
-          'user_id': userId,
-          'date': dateStr,
-          'title': w['title'] ?? 'Buổi tập',
-          'description': w['description'],
-          'target_distance_km': _safeNumeric(
-            w['target_distance_km'],
-            max: 99999.99,
-          ),
-          'target_duration_min': _safeNumeric(
-            w['target_duration_min'],
-            max: 99999.99,
-          ),
-          'target_pace_min_per_km': _safeNumeric(
-            w['target_pace_min_per_km'],
-            max: 999.99,
-          ),
-          'status': 'planned',
-          'source': 'ai',
-          'workout_type': w['workout_type'],
-          'start_time': _safeTime(w['start_time']),
-        });
-      }
-    }
-
-    // Thêm lại các buổi tập do người dùng tự đặt gốc (giữ nguyên hoàn toàn thông tin)
-    for (final mw in manualWorkouts) {
-      workouts.add({
-        'schedule_id': schedule['id'],
-        'user_id': userId,
-        'date': mw['date'],
-        'title': mw['title'] ?? 'Buổi tập',
-        'description': mw['description'],
-        'target_distance_km': mw['target_distance_km'],
-        'target_duration_min': mw['target_duration_min'],
-        'target_pace_min_per_km': mw['target_pace_min_per_km'],
-        'status': mw['status'] ?? 'planned',
-        'source': 'manual',
-        'workout_type': mw['workout_type'],
-        'start_time': _safeTime(mw['start_time']),
-        'activity_id': mw['activity_id'],
-      });
-    }
-
-    if (workouts.isNotEmpty) {
-      await _supabase.from('scheduled_workouts').insert(workouts);
-    }
-    TrainingRefreshService.instance.notifyTrainingChanged();
-    return schedule['id'] as String;
   }
 
   /// Yêu cầu AI đề xuất tinh chỉnh các buổi tập SẮP TỚI dựa trên TẤT CẢ các buổi
@@ -1296,6 +781,7 @@ $upcomingSummary
     final json = await _gemini.generateStructuredResponse(
       context,
       systemPrompt,
+      feature: AiFeature.trainingAdjustment,
     );
 
     final byId = {for (final w in workouts) w['id'] as String: w};
@@ -1336,32 +822,21 @@ $upcomingSummary
   /// Ghi các điều chỉnh đã được người dùng xác nhận vào DB.
   Future<void> applyPlanAdjustments(List<WorkoutAdjustment> adjustments) async {
     if (adjustments.isEmpty) return;
-    final workout = await _supabase
-        .from('scheduled_workouts')
-        .select('schedule_id')
-        .eq('id', adjustments.first.workoutId)
-        .single();
-    final scheduleId = workout['schedule_id']?.toString();
-    for (final adj in adjustments) {
-      await _supabase
-          .from('scheduled_workouts')
-          .update({
-            if (adj.newDate != null) 'date': adj.newDate,
-            if (adj.newDistanceKm != null)
-              'target_distance_km': adj.newDistanceKm,
-            if (adj.reason.isNotEmpty)
-              'description': 'Đã điều chỉnh bởi AI: ${adj.reason}',
-          })
-          .eq('id', adj.workoutId);
-    }
-    if (scheduleId != null) {
-      await _supabase
-          .from('training_schedules')
-          .update({
-            'last_ai_adjusted_at': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', scheduleId);
-    }
+    await _supabase.rpc(
+      'apply_training_plan_adjustments',
+      params: {
+        'p_adjustments': adjustments
+            .map(
+              (adjustment) => {
+                'workout_id': adjustment.workoutId,
+                'new_date': adjustment.newDate,
+                'new_distance_km': adjustment.newDistanceKm,
+                'reason': adjustment.reason,
+              },
+            )
+            .toList(),
+      },
+    );
     TrainingRefreshService.instance.notifyTrainingChanged();
   }
 
@@ -1420,10 +895,8 @@ $upcomingSummary
         'Buổi tập "$name" diễn ra lúc $startedAtStr: ${activity['distance_km']}km, thời gian ${activity['duration_min']} phút, nhịp tim ${activity['avg_hr']} bpm$cadenceStr. Ghi chú: $notes';
 
     final insight = await _gemini.generateResponse(
-      userPrompt,
-      history: [
-        {'role': 'system', 'content': systemPrompt},
-      ],
+      '$systemPrompt\n\n$userPrompt',
+      feature: AiFeature.activityInsight,
     );
 
     await _supabase.from('ai_insights').insert({
