@@ -26,6 +26,12 @@
   <img src="https://img.shields.io/badge/status-alpha-F59E0B" alt="Alpha" />
 </p>
 
+<p align="center">
+  <a href="https://unikorn.vn/p/runny-ai?ref=embed-runny-ai" target="_blank"><img src="https://unikorn.vn/api/widgets/badge/runny-ai?theme=light" alt="Runny AI trên Unikorn.vn" width="256" height="64" /></a>
+  <a href="https://unikorn.vn/p/runny-ai?ref=embed-runny-ai" target="_blank"><img src="https://unikorn.vn/api/widgets/badge/runny-ai/rank?theme=light&amp;type=daily" alt="Runny AI - Hàng ngày" width="250" height="64" /></a>
+  <a href="https://unikorn.vn/p/runny-ai?ref=embed-runny-ai" target="_blank"><img src="https://unikorn.vn/api/widgets/badge/runny-ai/rank?theme=light&amp;type=weekly" alt="Runny AI - Hàng tuần" width="250" height="64" /></a>
+</p>
+
 ## Chạy thông minh hơn, đều đặn hơn
 
 Runny AI là nền tảng huấn luyện chạy bộ dành cho người chạy ở mọi cấp độ. Ứng dụng biến lịch sử chạy, mục tiêu cá nhân, mức độ hồi phục và điều kiện thời tiết thành những gợi ý dễ hành động — từ buổi chạy hôm nay đến một giáo án dài hạn.
