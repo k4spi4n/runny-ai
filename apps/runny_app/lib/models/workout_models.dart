@@ -248,6 +248,7 @@ class ManualWorkoutInput {
   final String startTime;
   final double targetDurationMin;
   final double targetDistanceKm;
+  final double? targetPaceMinPerKm;
   final String workoutType;
   final String? notes;
 
@@ -257,6 +258,7 @@ class ManualWorkoutInput {
     required this.startTime,
     required this.targetDurationMin,
     required this.targetDistanceKm,
+    this.targetPaceMinPerKm,
     required this.workoutType,
     this.notes,
   });

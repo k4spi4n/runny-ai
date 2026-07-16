@@ -8,10 +8,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/activity_import_policy.dart';
 import '../utils/activity_parser.dart';
 import '../utils/manual_activity_namer.dart';
+import '../utils/pace_calculator.dart';
 import '../services/activity_screenshot_import_service.dart';
 import '../services/image_compress_service.dart';
 import '../services/paywall_exception.dart';
 import '../services/weather_service.dart';
+import '../services/workout_input_preference.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/paywall.dart';
 import '../widgets/screenshot_import_guidance.dart';
@@ -56,6 +58,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   final _manualFormKey = GlobalKey<FormState>();
   final _distanceController = TextEditingController();
   final _durationController = TextEditingController();
+  final _paceController = TextEditingController();
   final _avgHrController = TextEditingController();
   final _avgCadenceController = TextEditingController();
   final _elevationController = TextEditingController();
@@ -71,17 +74,21 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
   final _screenshotNotesController = TextEditingController();
   DateTime _screenshotStartedAt = DateTime.now();
   DateTime _startedAt = DateTime.now();
+  bool _isManualPaceMode = true;
+  bool _hasChangedManualInputMode = false;
 
   @override
   void initState() {
     super.initState();
     _fetchActiveShoes();
+    _loadManualInputModePreference();
   }
 
   @override
   void dispose() {
     _distanceController.dispose();
     _durationController.dispose();
+    _paceController.dispose();
     _avgHrController.dispose();
     _avgCadenceController.dispose();
     _elevationController.dispose();
@@ -113,6 +120,13 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
       });
     } catch (e) {
       debugPrint('Error fetching active shoes: $e');
+    }
+  }
+
+  Future<void> _loadManualInputModePreference() async {
+    final usesPace = await WorkoutInputPreference.loadUsesPace();
+    if (mounted && !_hasChangedManualInputMode) {
+      setState(() => _isManualPaceMode = usesPace);
     }
   }
 
@@ -529,9 +543,13 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     final distance = double.tryParse(
       _distanceController.text.replaceAll(',', '.'),
     );
-    final duration = double.tryParse(
+    final enteredDuration = double.tryParse(
       _durationController.text.replaceAll(',', '.'),
     );
+    final pace = parsePaceMinutesPerKm(_paceController.text);
+    final duration = _isManualPaceMode && distance != null && pace != null
+        ? durationFromPace(distanceKm: distance, paceMinutesPerKm: pace)
+        : enteredDuration;
     if (distance == null ||
         distance <= 0 ||
         duration == null ||
@@ -628,6 +646,35 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _toggleManualPaceMode() async {
+    final distance = double.tryParse(
+      _distanceController.text.trim().replaceAll(',', '.'),
+    );
+    if (_isManualPaceMode) {
+      final pace = parsePaceMinutesPerKm(_paceController.text);
+      final duration = distance != null && pace != null
+          ? durationFromPace(distanceKm: distance, paceMinutesPerKm: pace)
+          : null;
+      if (duration != null) {
+        _durationController.text = duration.toStringAsFixed(2);
+      }
+    } else {
+      final duration = double.tryParse(
+        _durationController.text.trim().replaceAll(',', '.'),
+      );
+      if (distance != null &&
+          distance > 0 &&
+          duration != null &&
+          duration > 0) {
+        _paceController.text = (duration / distance).toStringAsFixed(2);
+      }
+    }
+    final usesPace = !_isManualPaceMode;
+    _hasChangedManualInputMode = true;
+    setState(() => _isManualPaceMode = usesPace);
+    await WorkoutInputPreference.saveUsesPace(usesPace);
   }
 
   Future<void> _pickStartedAt() async {
@@ -1185,23 +1232,65 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
             },
           ),
           const SizedBox(height: 16),
-          TextFormField(
-            controller: _durationController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: themedInputDecoration(
-              context,
-              context.translate('duration_label'),
-              icon: Icons.timer_outlined,
-              suffixText: context.translate('min'),
-              isRequired: true,
-            ),
-            validator: (v) {
-              final d = double.tryParse((v ?? '').replaceAll(',', '.'));
-              if (d == null || d <= 0) {
-                return context.translate('manual_validation_error');
-              }
-              return null;
-            },
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextFormField(
+                  key: ValueKey(
+                    _isManualPaceMode
+                        ? 'manual_activity_pace_field'
+                        : 'manual_activity_duration_field',
+                  ),
+                  controller: _isManualPaceMode
+                      ? _paceController
+                      : _durationController,
+                  keyboardType: _isManualPaceMode
+                      ? TextInputType.text
+                      : const TextInputType.numberWithOptions(decimal: true),
+                  decoration: themedInputDecoration(
+                    context,
+                    _isManualPaceMode
+                        ? context.translate('pace')
+                        : context.translate('duration_label'),
+                    icon: _isManualPaceMode
+                        ? Icons.speed_outlined
+                        : Icons.timer_outlined,
+                    suffixText: _isManualPaceMode
+                        ? context.translate('pace_unit')
+                        : context.translate('min'),
+                    isRequired: true,
+                  ),
+                  validator: (v) {
+                    final valid = _isManualPaceMode
+                        ? parsePaceMinutesPerKm(v ?? '') != null
+                        : (double.tryParse((v ?? '').replaceAll(',', '.')) ??
+                                  0) >
+                              0;
+                    return valid
+                        ? null
+                        : context.translate('manual_validation_error');
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                key: const ValueKey('manual_activity_pace_toggle'),
+                onPressed: _isLoading ? null : _toggleManualPaceMode,
+                icon: Icon(
+                  _isManualPaceMode
+                      ? Icons.timer_outlined
+                      : Icons.speed_outlined,
+                ),
+                label: Text(
+                  context.translate(
+                    _isManualPaceMode
+                        ? 'pace_calculation_duration'
+                        : 'pace_calculation_pace',
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           TextFormField(

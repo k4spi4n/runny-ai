@@ -4,6 +4,8 @@ import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import '../models/workout_models.dart';
+import '../services/workout_input_preference.dart';
+import '../utils/pace_calculator.dart';
 import 'ui_components.dart';
 
 const List<String> workoutTypeOptions = [
@@ -20,6 +22,7 @@ class ManualWorkoutFormValue {
   final TimeOfDay startTime;
   final double targetDurationMin;
   final double targetDistanceKm;
+  final double? targetPaceMinPerKm;
   final String workoutType;
   final String? notes;
 
@@ -29,6 +32,7 @@ class ManualWorkoutFormValue {
     required this.startTime,
     required this.targetDurationMin,
     required this.targetDistanceKm,
+    this.targetPaceMinPerKm,
     required this.workoutType,
     this.notes,
   });
@@ -39,6 +43,7 @@ class ManualWorkoutFormValue {
     final time = _parseDbTime(workout['start_time']?.toString());
     final distance = (workout['target_distance_km'] as num?)?.toDouble() ?? 0;
     final duration = (workout['target_duration_min'] as num?)?.toDouble() ?? 0;
+    final pace = (workout['target_pace_min_per_km'] as num?)?.toDouble();
     final type = workout['workout_type']?.toString();
 
     return ManualWorkoutFormValue(
@@ -47,6 +52,7 @@ class ManualWorkoutFormValue {
       startTime: time,
       targetDurationMin: duration,
       targetDistanceKm: distance,
+      targetPaceMinPerKm: pace,
       workoutType: workoutTypeOptions.contains(type) ? type! : 'easy_run',
       notes: workout['description']?.toString(),
     );
@@ -60,6 +66,7 @@ class ManualWorkoutFormValue {
           '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}:00',
       targetDurationMin: targetDurationMin,
       targetDistanceKm: targetDistanceKm,
+      targetPaceMinPerKm: targetPaceMinPerKm,
       workoutType: workoutType,
       notes: notes,
     );
@@ -104,12 +111,15 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
   late final TextEditingController _titleController;
   late final TextEditingController _durationController;
   late final TextEditingController _distanceController;
+  late final TextEditingController _paceController;
   late final TextEditingController _notesController;
 
   late DateTime _date;
   late TimeOfDay _startTime;
   late String _workoutType;
   bool _isSubmitting = false;
+  bool _usesPace = true;
+  bool _hasChangedInputMode = false;
 
   @override
   void initState() {
@@ -122,10 +132,16 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
     _distanceController = TextEditingController(
       text: _formatInitialNumber(initial?.targetDistanceKm),
     );
+    _paceController = TextEditingController(
+      text: _formatInitialNumber(initial?.targetPaceMinPerKm),
+    );
     _notesController = TextEditingController(text: initial?.notes ?? '');
     _date = initial?.date ?? DateTime.now();
     _startTime = initial?.startTime ?? const TimeOfDay(hour: 6, minute: 0);
     _workoutType = initial?.workoutType ?? 'easy_run';
+    final hasInitialPace = (initial?.targetPaceMinPerKm ?? 0) > 0;
+    _usesPace = hasInitialPace || initial == null;
+    if (!hasInitialPace) _loadInputModePreference();
   }
 
   @override
@@ -133,6 +149,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
     _titleController.dispose();
     _durationController.dispose();
     _distanceController.dispose();
+    _paceController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -141,6 +158,13 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
     if (value == null) return '';
     if (value == value.roundToDouble()) return value.toStringAsFixed(0);
     return value.toString();
+  }
+
+  Future<void> _loadInputModePreference() async {
+    final usesPace = await WorkoutInputPreference.loadUsesPace();
+    if (mounted && !_hasChangedInputMode) {
+      setState(() => _usesPace = usesPace);
+    }
   }
 
   Future<void> _pickDate() async {
@@ -177,12 +201,55 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
     return null;
   }
 
+  String? _requiredPositiveNumber(String? value) {
+    final normalized = value?.trim().replaceAll(',', '.') ?? '';
+    final parsed = double.tryParse(normalized);
+    if (normalized.isEmpty || parsed == null || parsed.isNaN || parsed <= 0) {
+      return context.translate('manual_workout_number_invalid');
+    }
+    return null;
+  }
+
   double _numberFrom(TextEditingController controller) {
     return double.parse(controller.text.trim().replaceAll(',', '.'));
   }
 
+  Future<void> _togglePaceMode() async {
+    final distance = double.tryParse(
+      _distanceController.text.trim().replaceAll(',', '.'),
+    );
+    if (_usesPace) {
+      final pace = parsePaceMinutesPerKm(_paceController.text);
+      final duration = distance != null && pace != null
+          ? durationFromPace(distanceKm: distance, paceMinutesPerKm: pace)
+          : null;
+      if (duration != null) {
+        _durationController.text = duration.toStringAsFixed(2);
+      }
+    } else {
+      final duration = double.tryParse(
+        _durationController.text.trim().replaceAll(',', '.'),
+      );
+      if (distance != null &&
+          distance > 0 &&
+          duration != null &&
+          duration > 0) {
+        _paceController.text = (duration / distance).toStringAsFixed(2);
+      }
+    }
+    final usesPace = !_usesPace;
+    _hasChangedInputMode = true;
+    setState(() => _usesPace = usesPace);
+    await WorkoutInputPreference.saveUsesPace(usesPace);
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    final distance = _numberFrom(_distanceController);
+    final pace = parsePaceMinutesPerKm(_paceController.text);
+    final duration = _usesPace
+        ? durationFromPace(distanceKm: distance, paceMinutesPerKm: pace!)!
+        : _numberFrom(_durationController);
     setState(() => _isSubmitting = true);
     try {
       await widget.onSubmit(
@@ -190,8 +257,9 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
           title: _titleController.text.trim(),
           date: _date,
           startTime: _startTime,
-          targetDurationMin: _numberFrom(_durationController),
-          targetDistanceKm: _numberFrom(_distanceController),
+          targetDurationMin: duration,
+          targetDistanceKm: distance,
+          targetPaceMinPerKm: _usesPace ? pace : null,
           workoutType: _workoutType,
           notes: _notesController.text.trim().isEmpty
               ? null
@@ -262,14 +330,50 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
           LayoutBuilder(
             builder: (context, constraints) {
               final durationField = _NumberField(
-                fieldKey: const ValueKey('manual_workout_duration_field'),
-                controller: _durationController,
+                fieldKey: ValueKey(
+                  _usesPace
+                      ? 'manual_workout_pace_field'
+                      : 'manual_workout_duration_field',
+                ),
+                controller: _usesPace ? _paceController : _durationController,
                 enabled: !_isSubmitting,
-                label: context.translate('manual_workout_duration_label'),
-                suffixText: context.translate('minutes_short'),
-                icon: Icons.timer_outlined,
-                validator: _requiredNonNegativeNumber,
+                label: _usesPace
+                    ? context.translate('pace')
+                    : context.translate('manual_workout_duration_label'),
+                suffixText: _usesPace
+                    ? context.translate('pace_unit')
+                    : context.translate('minutes_short'),
+                icon: _usesPace ? Icons.speed_outlined : Icons.timer_outlined,
+                validator: _usesPace
+                    ? (value) => parsePaceMinutesPerKm(value ?? '') == null
+                          ? context.translate('manual_workout_pace_invalid')
+                          : null
+                    : _requiredNonNegativeNumber,
                 isDark: isDark,
+                keyboardType: _usesPace
+                    ? TextInputType.text
+                    : const TextInputType.numberWithOptions(decimal: true),
+              );
+              final durationControl = Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: durationField),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    key: const ValueKey('manual_workout_pace_toggle'),
+                    onPressed: _isSubmitting ? null : _togglePaceMode,
+                    icon: Icon(
+                      _usesPace ? Icons.timer_outlined : Icons.speed_outlined,
+                    ),
+                    label: Text(
+                      context.translate(
+                        _usesPace
+                            ? 'pace_calculation_duration'
+                            : 'pace_calculation_pace',
+                      ),
+                    ),
+                  ),
+                ],
               );
               final distanceField = _NumberField(
                 fieldKey: const ValueKey('manual_workout_distance_field'),
@@ -278,13 +382,15 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
                 label: context.translate('manual_workout_distance_label'),
                 suffixText: 'km',
                 icon: Icons.route_outlined,
-                validator: _requiredNonNegativeNumber,
+                validator: _usesPace
+                    ? _requiredPositiveNumber
+                    : _requiredNonNegativeNumber,
                 isDark: isDark,
               );
               if (constraints.maxWidth < 560) {
                 return Column(
                   children: [
-                    durationField,
+                    durationControl,
                     const SizedBox(height: 16),
                     distanceField,
                   ],
@@ -292,7 +398,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
               }
               return Row(
                 children: [
-                  Expanded(child: durationField),
+                  Expanded(child: durationControl),
                   const SizedBox(width: 12),
                   Expanded(child: distanceField),
                 ],
@@ -444,6 +550,7 @@ class _NumberField extends StatelessWidget {
   final IconData icon;
   final String? Function(String?) validator;
   final bool isDark;
+  final TextInputType keyboardType;
 
   const _NumberField({
     required this.fieldKey,
@@ -454,6 +561,7 @@ class _NumberField extends StatelessWidget {
     required this.icon,
     required this.validator,
     required this.isDark,
+    this.keyboardType = const TextInputType.numberWithOptions(decimal: true),
   });
 
   @override
@@ -462,9 +570,11 @@ class _NumberField extends StatelessWidget {
       key: fieldKey,
       controller: controller,
       enabled: enabled,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      keyboardType: keyboardType,
       inputFormatters: <TextInputFormatter>[
-        FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+        FilteringTextInputFormatter.allow(
+          RegExp(keyboardType == TextInputType.text ? r'[0-9:.,]' : r'[0-9.,]'),
+        ),
       ],
       decoration: themedInputDecoration(
         context,

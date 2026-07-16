@@ -307,6 +307,42 @@ Yeu cau:
                           color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      GradientButton.icon(
+                        width: double.infinity,
+                        onPressed: _isSubmitting || _isSuggestingGoals
+                            ? null
+                            : _suggestGoals,
+                        icon: _isSuggestingGoals
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.auto_awesome,
+                                color: Colors.white,
+                              ),
+                        label: Text(context.translate('ai_suggest_goals')),
+                      ),
+                      if (_goalSuggestions.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Column(
+                          children: _goalSuggestions.map((goal) {
+                            final selected =
+                                _goalController.text.trim() == goal;
+                            return _GoalSuggestionTile(
+                              goal: goal,
+                              selected: selected,
+                              onTap: () =>
+                                  setState(() => _goalController.text = goal),
+                            );
+                          }).toList(),
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       Text(
                         context.translate('plan_days_per_week', [
@@ -368,39 +404,6 @@ Yeu cau:
                           color: isDark ? Colors.white : Colors.black87,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: _isSubmitting || _isSuggestingGoals
-                            ? null
-                            : _suggestGoals,
-                        style: secondaryActionButton(context),
-                        icon: _isSuggestingGoals
-                            ? SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: colorScheme.primary,
-                                ),
-                              )
-                            : const Icon(Icons.auto_awesome),
-                        label: Text(context.translate('ai_suggest_goals')),
-                      ),
-                      if (_goalSuggestions.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Column(
-                          children: _goalSuggestions.map((goal) {
-                            final selected =
-                                _goalController.text.trim() == goal;
-                            return _GoalSuggestionTile(
-                              goal: goal,
-                              selected: selected,
-                              onTap: () =>
-                                  setState(() => _goalController.text = goal),
-                            );
-                          }).toList(),
-                        ),
-                      ],
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -521,13 +524,13 @@ class _GoalSuggestionTile extends StatelessWidget {
 @Preview(
   name: 'Goal suggestions - Light',
   group: 'Training plan',
-  size: Size(420, 220),
+  size: Size(420, 280),
   brightness: Brightness.light,
 )
 @Preview(
   name: 'Goal suggestions - Dark',
   group: 'Training plan',
-  size: Size(420, 220),
+  size: Size(420, 280),
   brightness: Brightness.dark,
 )
 Widget createPlanGoalSuggestionsPreview() {
@@ -545,6 +548,13 @@ Widget createPlanGoalSuggestionsPreview() {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            GradientButton.icon(
+              width: double.infinity,
+              onPressed: () {},
+              icon: const Icon(Icons.auto_awesome, color: Colors.white),
+              label: const Text('AI gợi ý mục tiêu'),
+            ),
+            const SizedBox(height: 12),
             _GoalSuggestionTile(
               goal: 'Chạy liên tục 5 km trong 8 tuần, 3 buổi mỗi tuần.',
               selected: true,

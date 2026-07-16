@@ -315,6 +315,10 @@ class TrainingService {
         input.targetDurationMin,
         max: 99999.99,
       ),
+      if (includeExtendedColumns)
+        'target_pace_min_per_km': input.targetPaceMinPerKm == null
+            ? null
+            : _safeRequiredNumber(input.targetPaceMinPerKm!, max: 999.99),
       if (includeExtendedColumns) 'workout_type': input.workoutType,
       if (includeExtendedColumns) 'source': 'manual',
       if (includeStatus) 'status': 'planned',

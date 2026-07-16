@@ -631,6 +631,37 @@ Yeu cau:
                 ),
                 style: TextStyle(color: isDark ? Colors.white : Colors.black87),
               ),
+              const SizedBox(height: 12),
+              GradientButton.icon(
+                width: double.infinity,
+                onPressed: _isSuggestingGoals ? null : _suggestGoals,
+                icon: _isSuggestingGoals
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.auto_awesome, color: Colors.white),
+                label: Text(context.translate('ai_suggest_goals')),
+              ),
+              if (_goalSuggestions.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Column(
+                  children: _goalSuggestions.map((goal) {
+                    final selected = _goalController.text.trim() == goal;
+                    return _GoalSuggestionTile(
+                      goal: goal,
+                      selected: selected,
+                      onTap: () => setState(() {
+                        _goalController.text = goal;
+                      }),
+                    );
+                  }).toList(),
+                ),
+              ],
               const SizedBox(height: 20),
               Text(
                 context.translate('plan_days_per_week', [
@@ -686,37 +717,6 @@ Yeu cau:
                 ),
                 style: TextStyle(color: isDark ? Colors.white : Colors.black87),
               ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _isSuggestingGoals ? null : _suggestGoals,
-                style: secondaryActionButton(context),
-                icon: _isSuggestingGoals
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      )
-                    : const Icon(Icons.auto_awesome),
-                label: Text(context.translate('ai_suggest_goals')),
-              ),
-              if (_goalSuggestions.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Column(
-                  children: _goalSuggestions.map((goal) {
-                    final selected = _goalController.text.trim() == goal;
-                    return _GoalSuggestionTile(
-                      goal: goal,
-                      selected: selected,
-                      onTap: () => setState(() {
-                        _goalController.text = goal;
-                      }),
-                    );
-                  }).toList(),
-                ),
-              ],
               const SizedBox(height: 12),
               Row(
                 children: [
