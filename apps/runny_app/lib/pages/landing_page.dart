@@ -742,7 +742,7 @@ List<_AtomicFeatureData> _atomicFeatures(BuildContext context) {
       icon: _materialIcon(Icons.link_rounded),
       label: _landingFeatureLabel(
         context,
-        vi: 'Gắn hoạt động vào buổi tập',
+        vi: 'Chọn hoạt động cho buổi tập',
         en: 'Link runs to workouts',
       ),
       color: green,

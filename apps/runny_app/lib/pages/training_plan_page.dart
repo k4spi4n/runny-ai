@@ -88,9 +88,9 @@ Widget importedActivityLinkConfirmationPreview() {
       body: _ActivityLinkConfirmationDialog(
         title: 'Xác nhận kết quả buổi tập',
         description:
-            'Gắn hoạt động 5.20 km trong 31 phút vào “Chạy nhẹ phục hồi”?',
+            'Chọn hoạt động 5.20 km trong 31 phút cho “Chạy nhẹ phục hồi”?',
         cancelLabel: 'Hủy',
-        confirmLabel: 'Gắn hoạt động',
+        confirmLabel: 'Chọn hoạt động',
         onCancel: () {},
         onConfirm: () {},
       ),
@@ -2042,7 +2042,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('${context.translate('link_error')}: $e')),
+              SnackBar(content: Text(context.translate('link_error'))),
             );
           }
         }
@@ -2380,7 +2380,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${context.translate('link_error')}: $e')),
+          SnackBar(content: Text(context.translate('link_error'))),
         );
       }
     } finally {
