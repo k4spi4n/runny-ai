@@ -634,7 +634,9 @@ Yeu cau:
               const SizedBox(height: 12),
               GradientButton.icon(
                 width: double.infinity,
-                onPressed: _isSuggestingGoals ? null : _suggestGoals,
+                onPressed: _isSuggestingGoals || _goalSuggestions.isNotEmpty
+                    ? null
+                    : _suggestGoals,
                 icon: _isSuggestingGoals
                     ? const SizedBox(
                         width: 18,
@@ -737,10 +739,11 @@ Yeu cau:
                 ],
               ),
               const SizedBox(height: 30),
-              ElevatedButton(
+              GradientButton.icon(
+                width: double.infinity,
                 onPressed: _isSuggestingGoals ? null : _nextPage,
-                style: primaryActionButton(context),
-                child: Text(context.translate('complete_create_plan')),
+                icon: const Icon(Icons.calendar_month, color: Colors.white),
+                label: Text(context.translate('complete_create_plan')),
               ),
               const SizedBox(height: 12),
               TextButton(

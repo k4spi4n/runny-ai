@@ -1274,20 +1274,18 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
                 ),
               ),
               const SizedBox(width: 8),
-              OutlinedButton.icon(
+              IconButton(
                 key: const ValueKey('manual_activity_pace_toggle'),
                 onPressed: _isLoading ? null : _toggleManualPaceMode,
+                tooltip: context.translate(
+                  _isManualPaceMode
+                      ? 'pace_calculation_duration'
+                      : 'pace_calculation_pace',
+                ),
                 icon: Icon(
                   _isManualPaceMode
                       ? Icons.timer_outlined
                       : Icons.speed_outlined,
-                ),
-                label: Text(
-                  context.translate(
-                    _isManualPaceMode
-                        ? 'pace_calculation_duration'
-                        : 'pace_calculation_pace',
-                  ),
                 ),
               ),
             ],

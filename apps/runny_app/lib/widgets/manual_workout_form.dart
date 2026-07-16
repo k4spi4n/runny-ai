@@ -359,18 +359,16 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
                 children: [
                   Expanded(child: durationField),
                   const SizedBox(width: 8),
-                  OutlinedButton.icon(
+                  IconButton(
                     key: const ValueKey('manual_workout_pace_toggle'),
                     onPressed: _isSubmitting ? null : _togglePaceMode,
+                    tooltip: context.translate(
+                      _usesPace
+                          ? 'pace_calculation_duration'
+                          : 'pace_calculation_pace',
+                    ),
                     icon: Icon(
                       _usesPace ? Icons.timer_outlined : Icons.speed_outlined,
-                    ),
-                    label: Text(
-                      context.translate(
-                        _usesPace
-                            ? 'pace_calculation_duration'
-                            : 'pace_calculation_pace',
-                      ),
                     ),
                   ),
                 ],

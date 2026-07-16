@@ -310,7 +310,10 @@ Yeu cau:
                       const SizedBox(height: 12),
                       GradientButton.icon(
                         width: double.infinity,
-                        onPressed: _isSubmitting || _isSuggestingGoals
+                        onPressed:
+                            _isSubmitting ||
+                                _isSuggestingGoals ||
+                                _goalSuggestions.isNotEmpty
                             ? null
                             : _suggestGoals,
                         icon: _isSuggestingGoals
@@ -425,21 +428,25 @@ Yeu cau:
                         ],
                       ),
                       const SizedBox(height: 28),
-                      ElevatedButton(
+                      GradientButton.icon(
+                        width: double.infinity,
                         onPressed: _isSubmitting || _isSuggestingGoals
                             ? null
                             : _submit,
-                        style: primaryActionButton(context),
-                        child: _isSubmitting
+                        icon: _isSubmitting
                             ? const SizedBox(
-                                width: 22,
-                                height: 22,
+                                width: 18,
+                                height: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   color: Colors.white,
                                 ),
                               )
-                            : Text(context.translate('generate_plan_btn')),
+                            : const Icon(
+                                Icons.calendar_month,
+                                color: Colors.white,
+                              ),
+                        label: Text(context.translate('generate_plan_btn')),
                       ),
                     ],
                   ),
@@ -524,13 +531,13 @@ class _GoalSuggestionTile extends StatelessWidget {
 @Preview(
   name: 'Goal suggestions - Light',
   group: 'Training plan',
-  size: Size(420, 280),
+  size: Size(420, 360),
   brightness: Brightness.light,
 )
 @Preview(
   name: 'Goal suggestions - Dark',
   group: 'Training plan',
-  size: Size(420, 280),
+  size: Size(420, 360),
   brightness: Brightness.dark,
 )
 Widget createPlanGoalSuggestionsPreview() {
@@ -553,6 +560,13 @@ Widget createPlanGoalSuggestionsPreview() {
               onPressed: () {},
               icon: const Icon(Icons.auto_awesome, color: Colors.white),
               label: const Text('AI gợi ý mục tiêu'),
+            ),
+            const SizedBox(height: 12),
+            GradientButton.icon(
+              width: double.infinity,
+              onPressed: () {},
+              icon: const Icon(Icons.calendar_month, color: Colors.white),
+              label: const Text('Tạo lịch tập'),
             ),
             const SizedBox(height: 12),
             _GoalSuggestionTile(
