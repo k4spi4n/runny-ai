@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/auth_service.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/password_requirements_checklist.dart';
 import '../l10n/app_localizations.dart';
@@ -7,24 +10,39 @@ import '../utils/unsigned_text_input_formatter.dart';
 
 class LoginPage extends StatefulWidget {
   final bool initialIsSignUp;
+  final RegistrationService? registrationService;
 
-  const LoginPage({super.key, this.initialIsSignUp = false});
+  const LoginPage({
+    super.key,
+    this.initialIsSignUp = false,
+    this.registrationService,
+  });
 
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
+  GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final _confirmPasswordFieldKey = GlobalKey<FormFieldState<String>>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _passwordFocusNode = FocusNode();
+  final _confirmPasswordFocusNode = FocusNode();
+  late final RegistrationService _registrationService;
   bool _isLoading = false;
   late bool _isSignUp = widget.initialIsSignUp;
+  bool _hasSubmitted = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   String? _pendingConfirmationEmail;
 
   @override
   void initState() {
     super.initState();
+    _registrationService =
+        widget.registrationService ?? SupabaseRegistrationService();
     _passwordFocusNode.addListener(_onPasswordFocusChanged);
   }
 
@@ -33,71 +51,52 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleAuth() async {
+    if (_isLoading) return;
+
+    setState(() => _hasSubmitted = true);
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
     try {
       if (_isSignUp) {
-        if (!PasswordRequirementsChecklist.isValid(_passwordController.text)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(context.translate('password_requirements_error')),
-              backgroundColor: Colors.redAccent,
-            ),
-          );
-          return;
-        }
-
         final email = _emailController.text.trim();
-
-        // Pre-check phía server: chặn email sai định dạng / dùng-một-lần trước khi
-        // gọi signUp (chốt chặn thật vẫn là trigger trg_guard_auth_signup ở DB).
-        final check =
-            await Supabase.instance.client.rpc(
-                  'check_signup_email',
-                  params: {'p_email': email},
-                )
-                as Map;
-        if (check['allowed'] != true) {
-          if (mounted) {
-            final reason = check['reason'];
-            final msgKey = reason == 'disposable'
-                ? 'disposable_email_not_allowed'
-                : 'invalid_email';
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(context.translate(msgKey)),
-                backgroundColor: Colors.redAccent,
-              ),
-            );
-          }
-          return;
-        }
-
-        final res = await Supabase.instance.client.auth.signUp(
+        final result = await _registrationService.signUp(
           email: email,
-          password: _passwordController.text.trim(),
+          password: _passwordController.text,
         );
 
-        if (res.session != null) {
-          // Confirm email TẮT: đã đăng nhập ngay. LoginPage được push đè lên
-          // AuthGate, nên phải pop về gốc để AuthGate điều hướng vào onboarding.
-          if (mounted) {
+        if (!mounted) return;
+        switch (result.status) {
+          case RegistrationStatus.signedIn:
+            _clearPasswords();
+            // Confirm email TẮT: đã đăng nhập ngay. LoginPage được push đè lên
+            // AuthGate, nên phải pop về gốc để AuthGate điều hướng vào onboarding.
             Navigator.of(context).popUntil((route) => route.isFirst);
-          }
-        } else if (res.user != null &&
-            (res.user!.identities == null || res.user!.identities!.isEmpty)) {
-          // Supabase trả về user "giả" khi email đã tồn tại (chống dò email).
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(context.translate('email_already_registered')),
-                backgroundColor: Colors.redAccent,
-              ),
-            );
-            setState(() => _isSignUp = false);
-          }
-        } else if (mounted) {
-          // Confirm email BẬT: cần xác thực qua email trước khi đăng nhập.
-          setState(() => _pendingConfirmationEmail = email);
+            break;
+          case RegistrationStatus.emailAlreadyRegistered:
+            // Supabase trả về user "giả" khi email đã tồn tại (chống dò email).
+            _showError('email_already_registered');
+            setState(() {
+              _isSignUp = false;
+              _hasSubmitted = false;
+              _formKey = GlobalKey<FormState>();
+              _clearPasswords();
+            });
+            break;
+          case RegistrationStatus.confirmationRequired:
+            // Confirm email BẬT: cần xác thực qua email trước khi đăng nhập.
+            setState(() {
+              _pendingConfirmationEmail = email;
+              _clearPasswords();
+            });
+            break;
+          case RegistrationStatus.invalidEmail:
+            _showError('invalid_email');
+            break;
+          case RegistrationStatus.disposableEmail:
+            _showError('disposable_email_not_allowed');
+            break;
         }
       } else {
         await Supabase.instance.client.auth.signInWithPassword(
@@ -109,6 +108,8 @@ class _LoginPageState extends State<LoginPage> {
           Navigator.of(context).popUntil((route) => route.isFirst);
         }
       }
+    } on TimeoutException {
+      _showError('auth_request_timeout');
     } on AuthException catch (e) {
       if (mounted) {
         // Email chưa xác thực: cho phép gửi lại email xác thực ngay từ snackbar.
@@ -119,7 +120,7 @@ class _LoginPageState extends State<LoginPage> {
             ? context.translate('email_not_confirmed')
             : !_isSignUp
             ? context.translate('invalid_login_credentials')
-            : e.message;
+            : context.translate(_registrationErrorKey(e));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
@@ -134,18 +135,80 @@ class _LoginPageState extends State<LoginPage> {
           ),
         );
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.translate('error_occurred')),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
+    } catch (error) {
+      _showError(_unexpectedErrorKey(error));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  String _registrationErrorKey(AuthException error) {
+    if (error is AuthRetryableFetchException) return 'auth_network_error';
+
+    final code = error.code?.toLowerCase();
+    final message = error.message.toLowerCase();
+    if (code == 'user_already_exists' ||
+        code == 'email_exists' ||
+        message.contains('already registered') ||
+        message.contains('already been registered')) {
+      return 'email_already_registered';
+    }
+    if (code == 'email_address_invalid' || message.contains('invalid email')) {
+      return 'invalid_email';
+    }
+    if (error is AuthWeakPasswordException ||
+        code == 'weak_password' ||
+        message.contains('password') && message.contains('weak')) {
+      return 'password_requirements_error';
+    }
+    if (_looksLikeTimeout(message)) return 'auth_request_timeout';
+    if (_looksLikeNetworkFailure(message)) return 'auth_network_error';
+    return 'signup_failed';
+  }
+
+  String _unexpectedErrorKey(Object error) {
+    final message = error.toString().toLowerCase();
+    if (_looksLikeTimeout(message)) return 'auth_request_timeout';
+    if (_looksLikeNetworkFailure(message)) return 'auth_network_error';
+    return _isSignUp ? 'signup_failed' : 'error_occurred';
+  }
+
+  bool _looksLikeTimeout(String message) => message.contains('timeout');
+
+  bool _looksLikeNetworkFailure(String message) =>
+      message.contains('network') ||
+      message.contains('failed host lookup') ||
+      message.contains('connection') ||
+      message.contains('socket') ||
+      message.contains('failed to fetch');
+
+  void _showError(String messageKey) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(context.translate(messageKey)),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+  }
+
+  void _clearPasswords() {
+    _passwordController.clear();
+    _confirmPasswordController.clear();
+  }
+
+  void _toggleAuthMode() {
+    setState(() {
+      _isSignUp = !_isSignUp;
+      _hasSubmitted = false;
+      _formKey = GlobalKey<FormState>();
+      _confirmPasswordController.clear();
+      _obscurePassword = true;
+      _obscureConfirmPassword = true;
+    });
   }
 
   void _showComingSoon() {
@@ -196,9 +259,47 @@ class _LoginPageState extends State<LoginPage> {
     _passwordFocusNode
       ..removeListener(_onPasswordFocusChanged)
       ..dispose();
+    _confirmPasswordFocusNode.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? '';
+    if (email.isEmpty) return context.translate('email_required');
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      return context.translate('invalid_email');
+    }
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    final password = value ?? '';
+    if (password.isEmpty) return context.translate('password_required');
+    if (_isSignUp && !PasswordRequirementsChecklist.isValid(password)) {
+      return context.translate('password_requirements_error');
+    }
+    return null;
+  }
+
+  String? _validateConfirmPassword(String? value) {
+    final confirmation = value ?? '';
+    if (confirmation.isEmpty) {
+      return context.translate('confirm_password_required');
+    }
+    if (confirmation != _passwordController.text) {
+      return context.translate('passwords_do_not_match');
+    }
+    return null;
+  }
+
+  void _onPasswordChanged(String _) {
+    setState(() {});
+    if (_hasSubmitted) {
+      _confirmPasswordFieldKey.currentState?.validate();
+    }
   }
 
   Future<void> _handleForgotPassword() async {
@@ -268,10 +369,6 @@ class _LoginPageState extends State<LoginPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final hasPassword = _passwordController.text.isNotEmpty;
-    final canSubmit =
-        hasPassword &&
-        (!_isSignUp ||
-            PasswordRequirementsChecklist.isValid(_passwordController.text));
 
     return Scaffold(
       body: Stack(
@@ -305,169 +402,220 @@ class _LoginPageState extends State<LoginPage> {
           ),
           Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 42),
+              padding: const EdgeInsets.fromLTRB(24, 96, 24, 42),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 460),
                 child: glassCard(
                   context: context,
                   padding: const EdgeInsets.all(28),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const RunnyLogo(fontSize: 32),
-                      const SizedBox(height: 28),
-                      if (_pendingConfirmationEmail != null)
-                        _ConfirmationPendingContent(
-                          email: _pendingConfirmationEmail!,
-                          isLoading: _isLoading,
-                          onResend: _resendConfirmation,
-                          onBackToLogin: () => setState(() {
-                            _isSignUp = false;
-                            _passwordController.clear();
-                            _pendingConfirmationEmail = null;
-                          }),
-                        )
-                      else ...[
-                        Text(
-                          _isSignUp
-                              ? context.translate('signup')
-                              : context.translate('login'),
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
+                  child: Form(
+                    key: _formKey,
+                    autovalidateMode: _hasSubmitted
+                        ? AutovalidateMode.onUserInteraction
+                        : AutovalidateMode.disabled,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: RunnyLogo(fontSize: 32),
                         ),
-                        const SizedBox(height: 24),
-                        TextField(
-                          controller: _emailController,
-                          decoration: themedInputDecoration(
-                            context,
-                            context.translate('email'),
-                            icon: Icons.email,
-                            isRequired: true,
-                          ),
-                          keyboardType: TextInputType.emailAddress,
-                          style: TextStyle(
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
-                          inputFormatters: [UnsignedTextInputFormatter()],
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _passwordController,
-                          focusNode: _passwordFocusNode,
-                          decoration: themedInputDecoration(
-                            context,
-                            context.translate('password'),
-                            icon: Icons.lock,
-                            isRequired: true,
-                          ),
-                          keyboardType: TextInputType.visiblePassword,
-                          obscureText: true,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          style: TextStyle(
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
-                          inputFormatters: [UnsignedTextInputFormatter()],
-                          onChanged: (_) => setState(() {}),
-                        ),
-                        AnimatedSize(
-                          duration: const Duration(milliseconds: 180),
-                          curve: Curves.easeOut,
-                          alignment: Alignment.topCenter,
-                          child:
-                              _isSignUp &&
-                                  (_passwordFocusNode.hasFocus || hasPassword)
-                              ? PasswordRequirementsChecklist(
-                                  password: _passwordController.text,
-                                )
-                              : const SizedBox.shrink(),
-                        ),
-                        const SizedBox(height: 24),
-                        GradientButton(
-                          onPressed: _isLoading || !canSubmit
-                              ? null
-                              : _handleAuth,
-                          child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : Text(
-                                  _isSignUp
-                                      ? context.translate('signup')
-                                      : context.translate('login'),
-                                ),
-                        ),
-                        if (!_isSignUp)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: _isLoading
-                                  ? null
-                                  : _handleForgotPassword,
-                              child: Text(
-                                context.translate('forgot_password'),
-                                style: TextStyle(
-                                  color: isDark
-                                      ? Colors.white70
-                                      : Colors.black54,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                        const SizedBox(height: 28),
+                        if (_pendingConfirmationEmail != null)
+                          _ConfirmationPendingContent(
+                            email: _pendingConfirmationEmail!,
+                            isLoading: _isLoading,
+                            onResend: _resendConfirmation,
+                            onBackToLogin: () => setState(() {
+                              _isSignUp = false;
+                              _clearPasswords();
+                              _pendingConfirmationEmail = null;
+                            }),
+                          )
+                        else ...[
+                          Text(
+                            _isSignUp
+                                ? context.translate('signup')
+                                : context.translate('login'),
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: isDark ? Colors.white : Colors.black87,
                             ),
                           ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _SocialLoginButton(
-                                onPressed: _isLoading ? null : _showComingSoon,
-                                icon: const Icon(
-                                  Icons.g_mobiledata,
-                                  color: Colors.redAccent,
-                                  size: 28,
-                                ),
-                                label: context.translate('google_login'),
-                                isDark: isDark,
-                              ),
+                          const SizedBox(height: 24),
+                          TextFormField(
+                            key: const ValueKey('auth-email-field'),
+                            controller: _emailController,
+                            decoration: themedInputDecoration(
+                              context,
+                              context.translate('email'),
+                              icon: Icons.email,
+                              isRequired: true,
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _SocialLoginButton(
-                                onPressed: _isLoading ? null : _showComingSoon,
-                                icon: const Icon(
-                                  Icons.facebook,
-                                  color: Color(0xFF1877F2),
-                                  size: 24,
-                                ),
-                                label: context.translate('facebook_login'),
-                                isDark: isDark,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            autofillHints: const [AutofillHints.email],
+                            validator: _validateEmail,
+                            style: TextStyle(
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                            inputFormatters: [UnsignedTextInputFormatter()],
+                          ),
+                          const SizedBox(height: 16),
+                          _PasswordFormField(
+                            fieldKey: const ValueKey('auth-password-field'),
+                            controller: _passwordController,
+                            focusNode: _passwordFocusNode,
+                            label: context.translate('password'),
+                            obscureText: _obscurePassword,
+                            visibilityToggleKey: const ValueKey(
+                              'auth-password-visibility-toggle',
+                            ),
+                            textInputAction: _isSignUp
+                                ? TextInputAction.next
+                                : TextInputAction.done,
+                            validator: _validatePassword,
+                            onChanged: _onPasswordChanged,
+                            onFieldSubmitted: (_) {
+                              if (_isSignUp) {
+                                _confirmPasswordFocusNode.requestFocus();
+                              } else {
+                                _handleAuth();
+                              }
+                            },
+                            onToggleVisibility: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                          ),
+                          AnimatedSize(
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOut,
+                            alignment: Alignment.topCenter,
+                            child:
+                                _isSignUp &&
+                                    (_passwordFocusNode.hasFocus || hasPassword)
+                                ? PasswordRequirementsChecklist(
+                                    password: _passwordController.text,
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
+                          if (_isSignUp) ...[
+                            const SizedBox(height: 16),
+                            _PasswordFormField(
+                              key: const ValueKey(
+                                'auth-confirm-password-field',
+                              ),
+                              fieldKey: _confirmPasswordFieldKey,
+                              controller: _confirmPasswordController,
+                              focusNode: _confirmPasswordFocusNode,
+                              label: context.translate('confirm_password'),
+                              obscureText: _obscureConfirmPassword,
+                              visibilityToggleKey: const ValueKey(
+                                'auth-confirm-password-visibility-toggle',
+                              ),
+                              textInputAction: TextInputAction.done,
+                              validator: _validateConfirmPassword,
+                              onChanged: (_) {
+                                if (_hasSubmitted) {
+                                  _confirmPasswordFieldKey.currentState
+                                      ?.validate();
+                                }
+                              },
+                              onFieldSubmitted: (_) => _handleAuth(),
+                              onToggleVisibility: () => setState(
+                                () => _obscureConfirmPassword =
+                                    !_obscureConfirmPassword,
                               ),
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 12),
-                        TextButton(
-                          onPressed: () =>
-                              setState(() => _isSignUp = !_isSignUp),
-                          child: Text(
-                            _isSignUp
-                                ? context.translate('already_have_account')
-                                : context.translate('no_account_signup'),
-                            style: TextStyle(
-                              color: isDark ? Colors.white70 : Colors.black54,
-                              fontWeight: FontWeight.w600,
+                          const SizedBox(height: 24),
+                          GradientButton(
+                            key: const ValueKey('auth-submit-button'),
+                            onPressed: _isLoading ? null : _handleAuth,
+                            child: _isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    _isSignUp
+                                        ? context.translate('signup')
+                                        : context.translate('login'),
+                                  ),
+                          ),
+                          if (!_isSignUp)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _isLoading
+                                    ? null
+                                    : _handleForgotPassword,
+                                child: Text(
+                                  context.translate('forgot_password'),
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? Colors.white70
+                                        : Colors.black54,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _SocialLoginButton(
+                                  onPressed: _isLoading
+                                      ? null
+                                      : _showComingSoon,
+                                  icon: const Icon(
+                                    Icons.g_mobiledata,
+                                    color: Colors.redAccent,
+                                    size: 28,
+                                  ),
+                                  label: context.translate('google_login'),
+                                  isDark: isDark,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _SocialLoginButton(
+                                  onPressed: _isLoading
+                                      ? null
+                                      : _showComingSoon,
+                                  icon: const Icon(
+                                    Icons.facebook,
+                                    color: Color(0xFF1877F2),
+                                    size: 24,
+                                  ),
+                                  label: context.translate('facebook_login'),
+                                  isDark: isDark,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: _isLoading ? null : _toggleAuthMode,
+                            child: Text(
+                              _isSignUp
+                                  ? context.translate('already_have_account')
+                                  : context.translate('no_account_signup'),
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black54,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -475,6 +623,100 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PasswordFormField extends StatelessWidget {
+  final Key fieldKey;
+  final TextEditingController controller;
+  final FocusNode? focusNode;
+  final String label;
+  final bool obscureText;
+  final Key visibilityToggleKey;
+  final TextInputAction textInputAction;
+  final FormFieldValidator<String> validator;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onFieldSubmitted;
+  final VoidCallback onToggleVisibility;
+
+  const _PasswordFormField({
+    super.key,
+    required this.fieldKey,
+    required this.controller,
+    required this.label,
+    required this.obscureText,
+    required this.visibilityToggleKey,
+    required this.textInputAction,
+    required this.validator,
+    required this.onToggleVisibility,
+    this.focusNode,
+    this.onChanged,
+    this.onFieldSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final errorBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(18),
+      borderSide: BorderSide(color: theme.colorScheme.error, width: 1.2),
+    );
+    final visibilityLabel = context.translate(
+      obscureText ? 'show_password' : 'hide_password',
+    );
+
+    return TextFormField(
+      key: fieldKey,
+      controller: controller,
+      focusNode: focusNode,
+      decoration:
+          themedInputDecoration(
+            context,
+            label,
+            icon: Icons.lock,
+            isRequired: true,
+          ).copyWith(
+            errorMaxLines: 2,
+            errorBorder: errorBorder,
+            focusedErrorBorder: errorBorder.copyWith(
+              borderSide: BorderSide(
+                color: theme.colorScheme.error,
+                width: 1.6,
+              ),
+            ),
+            suffixIcon: Semantics(
+              button: true,
+              label: visibilityLabel,
+              child: ExcludeSemantics(
+                child: IconButton(
+                  key: visibilityToggleKey,
+                  tooltip: visibilityLabel,
+                  onPressed: onToggleVisibility,
+                  icon: Icon(
+                    obscureText
+                        ? Icons.visibility_rounded
+                        : Icons.visibility_off_rounded,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      keyboardType: TextInputType.visiblePassword,
+      textInputAction: textInputAction,
+      obscureText: obscureText,
+      autocorrect: false,
+      enableSuggestions: false,
+      autofillHints: const [AutofillHints.newPassword],
+      style: TextStyle(
+        color: theme.brightness == Brightness.dark
+            ? Colors.white
+            : Colors.black87,
+      ),
+      inputFormatters: [UnsignedTextInputFormatter()],
+      validator: validator,
+      onChanged: onChanged,
+      onFieldSubmitted: onFieldSubmitted,
     );
   }
 }
