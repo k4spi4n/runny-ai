@@ -21,6 +21,7 @@ import '../widgets/device_permission_dialog.dart';
 import '../widgets/paywall.dart';
 import '../services/paywall_exception.dart';
 import '../utils/activity_formatters.dart';
+import '../utils/markdown_table_formatter.dart';
 import '../models/workout_models.dart';
 import '../models/nutrition_models.dart';
 import '../models/weight_models.dart';
@@ -1321,28 +1322,36 @@ $prompt''';
     }
 
     final action = _interactiveActionAt(messageIndex);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        MarkdownBody(
-          data: content,
-          selectable: true,
-          styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-            p: baseStyle,
-            strong: baseStyle?.copyWith(fontWeight: FontWeight.w700),
-            em: baseStyle?.copyWith(fontStyle: FontStyle.italic),
-            listBullet: baseStyle,
-            code: baseStyle?.copyWith(
-              fontFamily: 'monospace',
-              backgroundColor: colorScheme.surface.withValues(alpha: 0.45),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final markdown = constraints.maxWidth < 520
+            ? MarkdownTableFormatter.toMobileCards(content)
+            : content;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            MarkdownBody(
+              data: markdown,
+              selectable: true,
+              styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                p: baseStyle,
+                strong: baseStyle?.copyWith(fontWeight: FontWeight.w700),
+                em: baseStyle?.copyWith(fontStyle: FontStyle.italic),
+                listBullet: baseStyle,
+                code: baseStyle?.copyWith(
+                  fontFamily: 'monospace',
+                  backgroundColor: colorScheme.surface.withValues(alpha: 0.45),
+                ),
+              ),
             ),
-          ),
-        ),
-        if (action != null) ...[
-          const SizedBox(height: 10),
-          _buildInteractiveActionCard(context, action, messageIndex),
-        ],
-      ],
+            if (action != null) ...[
+              const SizedBox(height: 10),
+              _buildInteractiveActionCard(context, action, messageIndex),
+            ],
+          ],
+        );
+      },
     );
   }
 

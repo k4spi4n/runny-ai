@@ -362,6 +362,7 @@ class _ManualWorkoutFormState extends State<ManualWorkoutForm> {
                   IconButton(
                     key: const ValueKey('manual_workout_pace_toggle'),
                     onPressed: _isSubmitting ? null : _togglePaceMode,
+                    color: colorScheme.primary,
                     tooltip: context.translate(
                       _usesPace
                           ? 'pace_calculation_duration'

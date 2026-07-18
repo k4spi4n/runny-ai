@@ -1277,6 +1277,7 @@ class _ImportActivityPageState extends State<ImportActivityPage> {
               IconButton(
                 key: const ValueKey('manual_activity_pace_toggle'),
                 onPressed: _isLoading ? null : _toggleManualPaceMode,
+                color: Theme.of(context).colorScheme.primary,
                 tooltip: context.translate(
                   _isManualPaceMode
                       ? 'pace_calculation_duration'
