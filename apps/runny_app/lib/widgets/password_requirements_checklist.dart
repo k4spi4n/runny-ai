@@ -131,13 +131,15 @@ class _PasswordRequirementItem extends StatelessWidget {
               size: 18,
             ),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: color,
-                fontWeight: isMet || isReminder
-                    ? FontWeight.w600
-                    : FontWeight.w400,
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: color,
+                  fontWeight: isMet || isReminder
+                      ? FontWeight.w600
+                      : FontWeight.w400,
+                ),
               ),
             ),
           ],
