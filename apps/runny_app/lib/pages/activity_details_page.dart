@@ -10,8 +10,8 @@ import '../widgets/animated_ai_gradient_button.dart';
 import '../services/weather_service.dart';
 import '../services/readiness_service.dart';
 import '../l10n/app_localizations.dart';
+import '../utils/ai_coach_hub_navigation.dart';
 import 'package:intl/intl.dart';
-import 'ai_coach_page.dart';
 
 class ActivityDetailsPage extends StatefulWidget {
   final Activity activity;
@@ -383,14 +383,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         ),
         floatingActionButton: AnimatedAiGradientButton(
           key: const ValueKey('activity_analyze_with_ai'),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AICoachPage.activityReview(activity: _activity),
-              ),
-            );
-          },
+          onPressed: () => openAICoachHub(context, activity: _activity),
           icon: Icons.tips_and_updates_outlined,
           label: context.translate('analyze_with_ai'),
         ),

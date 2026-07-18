@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -16,12 +15,13 @@ import '../services/speech_service.dart';
 import '../services/nutrition_service.dart';
 import '../services/readiness_service.dart';
 import '../services/run_reminder_service.dart';
-import '../widgets/ui_components.dart';
+import '../services/ai_coach_hub_controller.dart';
 import '../widgets/device_permission_dialog.dart';
 import '../widgets/paywall.dart';
+import '../widgets/ai_response_markdown.dart';
 import '../services/paywall_exception.dart';
 import '../utils/activity_formatters.dart';
-import '../utils/markdown_table_formatter.dart';
+import '../utils/ai_coach_prompt_formatter.dart';
 import '../models/workout_models.dart';
 import '../models/nutrition_models.dart';
 import '../models/weight_models.dart';
@@ -34,28 +34,7 @@ import 'create_training_plan_page.dart';
 enum _ChatAttachment { activities, metrics, plan, nutrition }
 
 class AICoachPage extends StatefulWidget {
-  final Activity? initialActivity;
-  final String? initialPrompt;
-  final bool autoSendInitialPrompt;
-
-  /// [embedded] = true khi hiển thị bên trong khung tab của Dashboard: bỏ nền
-  /// gradient riêng (Dashboard đã vẽ gradient toàn màn) để không tạo ra "box"
-  /// hình chữ nhật lệch màu, đồng bộ với các tab còn lại.
-  final bool embedded;
-
-  const AICoachPage({
-    super.key,
-    this.initialActivity,
-    this.initialPrompt,
-    this.autoSendInitialPrompt = false,
-    this.embedded = false,
-  });
-
-  const AICoachPage.activityReview({Key? key, required Activity activity})
-    : this(key: key, initialActivity: activity);
-
-  const AICoachPage.draftPrompt({Key? key, required String prompt})
-    : this(key: key, initialPrompt: prompt);
+  const AICoachPage({super.key});
 
   @override
   State<AICoachPage> createState() => _AICoachPageState();
@@ -84,6 +63,8 @@ class _AICoachPageState extends State<AICoachPage> {
   String _coachPersona = CoachPersona.calm.id;
   String _baseText = '';
   Activity? _contextActivity;
+  AICoachHubController? _hubController;
+  var _lastHubRequestId = 0;
   // Dữ liệu người dùng chọn đính kèm vào câu hỏi để AI phân tích.
   // Mặc định bật tất cả để AI luôn có ngữ cảnh đầy đủ.
   final Set<_ChatAttachment> _attachments = {
@@ -105,11 +86,6 @@ class _AICoachPageState extends State<AICoachPage> {
     super.initState();
     _controller.addListener(_handlePromptChanged);
     _inputFocusNode.addListener(_handlePromptChanged);
-    _contextActivity = widget.initialActivity;
-    _autoSendPending = widget.autoSendInitialPrompt;
-    if (widget.initialPrompt != null && widget.initialPrompt!.isNotEmpty) {
-      _controller.text = widget.initialPrompt!;
-    }
     _loadGreeting();
     _loadCoachSettings();
     _loadHistory();
@@ -217,12 +193,36 @@ class _AICoachPageState extends State<AICoachPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_contextActivity != null &&
-        _messages.isEmpty &&
-        _controller.text.isEmpty) {
-      _controller.text = context.translate('ai_coach_analyze_activity', [
-        _contextActivity!.distanceKm.toStringAsFixed(2),
-      ]);
+    final hubController = context.read<AICoachHubController>();
+    if (!identical(_hubController, hubController)) {
+      _hubController?.removeListener(_handleHubRequest);
+      _hubController = hubController..addListener(_handleHubRequest);
+    }
+    _handleHubRequest();
+  }
+
+  void _handleHubRequest() {
+    final request = _hubController?.request;
+    if (request == null || request.id == _lastHubRequestId) return;
+    _lastHubRequestId = request.id;
+
+    final prompt = request.prompt?.trim().isNotEmpty == true
+        ? request.prompt!.trim()
+        : request.activity == null
+        ? null
+        : formatActivityAnalysisPrompt(
+            template: context.translate('ai_coach_analyze_activity'),
+            activityName: request.activity!.name,
+            fallbackName: context.translate('run_activity'),
+          );
+
+    setState(() {
+      _contextActivity = request.activity;
+      _autoSendPending = request.autoSend;
+    });
+    if (prompt != null) {
+      _controller.text = prompt;
+      _controller.selection = TextSelection.collapsed(offset: prompt.length);
     }
     _maybeAutoSendInitialPrompt();
   }
@@ -906,6 +906,7 @@ $prompt''';
   @override
   void dispose() {
     _cancelLongWaitTimer();
+    _hubController?.removeListener(_handleHubRequest);
     _controller.removeListener(_handlePromptChanged);
     _inputFocusNode.removeListener(_handlePromptChanged);
     _speech.cancel();
@@ -1029,7 +1030,7 @@ $prompt''';
 
     return Scaffold(
       extendBodyBehindAppBar: true,
-      backgroundColor: widget.embedded ? Colors.transparent : null,
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: Text(
           coachName.isEmpty ? 'Runny' : coachName,
@@ -1066,14 +1067,6 @@ $prompt''';
       ),
       body: Stack(
         children: [
-          if (!widget.embedded)
-            SizedBox.expand(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: sportPlatformGradient(context),
-                ),
-              ),
-            ),
           SafeArea(
             child: Column(
               children: [
@@ -1081,7 +1074,7 @@ $prompt''';
                   child: ListView.builder(
                     controller: _scrollController,
                     padding: EdgeInsets.symmetric(
-                      horizontal: widget.embedded ? 0.0 : 16.0,
+                      horizontal: 0,
                       vertical: 16.0,
                     ),
                     itemCount:
@@ -1163,63 +1156,12 @@ $prompt''';
                       ],
                     ),
                   ),
-                if (_contextActivity != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: colorScheme.primary.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.description_outlined,
-                            color: colorScheme.primary,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${context.translate('activity')}: ${_contextActivity!.distanceKm.toStringAsFixed(2)}km',
-                            style: TextStyle(
-                              color: colorScheme.primary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          IconButton(
-                            onPressed: () =>
-                                setState(() => _contextActivity = null),
-                            icon: Icon(
-                              Icons.close,
-                              color: colorScheme.primary,
-                              size: 14,
-                            ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                 if (_isRecording) _buildListeningIndicator(context),
                 _buildSuggestedQuestions(context),
                 if (!_isAttachmentBarCollapsed && !_isComposing)
                   _buildAttachmentBar(context),
                 Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: widget.embedded ? 0.0 : 16.0,
-                    vertical: 16.0,
-                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 0, vertical: 16.0),
                   child: Row(
                     children: [
                       // Ghi âm là trạng thái đang chạy; luôn giữ nút hủy để
@@ -1322,36 +1264,15 @@ $prompt''';
     }
 
     final action = _interactiveActionAt(messageIndex);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final markdown = constraints.maxWidth < 520
-            ? MarkdownTableFormatter.toMobileCards(content)
-            : content;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            MarkdownBody(
-              data: markdown,
-              selectable: true,
-              styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-                p: baseStyle,
-                strong: baseStyle?.copyWith(fontWeight: FontWeight.w700),
-                em: baseStyle?.copyWith(fontStyle: FontStyle.italic),
-                listBullet: baseStyle,
-                code: baseStyle?.copyWith(
-                  fontFamily: 'monospace',
-                  backgroundColor: colorScheme.surface.withValues(alpha: 0.45),
-                ),
-              ),
-            ),
-            if (action != null) ...[
-              const SizedBox(height: 10),
-              _buildInteractiveActionCard(context, action, messageIndex),
-            ],
-          ],
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AiResponseMarkdown(content: content, textColor: textColor),
+        if (action != null) ...[
+          const SizedBox(height: 10),
+          _buildInteractiveActionCard(context, action, messageIndex),
+        ],
+      ],
     );
   }
 

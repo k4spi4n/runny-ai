@@ -13,6 +13,7 @@ import 'services/strava_redirect.dart';
 import 'services/entitlement_service.dart';
 import 'services/notification_navigation_service.dart';
 import 'services/notification_service.dart';
+import 'services/ai_coach_hub_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +38,7 @@ Future<void> main() async {
   await NotificationService.instance.initialize(
     onRunReminderTap: handleRunReminderPayload,
   );
-  
+
   runApp(
     MultiProvider(
       providers: [
@@ -45,6 +46,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => LanguageProvider(prefs)),
         ChangeNotifierProvider(create: (_) => NutritionService()),
         ChangeNotifierProvider(create: (_) => EntitlementProvider()),
+        ChangeNotifierProvider(create: (_) => AICoachHubController()),
       ],
       child: const RunnyApp(),
     ),

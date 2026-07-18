@@ -23,12 +23,12 @@ import '../utils/activity_matcher.dart';
 import '../utils/activity_formatters.dart';
 import 'create_training_plan_page.dart';
 import 'manual_workout_page.dart';
-import 'ai_coach_page.dart';
 import 'training_history_page.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
 import 'import_activity_page.dart';
 import 'activity_details_page.dart';
+import '../utils/ai_coach_hub_navigation.dart';
 
 const _rescheduleWorkoutIcon = LucideIcons.calendar_sync;
 const _addManualWorkoutIcon = LucideIcons.calendar_plus;
@@ -120,6 +120,47 @@ class _ActivityLinkConfirmationDialog extends StatelessWidget {
       actions: [
         TextButton(onPressed: onCancel, child: Text(cancelLabel)),
         FilledButton(onPressed: onConfirm, child: Text(confirmLabel)),
+      ],
+    );
+  }
+}
+
+/// Hộp thoại giải thích và xin xác nhận trước khi mở tính năng tối ưu kế hoạch.
+class PlanOptimizationConfirmationDialog extends StatelessWidget {
+  const PlanOptimizationConfirmationDialog({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.cancelLabel,
+    required this.confirmLabel,
+    required this.onCancel,
+    required this.onConfirm,
+  });
+
+  final String title;
+  final String description;
+  final String cancelLabel;
+  final String confirmLabel;
+  final VoidCallback onCancel;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      key: const ValueKey('optimize_plan_confirmation_dialog'),
+      title: Text(title),
+      content: Text(description),
+      actions: [
+        TextButton(
+          key: const ValueKey('optimize_plan_cancel'),
+          onPressed: onCancel,
+          child: Text(cancelLabel),
+        ),
+        FilledButton(
+          key: const ValueKey('optimize_plan_confirm'),
+          onPressed: onConfirm,
+          child: Text(confirmLabel),
+        ),
       ],
     );
   }
@@ -465,16 +506,29 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
   }
 
   void _openPlanOptimizationCoach({Activity? activity}) {
-    Navigator.push(
+    openAICoachHub(
       context,
-      MaterialPageRoute(
-        builder: (_) => AICoachPage(
-          initialActivity: activity,
-          initialPrompt: context.translate('optimize_plan_ai_prompt'),
-          autoSendInitialPrompt: true,
-        ),
+      activity: activity,
+      prompt: context.translate('optimize_plan_ai_prompt'),
+      autoSend: true,
+    );
+  }
+
+  Future<void> _confirmPlanOptimizationCoach({Activity? activity}) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => PlanOptimizationConfirmationDialog(
+        title: context.translate('optimize_plan_confirm_title'),
+        description: context.translate('optimize_plan_confirm_description'),
+        cancelLabel: context.translate('cancel'),
+        confirmLabel: context.translate('optimize_plan_confirm_action'),
+        onCancel: () => Navigator.pop(dialogContext, false),
+        onConfirm: () => Navigator.pop(dialogContext, true),
       ),
     );
+    if (confirmed == true && mounted) {
+      _openPlanOptimizationCoach(activity: activity);
+    }
   }
 
   @override
@@ -545,8 +599,9 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
             CompactAppBarAction(
               enabled: useCompactAppBar,
               child: IconButton(
+                key: const ValueKey('optimize_training_plan'),
                 icon: Icon(Icons.auto_fix_high, color: colorScheme.onSurface),
-                onPressed: _openPlanOptimizationCoach,
+                onPressed: _confirmPlanOptimizationCoach,
                 tooltip: context.translate('optimize_plan_tooltip'),
               ),
             ),
@@ -1332,12 +1387,7 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
     final title = (workout['title'] ?? '').toString();
     final distance = workout['target_distance_km']?.toString() ?? '';
     final prompt = context.translate('warm_up_prompt', [title, distance]);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AICoachPage.draftPrompt(prompt: prompt),
-      ),
-    );
+    openAICoachHub(context, prompt: prompt);
   }
 
   Future<void> _saveReminder({
@@ -2432,16 +2482,11 @@ class _TrainingPlanPageState extends State<TrainingPlanPage> {
           },
           onAnalyzeWithAi: () {
             Navigator.pop(sheetContext);
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AICoachPage.activityReview(activity: activity),
-              ),
-            );
+            openAICoachHub(context, activity: activity);
           },
           onOptimizePlan: () {
             Navigator.pop(sheetContext);
-            _openPlanOptimizationCoach(activity: activity);
+            _confirmPlanOptimizationCoach(activity: activity);
           },
         ),
       ),

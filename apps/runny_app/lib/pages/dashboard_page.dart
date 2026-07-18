@@ -30,6 +30,7 @@ import '../services/strava_redirect.dart';
 import '../services/entitlement_service.dart';
 import '../services/payment_redirect.dart';
 import '../services/notification_navigation_service.dart';
+import '../services/ai_coach_hub_controller.dart';
 import '../widgets/paywall.dart';
 import '../widgets/dashboard_settings_sheet.dart';
 import '../widgets/dashboard_background_picker.dart';
@@ -62,6 +63,7 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedIndex = 0;
+  var _lastCoachRequestId = 0;
   // Giữ các tab người dùng đã mở trong widget tree. Nhờ vậy, các tác vụ bất
   // đồng bộ như chat HLV AI vẫn tiếp tục khi người dùng chuyển sang tab khác.
   final Set<int> _visitedPageIndexes = {0};
@@ -75,6 +77,7 @@ class _DashboardPageState extends State<DashboardPage> {
   // hình tự quản cấu hình riêng; hiện chỉ dashboard có tùy chọn.
   final DashboardLayout _dashboardLayout = DashboardLayout();
   final IntegrationService _integrationService = IntegrationService();
+  late final AICoachHubController _aiCoachHubController;
 
   void _selectPage(int index) {
     if (_selectedIndex == index) return;
@@ -87,9 +90,18 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  void _handleAICoachHubRequest() {
+    final request = _aiCoachHubController.request;
+    if (request == null || request.id == _lastCoachRequestId) return;
+    _lastCoachRequestId = request.id;
+    _selectPage(2);
+  }
+
   @override
   void initState() {
     super.initState();
+    _aiCoachHubController = context.read<AICoachHubController>()
+      ..addListener(_handleAICoachHubRequest);
     _navSyncs = List.generate(7, (_) => HoverSync());
     _dashboardLayout.load();
     _pages = [
@@ -98,9 +110,10 @@ class _DashboardPageState extends State<DashboardPage> {
         layout: _dashboardLayout,
         onViewAllActivities: () => _selectPage(4),
         onViewTrainingPlan: () => _selectPage(1),
+        onViewAICoach: () => _selectPage(2),
       ),
       const TrainingPlanPage(embedded: true),
-      const AICoachPage(embedded: true),
+      const AICoachPage(),
       const NutritionPage(embedded: true),
       const ActivityHistoryPage(),
       const CommunityPage(),
@@ -218,6 +231,9 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    _aiCoachHubController
+      ..removeListener(_handleAICoachHubRequest)
+      ..clear();
     for (var sync in _navSyncs) {
       sync.dispose();
     }
@@ -541,11 +557,13 @@ class _DashboardPageState extends State<DashboardPage> {
 class OverviewContent extends StatefulWidget {
   final VoidCallback? onViewAllActivities;
   final VoidCallback? onViewTrainingPlan;
+  final VoidCallback onViewAICoach;
   final DashboardLayout layout;
 
   const OverviewContent({
     super.key,
     required this.layout,
+    required this.onViewAICoach,
     this.onViewAllActivities,
     this.onViewTrainingPlan,
   });
@@ -1747,12 +1765,7 @@ class _OverviewContentState extends State<OverviewContent> {
                   color: Colors.white,
                   size: 18,
                 ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AICoachPage()),
-                  );
-                },
+                onTap: widget.onViewAICoach,
               ),
             ],
           ),
