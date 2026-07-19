@@ -146,4 +146,33 @@ void main() {
     expect(shadow(tester, 'table-overflow-shadow-left').opacity, 0);
     expect(shadow(tester, 'table-overflow-shadow-right').opacity, 0);
   });
+
+  testWidgets('uses a dark, readable blockquote surface in dark mode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: const Scaffold(
+          body: SizedBox(
+            width: 320,
+            child: AiResponseMarkdown(
+              content: '> Lưu ý: Hãy tăng khối lượng tập từ từ.',
+              textColor: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final markdownBody = tester.widget<MarkdownBody>(find.byType(MarkdownBody));
+    final decoration =
+        markdownBody.styleSheet?.blockquoteDecoration as BoxDecoration;
+    final border = decoration.border as Border;
+
+    expect(decoration.color, isNot(Colors.blue.shade100));
+    expect(decoration.color!.computeLuminance(), lessThan(0.25));
+    expect(border.left.width, 3);
+    expect(markdownBody.styleSheet?.blockquote?.color, isNot(Colors.black));
+  });
 }

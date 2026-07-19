@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
@@ -19,9 +18,11 @@ import '../services/ai_coach_hub_controller.dart';
 import '../widgets/device_permission_dialog.dart';
 import '../widgets/paywall.dart';
 import '../widgets/ai_response_markdown.dart';
+import '../widgets/coach_suggestion_panel.dart';
 import '../services/paywall_exception.dart';
 import '../utils/activity_formatters.dart';
 import '../utils/ai_coach_prompt_formatter.dart';
+import '../utils/chat_scroll_utils.dart';
 import '../models/workout_models.dart';
 import '../models/nutrition_models.dart';
 import '../models/weight_models.dart';
@@ -51,6 +52,8 @@ class _AICoachPageState extends State<AICoachPage> {
   final RunReminderService _runReminderService = RunReminderService();
   final List<Map<String, dynamic>> _messages = [];
   final ScrollController _scrollController = ScrollController();
+  int? _latestResponseMessageIndex;
+  GlobalKey? _latestResponseKey;
   final TextEditingController _coachNameController = TextEditingController();
   String? _greetingText;
   bool _isLoading = false;
@@ -75,12 +78,6 @@ class _AICoachPageState extends State<AICoachPage> {
   };
   bool _isAttachmentBarCollapsed = false;
 
-  final List<String> _suggestedQuestionKeys = List.generate(
-    16,
-    (index) => 'chat_suggestion_${index + 1}',
-  );
-  List<String> _selectedSuggestions = [];
-
   @override
   void initState() {
     super.initState();
@@ -89,7 +86,6 @@ class _AICoachPageState extends State<AICoachPage> {
     _loadGreeting();
     _loadCoachSettings();
     _loadHistory();
-    _randomizeSuggestions();
   }
 
   Future<void> _loadCoachSettings() async {
@@ -174,13 +170,6 @@ class _AICoachPageState extends State<AICoachPage> {
     );
   }
 
-  void _randomizeSuggestions() {
-    final random = Random();
-    final keysCopy = List<String>.from(_suggestedQuestionKeys);
-    keysCopy.shuffle(random);
-    _selectedSuggestions = keysCopy.take(4).toList();
-  }
-
   void _handlePromptChanged() {
     if (!mounted) return;
     setState(() {});
@@ -256,15 +245,11 @@ class _AICoachPageState extends State<AICoachPage> {
 
   Future<void> _loadGreeting() async {
     final name = await _loadUserDisplayName();
-    final displayName = (name == null || name.isEmpty) ? 'bạn' : name;
-    final variants = [
-      'Xin chào $displayName, tôi có thể hỗ trợ bạn hôm nay?',
-      'Xin chào $displayName, tôi có thể đưa lời khuyên nào cho bạn hôm nay?',
-      'Xin chào $displayName, tôi có thể giúp bạn cải thiện chỉ số nào hôm nay?',
-    ];
     if (!mounted) return;
     setState(() {
-      _greetingText = variants[Random().nextInt(variants.length)];
+      _greetingText = name == null || name.isEmpty
+          ? context.translate('chat_greeting')
+          : context.translate('chat_greeting_named', [name]);
     });
   }
 
@@ -392,6 +377,7 @@ $prompt''';
     // Save user message
     await _chatService.saveMessage('user', text);
 
+    GlobalKey? responseAnchorKey;
     try {
       // Chat never creates a plan from keyword matching. Plan creation is an
       // explicit app-bar action and is authorized by the dedicated endpoint.
@@ -409,7 +395,11 @@ $prompt''';
         result.content,
       );
       if (!mounted) return;
+      final replyKey = GlobalKey();
+      responseAnchorKey = replyKey;
       setState(() {
+        _latestResponseMessageIndex = _messages.length;
+        _latestResponseKey = replyKey;
         _messages.add({
           'role': 'assistant',
           'content': result.content,
@@ -441,7 +431,6 @@ $prompt''';
         });
       }
       _cancelLongWaitTimer();
-      _scrollToBottom();
     } on PaywallException catch (e) {
       // Hết quyền (vd hết trial) ngay khi gọi: mở luồng nâng cấp thay vì báo lỗi.
       if (!mounted) return;
@@ -449,7 +438,11 @@ $prompt''';
     } catch (e) {
       if (!mounted) return;
       final errorMsg = '$errorOccurredTranslation: $e';
+      final errorKey = GlobalKey();
+      responseAnchorKey = errorKey;
       setState(() {
+        _latestResponseMessageIndex = _messages.length;
+        _latestResponseKey = errorKey;
         _messages.add({'role': 'assistant', 'content': errorMsg});
       });
       await _chatService.saveMessage('assistant', errorMsg);
@@ -460,6 +453,8 @@ $prompt''';
           _isLoading = false;
           _showLongWaitNotice = false;
         });
+        final anchorKey = responseAnchorKey;
+        if (anchorKey != null) scrollChatResponseToStart(anchorKey);
       }
     }
   }
@@ -483,6 +478,82 @@ $prompt''';
     _controller.text = question;
     _controller.selection = TextSelection.collapsed(offset: question.length);
     _sendMessage();
+  }
+
+  List<CoachSuggestionItem> _coachSuggestions(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return [
+      CoachSuggestionItem(
+        id: 'progress',
+        icon: LucideIcons.chart_no_axes_combined,
+        title: context.translate('chat_capability_progress_title'),
+        description: context.translate('chat_capability_progress_desc'),
+        prompt: context.translate('chat_capability_progress_prompt'),
+        accentColor: colorScheme.primary,
+      ),
+      CoachSuggestionItem(
+        id: 'workout',
+        icon: LucideIcons.dumbbell,
+        title: context.translate('chat_capability_workout_title'),
+        description: context.translate('chat_capability_workout_desc'),
+        prompt: context.translate('chat_capability_workout_prompt'),
+        accentColor: colorScheme.tertiary,
+      ),
+      CoachSuggestionItem(
+        id: 'schedule',
+        icon: LucideIcons.calendar_sync,
+        title: context.translate('chat_capability_schedule_title'),
+        description: context.translate('chat_capability_schedule_desc'),
+        prompt: context.translate('chat_capability_schedule_prompt'),
+        accentColor: colorScheme.secondary,
+      ),
+      CoachSuggestionItem(
+        id: 'nutrition',
+        icon: LucideIcons.salad,
+        title: context.translate('chat_capability_nutrition_title'),
+        description: context.translate('chat_capability_nutrition_desc'),
+        prompt: context.translate('chat_capability_nutrition_prompt'),
+        accentColor: const Color(0xFF2E8B57),
+      ),
+    ];
+  }
+
+  Widget _buildCoachSuggestionPanel(BuildContext context) {
+    return CoachSuggestionPanel(
+      title: context.translate('chat_starter_title'),
+      subtitle: context.translate('chat_starter_subtitle'),
+      items: _coachSuggestions(context),
+      onSelected: (item) => _sendSuggestedQuestion(item.prompt),
+    );
+  }
+
+  Future<void> _showCoachSuggestions() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.88,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(top: 12),
+              child: CoachSuggestionPanel(
+                title: sheetContext.translate('chat_starter_title'),
+                subtitle: sheetContext.translate('chat_starter_subtitle'),
+                items: _coachSuggestions(sheetContext),
+                onSelected: (item) {
+                  Navigator.of(sheetContext).pop();
+                  _sendSuggestedQuestion(item.prompt);
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _openCreatePlan() async {
@@ -917,8 +988,7 @@ $prompt''';
     super.dispose();
   }
 
-  /// Cuộn xuống cuối danh sách sau khung hình kế tiếp (dùng khi có tin nhắn mới
-  /// hoặc khi HLV thêm thẻ đề xuất tương tác).
+  /// Cuộn xuống cuối danh sách sau khi người dùng gửi tin nhắn mới.
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -1027,6 +1097,11 @@ $prompt''';
     // `Navigator.canPop` cũng trả về true khi bottom sheet thiết lập đang mở.
     // Dùng route chứa trang này để nút quay lại chỉ phản ánh điều hướng trang.
     final canPopPage = ModalRoute.of(context)?.isFirst == false;
+    final showStarter =
+        _messages.isEmpty &&
+        _controller.text.trim().isEmpty &&
+        !_isRecording &&
+        !_isLoading;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -1078,10 +1153,15 @@ $prompt''';
                       vertical: 16.0,
                     ),
                     itemCount:
-                        _messages.length + (_greetingText != null ? 1 : 0),
+                        _messages.length +
+                        (_greetingText != null ? 1 : 0) +
+                        (showStarter ? 1 : 0),
                     itemBuilder: (context, index) {
                       final hasGreeting = _greetingText != null;
                       final messageIndex = index - (hasGreeting ? 1 : 0);
+                      if (showStarter && messageIndex == _messages.length) {
+                        return _buildCoachSuggestionPanel(context);
+                      }
                       final msg = hasGreeting && index == 0
                           ? <String, dynamic>{
                               'role': 'assistant',
@@ -1093,6 +1173,9 @@ $prompt''';
                           msg['metadata'] is Map &&
                           (msg['metadata'] as Map)['interactive_action'] is Map;
                       return Align(
+                        key: messageIndex == _latestResponseMessageIndex
+                            ? _latestResponseKey
+                            : null,
                         alignment: isUser
                             ? Alignment.centerRight
                             : Alignment.centerLeft,
@@ -1157,7 +1240,6 @@ $prompt''';
                     ),
                   ),
                 if (_isRecording) _buildListeningIndicator(context),
-                _buildSuggestedQuestions(context),
                 if (!_isAttachmentBarCollapsed && !_isComposing)
                   _buildAttachmentBar(context),
                 Padding(
@@ -1178,6 +1260,22 @@ $prompt''';
                             ),
                           ),
                         ),
+                      if (!_isRecording && _controller.text.trim().isEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: IconButton.filledTonal(
+                            key: const ValueKey('open_coach_suggestions'),
+                            onPressed: _showCoachSuggestions,
+                            tooltip: context.translate(
+                              'chat_suggestions_tooltip',
+                            ),
+                            icon: const Icon(
+                              Icons.auto_awesome_rounded,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ],
                       Expanded(
                         child: TextField(
                           controller: _controller,
@@ -1189,8 +1287,8 @@ $prompt''';
                           textInputAction: TextInputAction.newline,
                           decoration: InputDecoration(
                             hintText: _isRecording
-                                ? 'Đang nghe...'
-                                : 'Hỏi HLV ảo hoặc yêu cầu lịch tập...',
+                                ? context.translate('chat_listening_hint')
+                                : context.translate('chat_input_hint'),
                             hintStyle: TextStyle(
                               color: colorScheme.onSurfaceVariant.withValues(
                                 alpha: 0.5,
@@ -1434,58 +1532,6 @@ $prompt''';
           : value.toStringAsFixed(1);
     }
     return value?.toString() ?? '—';
-  }
-
-  Widget _buildSuggestedQuestions(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final shouldShow =
-        _messages.isEmpty &&
-        _controller.text.trim().isEmpty &&
-        !_isRecording &&
-        !_isLoading;
-    if (!shouldShow || _selectedSuggestions.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 6),
-        scrollDirection: Axis.horizontal,
-        itemBuilder: (context, index) {
-          final key = _selectedSuggestions[index];
-          final question = context.translate(key);
-          return ActionChip(
-            avatar: Icon(
-              Icons.auto_awesome_rounded,
-              size: 16,
-              color: colorScheme.primary,
-            ),
-            label: Text(question),
-            labelStyle: TextStyle(
-              color: colorScheme.onSurface,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
-            backgroundColor: isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.04),
-            side: BorderSide(
-              color: colorScheme.primary.withValues(
-                alpha: isDark ? 0.24 : 0.18,
-              ),
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-            onPressed: () => _sendSuggestedQuestion(question),
-          );
-        },
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemCount: _selectedSuggestions.length,
-      ),
-    );
   }
 
   List<(_ChatAttachment, IconData, String, String)> _attachmentItems(

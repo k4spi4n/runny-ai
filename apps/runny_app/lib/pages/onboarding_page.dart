@@ -3,14 +3,22 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/onboarding_metrics.dart';
 import '../services/ai_service.dart';
 import '../services/training_service.dart';
 import '../widgets/ui_components.dart';
 import 'dashboard_page.dart';
 import '../l10n/app_localizations.dart';
 
-class OnboardingPage extends StatelessWidget {
+class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
+
+  @override
+  State<OnboardingPage> createState() => _OnboardingPageState();
+}
+
+class _OnboardingPageState extends State<OnboardingPage> {
+  final _contentKey = GlobalKey<_OnboardingContentState>();
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +33,7 @@ class OnboardingPage extends StatelessWidget {
           const LanguageSwitcher(),
           const ThemeToggle(),
           TextButton(
-            onPressed: () => _skipOnboarding(context),
+            onPressed: () => _contentKey.currentState?.skipOnboarding(),
             child: Text(
               context.translate('skip'),
               style: const TextStyle(
@@ -36,33 +44,8 @@ class OnboardingPage extends StatelessWidget {
           ),
         ],
       ),
-      body: const OnboardingContent(),
+      body: OnboardingContent(key: _contentKey),
     );
-  }
-
-  Future<void> _skipOnboarding(BuildContext context) async {
-    final supabase = Supabase.instance.client;
-    try {
-      final user = supabase.auth.currentUser;
-      if (user == null) return;
-
-      await supabase
-          .from('profiles')
-          .update({'has_completed_onboarding': true})
-          .eq('id', user.id);
-
-      if (context.mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const DashboardPage()),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${context.translate('error')}: $e')),
-        );
-      }
-    }
   }
 }
 
@@ -76,9 +59,12 @@ class OnboardingContent extends StatefulWidget {
 class _OnboardingContentState extends State<OnboardingContent> {
   // Khoảng giá trị hợp lý cho thể trạng (đồng bộ với ProfilePage và cột
   // numeric(5,2) của DB) — ép người dùng nhập đúng ngay khi đăng ký.
-  static const double _minWeight = 20, _maxWeight = 300; // kg
-  static const double _minHeight = 90, _maxHeight = 250; // cm
-  static const int _minMaxHr = 80, _maxMaxHr = 230; // bpm
+  static const double _minWeight = OnboardingMetrics.minWeightKg;
+  static const double _maxWeight = OnboardingMetrics.maxWeightKg;
+  static const double _minHeight = OnboardingMetrics.minHeightCm;
+  static const double _maxHeight = OnboardingMetrics.maxHeightCm;
+  static const int _minMaxHr = OnboardingMetrics.minMaxHr;
+  static const int _maxMaxHr = OnboardingMetrics.maxMaxHr;
 
   final _pageController = PageController();
   final _trainingService = TrainingService();
@@ -156,6 +142,44 @@ class _OnboardingContentState extends State<OnboardingContent> {
       setState(() => _currentStep++);
     } else {
       _finishOnboarding();
+    }
+  }
+
+  /// Hoàn tất onboarding mà không tạo lịch tập. Nếu người dùng đã điền các
+  /// chỉ số hợp lệ, vẫn lưu chúng vào hồ sơ để không mất dữ liệu đã nhập.
+  Future<void> skipOnboarding() async {
+    if (_isLoading) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final user = _supabase.auth.currentUser;
+      if (user == null) return;
+
+      final metrics = OnboardingMetrics.tryParse(
+        weight: _weightController.text,
+        height: _heightController.text,
+        maxHr: _maxHrController.text,
+      );
+      final update = <String, dynamic>{'has_completed_onboarding': true};
+      if (metrics != null) {
+        update.addAll(metrics.toProfileUpdate(gender: _gender));
+      }
+
+      await _supabase.from('profiles').update(update).eq('id', user.id);
+
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const DashboardPage()),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${context.translate('error')}: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -273,18 +297,16 @@ class _OnboardingContentState extends State<OnboardingContent> {
   }
 
   Future<void> _finishOnboarding() async {
-    final weightStr = _weightController.text.trim().replaceAll(',', '.');
-    final heightStr = _heightController.text.trim().replaceAll(',', '.');
-    final maxHrStr = _maxHrController.text.trim();
     final goal = _goalController.text.trim();
-
-    final weight = double.tryParse(weightStr);
-    final height = double.tryParse(heightStr);
-    final maxHr = int.tryParse(maxHrStr);
+    final metrics = OnboardingMetrics.tryParse(
+      weight: _weightController.text,
+      height: _heightController.text,
+      maxHr: _maxHrController.text,
+    );
 
     // Thể trạng đã được kiểm tra ở bước trước (_validateMetrics); kiểm tra lại
     // để chắc chắn, đồng thời yêu cầu nhập mục tiêu.
-    if (!_validateMetrics()) return;
+    if (!_validateMetrics() || metrics == null) return;
     if (goal.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.translate('onboarding_info_required'))),
@@ -298,17 +320,10 @@ class _OnboardingContentState extends State<OnboardingContent> {
       final user = _supabase.auth.currentUser;
       if (user == null) return;
 
-      final heightInM = height! / 100;
-      final bmi = weight! / (heightInM * heightInM);
-
       await _supabase
           .from('profiles')
           .update({
-            'weight_kg': weight,
-            'height_cm': height,
-            'bmi': double.parse(bmi.toStringAsFixed(2)),
-            'max_hr': maxHr,
-            'gender': _gender,
+            ...metrics.toProfileUpdate(gender: _gender),
             'has_completed_onboarding': true,
           })
           .eq('id', user.id);

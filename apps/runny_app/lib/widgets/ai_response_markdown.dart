@@ -21,6 +21,7 @@ class AiResponseMarkdown extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final baseStyle = theme.textTheme.bodyMedium?.copyWith(color: textColor);
+    final isDark = theme.brightness == Brightness.dark;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -33,6 +34,23 @@ class AiResponseMarkdown extends StatelessWidget {
           code: baseStyle?.copyWith(
             fontFamily: 'monospace',
             backgroundColor: colorScheme.surface.withValues(alpha: 0.45),
+          ),
+          blockquote: baseStyle?.copyWith(
+            color: isDark ? textColor.withValues(alpha: 0.9) : textColor,
+            height: 1.45,
+          ),
+          blockquotePadding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+          blockquoteDecoration: BoxDecoration(
+            color: isDark
+                ? colorScheme.surfaceContainerHighest.withValues(alpha: 0.72)
+                : colorScheme.surfaceContainerHighest.withValues(alpha: 0.8),
+            border: Border(
+              left: BorderSide(
+                color: colorScheme.primary.withValues(alpha: 0.82),
+                width: 3,
+              ),
+            ),
+            borderRadius: BorderRadius.circular(10),
           ),
           tableHead: baseStyle?.copyWith(fontWeight: FontWeight.w700),
           tableBody: baseStyle,
