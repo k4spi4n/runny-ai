@@ -43,14 +43,6 @@ Finder get _emailField =>
     find.byKey(const ValueKey('auth-email-field'), skipOffstage: false);
 Finder get _passwordField =>
     find.byKey(const ValueKey('auth-password-field'), skipOffstage: false);
-Finder get _confirmPasswordField => find.descendant(
-  of: find.byKey(
-    const ValueKey('auth-confirm-password-field'),
-    skipOffstage: false,
-  ),
-  matching: find.byType(TextFormField, skipOffstage: false),
-  skipOffstage: false,
-);
 Finder get _submitButton =>
     find.byKey(const ValueKey('auth-submit-button'), skipOffstage: false);
 
@@ -108,11 +100,9 @@ Future<void> _pumpSubject(
 Future<void> _fillValidForm(
   WidgetTester tester, {
   String password = 'Runny1',
-  String? confirmation,
 }) async {
   await tester.enterText(_emailField, 'runner@example.com');
   await tester.enterText(_passwordField, password);
-  await tester.enterText(_confirmPasswordField, confirmation ?? password);
 }
 
 Future<void> _tapSubmit(WidgetTester tester) async {
@@ -126,30 +116,27 @@ void main() {
     _testPreferences = await SharedPreferences.getInstance();
   });
 
-  testWidgets('renders both password fields with keyboard actions', (
+  testWidgets('renders one password field with a Done keyboard action', (
     tester,
   ) async {
     final service = _FakeRegistrationService();
     await _pumpSubject(tester, service);
 
     expect(_passwordField, findsOneWidget);
-    expect(_confirmPasswordField, findsOneWidget);
     expect(
-      find.textContaining('Confirm password', findRichText: true),
-      findsOneWidget,
+      find.byKey(
+        const ValueKey('auth-confirm-password-field'),
+        skipOffstage: false,
+      ),
+      findsNothing,
     );
 
     final password = _editableText(tester, _passwordField);
-    final confirmation = _editableText(tester, _confirmPasswordField);
     expect(password.obscureText, isTrue);
-    expect(confirmation.obscureText, isTrue);
-    expect(password.textInputAction, TextInputAction.next);
-    expect(confirmation.textInputAction, TextInputAction.done);
+    expect(password.textInputAction, TextInputAction.done);
   });
 
-  testWidgets('toggles password visibility independently with semantics', (
-    tester,
-  ) async {
+  testWidgets('toggles password visibility with semantics', (tester) async {
     final service = _FakeRegistrationService();
     await _pumpSubject(tester, service);
 
@@ -157,29 +144,15 @@ void main() {
       const ValueKey('auth-password-visibility-toggle'),
       skipOffstage: false,
     );
-    final confirmationToggle = find.byKey(
-      const ValueKey('auth-confirm-password-visibility-toggle'),
-      skipOffstage: false,
-    );
     expect(tester.widget<IconButton>(passwordToggle).tooltip, 'Show password');
-    expect(
-      tester.widget<IconButton>(confirmationToggle).tooltip,
-      'Show password',
-    );
     final semantics = tester.ensureSemantics();
-    expect(find.bySemanticsLabel('Show password'), findsNWidgets(2));
+    expect(find.bySemanticsLabel('Show password'), findsOneWidget);
     semantics.dispose();
 
     await tester.tap(passwordToggle);
     await tester.pump();
     expect(_editableText(tester, _passwordField).obscureText, isFalse);
-    expect(_editableText(tester, _confirmPasswordField).obscureText, isTrue);
     expect(tester.widget<IconButton>(passwordToggle).tooltip, 'Hide password');
-
-    await tester.tap(confirmationToggle);
-    await tester.pump();
-    expect(_editableText(tester, _passwordField).obscureText, isFalse);
-    expect(_editableText(tester, _confirmPasswordField).obscureText, isFalse);
   });
 
   testWidgets('renders the signup form in light and dark themes', (
@@ -208,14 +181,12 @@ void main() {
     await _pumpSubject(tester, service);
 
     expect(find.text('Please enter your password.'), findsNothing);
-    expect(find.text('Please confirm your password.'), findsNothing);
 
     await _tapSubmit(tester);
     await tester.pump();
 
     expect(find.text('Please enter your email.'), findsOneWidget);
     expect(find.text('Please enter your password.'), findsOneWidget);
-    expect(find.text('Please confirm your password.'), findsOneWidget);
     expect(service.callCount, 0);
   });
 
@@ -224,7 +195,6 @@ void main() {
     await _pumpSubject(tester, service);
     await tester.enterText(_emailField, 'runner@example.com');
     await tester.enterText(_passwordField, 'runny');
-    await tester.enterText(_confirmPasswordField, 'runny');
 
     await _tapSubmit(tester);
     await tester.pump();
@@ -236,26 +206,16 @@ void main() {
     expect(service.callCount, 0);
   });
 
-  testWidgets('updates mismatch error when either password changes', (
-    tester,
-  ) async {
+  testWidgets('submits a valid password without confirmation', (tester) async {
     final service = _FakeRegistrationService();
     await _pumpSubject(tester, service);
-    await _fillValidForm(tester, confirmation: 'Runny2');
+    await _fillValidForm(tester);
 
     await _tapSubmit(tester);
-    await tester.pump();
-    expect(find.text('The passwords do not match.'), findsOneWidget);
-    expect(service.callCount, 0);
+    await tester.pumpAndSettle();
 
-    await tester.enterText(_confirmPasswordField, 'Runny1');
-    await tester.pump();
-    expect(find.text('The passwords do not match.'), findsNothing);
-
-    await tester.enterText(_passwordField, 'Runny2');
-    await tester.pump();
-    expect(find.text('The passwords do not match.'), findsOneWidget);
-    expect(service.callCount, 0);
+    expect(service.callCount, 1);
+    expect(service.submittedPassword, 'Runny1');
   });
 
   testWidgets(

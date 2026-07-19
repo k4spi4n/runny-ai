@@ -24,18 +24,14 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final _confirmPasswordFieldKey = GlobalKey<FormFieldState<String>>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
   final _passwordFocusNode = FocusNode();
-  final _confirmPasswordFocusNode = FocusNode();
   late final RegistrationService _registrationService;
   bool _isLoading = false;
   late bool _isSignUp = widget.initialIsSignUp;
   bool _hasSubmitted = false;
   bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
   String? _pendingConfirmationEmail;
 
   @override
@@ -197,7 +193,6 @@ class _LoginPageState extends State<LoginPage> {
 
   void _clearPasswords() {
     _passwordController.clear();
-    _confirmPasswordController.clear();
   }
 
   void _toggleAuthMode() {
@@ -205,9 +200,7 @@ class _LoginPageState extends State<LoginPage> {
       _isSignUp = !_isSignUp;
       _hasSubmitted = false;
       _formKey = GlobalKey<FormState>();
-      _confirmPasswordController.clear();
       _obscurePassword = true;
-      _obscureConfirmPassword = true;
     });
   }
 
@@ -259,10 +252,8 @@ class _LoginPageState extends State<LoginPage> {
     _passwordFocusNode
       ..removeListener(_onPasswordFocusChanged)
       ..dispose();
-    _confirmPasswordFocusNode.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -284,22 +275,8 @@ class _LoginPageState extends State<LoginPage> {
     return null;
   }
 
-  String? _validateConfirmPassword(String? value) {
-    final confirmation = value ?? '';
-    if (confirmation.isEmpty) {
-      return context.translate('confirm_password_required');
-    }
-    if (confirmation != _passwordController.text) {
-      return context.translate('passwords_do_not_match');
-    }
-    return null;
-  }
-
   void _onPasswordChanged(String _) {
     setState(() {});
-    if (_hasSubmitted) {
-      _confirmPasswordFieldKey.currentState?.validate();
-    }
   }
 
   Future<void> _handleForgotPassword() async {
@@ -472,18 +449,10 @@ class _LoginPageState extends State<LoginPage> {
                             visibilityToggleKey: const ValueKey(
                               'auth-password-visibility-toggle',
                             ),
-                            textInputAction: _isSignUp
-                                ? TextInputAction.next
-                                : TextInputAction.done,
+                            textInputAction: TextInputAction.done,
                             validator: _validatePassword,
                             onChanged: _onPasswordChanged,
-                            onFieldSubmitted: (_) {
-                              if (_isSignUp) {
-                                _confirmPasswordFocusNode.requestFocus();
-                              } else {
-                                _handleAuth();
-                              }
-                            },
+                            onFieldSubmitted: (_) => _handleAuth(),
                             onToggleVisibility: () => setState(
                               () => _obscurePassword = !_obscurePassword,
                             ),
@@ -500,35 +469,6 @@ class _LoginPageState extends State<LoginPage> {
                                   )
                                 : const SizedBox.shrink(),
                           ),
-                          if (_isSignUp) ...[
-                            const SizedBox(height: 16),
-                            _PasswordFormField(
-                              key: const ValueKey(
-                                'auth-confirm-password-field',
-                              ),
-                              fieldKey: _confirmPasswordFieldKey,
-                              controller: _confirmPasswordController,
-                              focusNode: _confirmPasswordFocusNode,
-                              label: context.translate('confirm_password'),
-                              obscureText: _obscureConfirmPassword,
-                              visibilityToggleKey: const ValueKey(
-                                'auth-confirm-password-visibility-toggle',
-                              ),
-                              textInputAction: TextInputAction.done,
-                              validator: _validateConfirmPassword,
-                              onChanged: (_) {
-                                if (_hasSubmitted) {
-                                  _confirmPasswordFieldKey.currentState
-                                      ?.validate();
-                                }
-                              },
-                              onFieldSubmitted: (_) => _handleAuth(),
-                              onToggleVisibility: () => setState(
-                                () => _obscureConfirmPassword =
-                                    !_obscureConfirmPassword,
-                              ),
-                            ),
-                          ],
                           const SizedBox(height: 24),
                           GradientButton(
                             key: const ValueKey('auth-submit-button'),
@@ -641,7 +581,6 @@ class _PasswordFormField extends StatelessWidget {
   final VoidCallback onToggleVisibility;
 
   const _PasswordFormField({
-    super.key,
     required this.fieldKey,
     required this.controller,
     required this.label,
