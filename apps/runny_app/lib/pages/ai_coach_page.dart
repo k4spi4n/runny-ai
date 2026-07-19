@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
@@ -77,6 +78,7 @@ class _AICoachPageState extends State<AICoachPage> {
     _ChatAttachment.nutrition,
   };
   bool _isAttachmentBarCollapsed = false;
+  int _suggestionVariant = Random().nextInt(3);
 
   @override
   void initState() {
@@ -482,13 +484,14 @@ $prompt''';
 
   List<CoachSuggestionItem> _coachSuggestions(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final variant = _suggestionVariant + 1;
     return [
       CoachSuggestionItem(
         id: 'progress',
         icon: LucideIcons.chart_no_axes_combined,
         title: context.translate('chat_capability_progress_title'),
         description: context.translate('chat_capability_progress_desc'),
-        prompt: context.translate('chat_capability_progress_prompt'),
+        prompt: context.translate('chat_capability_progress_prompt_$variant'),
         accentColor: colorScheme.primary,
       ),
       CoachSuggestionItem(
@@ -496,7 +499,7 @@ $prompt''';
         icon: LucideIcons.dumbbell,
         title: context.translate('chat_capability_workout_title'),
         description: context.translate('chat_capability_workout_desc'),
-        prompt: context.translate('chat_capability_workout_prompt'),
+        prompt: context.translate('chat_capability_workout_prompt_$variant'),
         accentColor: colorScheme.tertiary,
       ),
       CoachSuggestionItem(
@@ -504,7 +507,7 @@ $prompt''';
         icon: LucideIcons.calendar_sync,
         title: context.translate('chat_capability_schedule_title'),
         description: context.translate('chat_capability_schedule_desc'),
-        prompt: context.translate('chat_capability_schedule_prompt'),
+        prompt: context.translate('chat_capability_schedule_prompt_$variant'),
         accentColor: colorScheme.secondary,
       ),
       CoachSuggestionItem(
@@ -512,10 +515,25 @@ $prompt''';
         icon: LucideIcons.salad,
         title: context.translate('chat_capability_nutrition_title'),
         description: context.translate('chat_capability_nutrition_desc'),
-        prompt: context.translate('chat_capability_nutrition_prompt'),
+        prompt: context.translate('chat_capability_nutrition_prompt_$variant'),
         accentColor: const Color(0xFF2E8B57),
       ),
     ];
+  }
+
+  List<CoachKnowledgePrompt> _coachKnowledgePrompts(BuildContext context) {
+    final firstKey = _suggestionVariant * 3 + 1;
+    return List.generate(3, (index) {
+      final promptKey = firstKey + index;
+      return CoachKnowledgePrompt(
+        id: 'knowledge_$promptKey',
+        prompt: context.translate('chat_knowledge_prompt_$promptKey'),
+      );
+    });
+  }
+
+  void _rotateCoachSuggestions() {
+    _suggestionVariant = (_suggestionVariant + 1) % 3;
   }
 
   Widget _buildCoachSuggestionPanel(BuildContext context) {
@@ -524,6 +542,11 @@ $prompt''';
       subtitle: context.translate('chat_starter_subtitle'),
       items: _coachSuggestions(context),
       onSelected: (item) => _sendSuggestedQuestion(item.prompt),
+      knowledgeTitle: context.translate('chat_knowledge_title'),
+      knowledgePrompts: _coachKnowledgePrompts(context),
+      onKnowledgeSelected: (item) => _sendSuggestedQuestion(item.prompt),
+      refreshTooltip: context.translate('chat_suggestions_refresh'),
+      onRefresh: () => setState(_rotateCoachSuggestions),
     );
   }
 
@@ -533,21 +556,38 @@ $prompt''';
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return SafeArea(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.88,
-            ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(top: 12),
-              child: CoachSuggestionPanel(
-                title: sheetContext.translate('chat_starter_title'),
-                subtitle: sheetContext.translate('chat_starter_subtitle'),
-                items: _coachSuggestions(sheetContext),
-                onSelected: (item) {
-                  Navigator.of(sheetContext).pop();
-                  _sendSuggestedQuestion(item.prompt);
-                },
+        return StatefulBuilder(
+          builder: (context, setSheetState) => SafeArea(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.88,
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(top: 12),
+                child: CoachSuggestionPanel(
+                  title: sheetContext.translate('chat_starter_title'),
+                  subtitle: sheetContext.translate('chat_starter_subtitle'),
+                  items: _coachSuggestions(sheetContext),
+                  onSelected: (item) {
+                    Navigator.of(sheetContext).pop();
+                    _sendSuggestedQuestion(item.prompt);
+                  },
+                  knowledgeTitle: sheetContext.translate(
+                    'chat_knowledge_title',
+                  ),
+                  knowledgePrompts: _coachKnowledgePrompts(sheetContext),
+                  onKnowledgeSelected: (item) {
+                    Navigator.of(sheetContext).pop();
+                    _sendSuggestedQuestion(item.prompt);
+                  },
+                  refreshTooltip: sheetContext.translate(
+                    'chat_suggestions_refresh',
+                  ),
+                  onRefresh: () {
+                    setState(_rotateCoachSuggestions);
+                    setSheetState(() {});
+                  },
+                ),
               ),
             ),
           ),
@@ -1093,6 +1133,7 @@ $prompt''';
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
     final coachName = _coachNameController.text.trim();
     // `Navigator.canPop` cũng trả về true khi bottom sheet thiết lập đang mở.
     // Dùng route chứa trang này để nút quay lại chỉ phản ánh điều hướng trang.
@@ -1107,6 +1148,7 @@ $prompt''';
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
       appBar: AppBar(
+        toolbarHeight: isCompact ? 48 : null,
         title: Text(
           coachName.isEmpty ? 'Runny' : coachName,
           style: TextStyle(color: colorScheme.onSurface),
@@ -1148,9 +1190,11 @@ $prompt''';
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 0,
-                      vertical: 16.0,
+                    padding: EdgeInsets.fromLTRB(
+                      0,
+                      isCompact ? 4 : 16,
+                      0,
+                      isCompact ? 4 : 16,
                     ),
                     itemCount:
                         _messages.length +
@@ -1184,8 +1228,10 @@ $prompt''';
                           padding: const EdgeInsets.all(12),
                           constraints: BoxConstraints(
                             maxWidth:
-                                MediaQuery.of(context).size.width *
-                                (hasInteractiveAction ? 0.9 : 0.75),
+                                MediaQuery.sizeOf(context).width *
+                                (hasInteractiveAction
+                                    ? (isCompact ? 0.96 : 0.9)
+                                    : (isCompact ? 0.92 : 0.75)),
                           ),
                           decoration: BoxDecoration(
                             color: isUser
@@ -1243,7 +1289,12 @@ $prompt''';
                 if (!_isAttachmentBarCollapsed && !_isComposing)
                   _buildAttachmentBar(context),
                 Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 0, vertical: 16.0),
+                  padding: EdgeInsets.fromLTRB(
+                    0,
+                    isCompact ? 6 : 16,
+                    0,
+                    isCompact ? 4 : 16,
+                  ),
                   child: Row(
                     children: [
                       // Ghi âm là trạng thái đang chạy; luôn giữ nút hủy để

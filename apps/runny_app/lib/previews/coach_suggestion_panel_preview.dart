@@ -61,6 +61,24 @@ Widget coachSuggestionPanelPreview() {
                 'Chọn một câu hỏi mẫu hoặc hỏi về pace, nhịp tim, kỹ thuật chạy và hơn thế nữa.',
             items: _previewItems(Theme.of(context).colorScheme),
             onSelected: (_) {},
+            knowledgeTitle: 'Kiến thức chạy bộ',
+            knowledgePrompts: const [
+              CoachKnowledgePrompt(
+                id: 'vo2max',
+                prompt: 'VO₂ max là gì và cải thiện thế nào?',
+              ),
+              CoachKnowledgePrompt(
+                id: 'cadence',
+                prompt: 'Tôi nên hướng tới cadence bao nhiêu?',
+              ),
+              CoachKnowledgePrompt(
+                id: 'heart_rate',
+                prompt: 'Làm sao xác định các vùng nhịp tim?',
+              ),
+            ],
+            onKnowledgeSelected: (_) {},
+            refreshTooltip: 'Hiện câu hỏi khác',
+            onRefresh: () {},
           ),
         ),
       ),

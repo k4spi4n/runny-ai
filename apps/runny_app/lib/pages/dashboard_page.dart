@@ -307,6 +307,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final isDesktop = width > 900;
     final useCompactAppBar = width <= 600;
     final showLogoText = width >= 400;
+    final prioritizeCoachSpace = !isDesktop && _selectedIndex == 2;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final appBackground = context.watch<ThemeProvider>().background;
@@ -437,8 +438,12 @@ class _DashboardPageState extends State<DashboardPage> {
                 Expanded(
                   child: Container(
                     padding: EdgeInsets.symmetric(
-                      horizontal: isDesktop ? 20.0 : 16.0,
-                      vertical: 20.0,
+                      horizontal: isDesktop
+                          ? 20.0
+                          : prioritizeCoachSpace
+                          ? 8.0
+                          : 16.0,
+                      vertical: prioritizeCoachSpace ? 0 : 20.0,
                     ),
                     child: ResponsiveContent(
                       child: Stack(

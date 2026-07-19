@@ -21,7 +21,11 @@ List<CoachSuggestionItem> _items() => const [
   ),
 ];
 
-Widget _testApp({required double width, ValueChanged<String>? onSelected}) {
+Widget _testApp({
+  required double width,
+  ValueChanged<String>? onSelected,
+  VoidCallback? onRefresh,
+}) {
   return MaterialApp(
     home: Scaffold(
       body: SingleChildScrollView(
@@ -32,6 +36,16 @@ Widget _testApp({required double width, ValueChanged<String>? onSelected}) {
             subtitle: 'Choose a suggestion or ask your own question.',
             items: _items(),
             onSelected: (item) => onSelected?.call(item.id),
+            knowledgeTitle: 'Running knowledge',
+            knowledgePrompts: const [
+              CoachKnowledgePrompt(
+                id: 'cadence',
+                prompt: 'What cadence should I aim for?',
+              ),
+            ],
+            onKnowledgeSelected: (item) => onSelected?.call(item.id),
+            refreshTooltip: 'Show different questions',
+            onRefresh: onRefresh ?? () {},
           ),
         ),
       ),
@@ -40,7 +54,7 @@ Widget _testApp({required double width, ValueChanged<String>? onSelected}) {
 }
 
 void main() {
-  testWidgets('uses one column on narrow layouts and sends selected prompt', (
+  testWidgets('uses compact horizontal lists and sends selected prompt', (
     tester,
   ) async {
     String? selectedId;
@@ -48,17 +62,33 @@ void main() {
       _testApp(width: 390, onSelected: (id) => selectedId = id),
     );
 
-    final grid = tester.widget<GridView>(find.byType(GridView));
-    final delegate =
-        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-    expect(delegate.crossAxisCount, 1);
+    expect(
+      find.byKey(const ValueKey('coach_suggestion_mobile_list')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('coach_knowledge_mobile_list')),
+      findsOneWidget,
+    );
+    expect(find.byType(GridView), findsNothing);
     expect(find.text('Analyze progress'), findsOneWidget);
     expect(find.text('Analyze my last four weeks'), findsOneWidget);
+    expect(find.text('Running knowledge'), findsOneWidget);
+    expect(find.text('What cadence should I aim for?'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('coach_suggestion_progress')));
     await tester.pump();
 
     expect(selectedId, 'progress');
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('coach_knowledge_cadence')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('coach_knowledge_cadence')));
+    await tester.pump();
+    expect(selectedId, 'cadence');
   });
 
   testWidgets('uses two columns when enough width is available', (
@@ -75,5 +105,17 @@ void main() {
     final delegate =
         grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
     expect(delegate.crossAxisCount, 2);
+  });
+
+  testWidgets('offers a control to rotate question examples', (tester) async {
+    var refreshCount = 0;
+    await tester.pumpWidget(
+      _testApp(width: 390, onRefresh: () => refreshCount++),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('refresh_coach_suggestions')));
+    await tester.pump();
+
+    expect(refreshCount, 1);
   });
 }
