@@ -73,9 +73,8 @@ class _AICoachPageState extends State<AICoachPage> {
   CoachInteractiveAction? _discussionAction;
   AICoachHubController? _hubController;
   var _lastHubRequestId = 0;
-  // Chỉ gửi dữ liệu người dùng khi họ chọn hoặc câu hỏi rõ ràng cần dữ liệu
-  // hoạt động/chỉ số. Kế hoạch và bữa ăn đã có tool đọc theo nhu cầu.
-  final Set<_ChatAttachment> _attachments = {};
+  // Bật sẵn cả bốn nguồn dữ liệu; người dùng vẫn có thể tắt từng nguồn.
+  final Set<_ChatAttachment> _attachments = _ChatAttachment.values.toSet();
   bool _isAttachmentBarCollapsed = false;
   int _suggestionVariant = Random().nextInt(3);
 
