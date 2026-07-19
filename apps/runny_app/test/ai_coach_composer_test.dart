@@ -21,7 +21,7 @@ void main() {
   });
 
   testWidgets(
-    'one tap focuses the coach input without moving it under the keyboard',
+    'mobile keyboard keeps the coach input focused while typing',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -54,22 +54,60 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       final input = find.byKey(const ValueKey('coach-chat-input'));
+      final attachmentBar = find.byKey(
+        const ValueKey('coach-attachment-bar'),
+      );
       final editable = find.descendant(
         of: input,
         matching: find.byType(EditableText),
       );
       final initialRect = tester.getRect(input);
+      final initialInputWidget = tester.widget<TextField>(input);
+
+      expect(attachmentBar, findsOneWidget);
 
       await tester.tap(input);
       await tester.pump();
 
+      expect(attachmentBar, findsNothing);
+      expect(tester.widget<TextField>(input), same(initialInputWidget));
       expect(tester.widget<EditableText>(editable).focusNode.hasFocus, isTrue);
-      expect(tester.getRect(input), initialRect);
+      expect(tester.getBottomLeft(input).dy, initialRect.bottom);
+      final focusedEditableState = tester.state<EditableTextState>(editable);
 
       tester.view.viewInsets = const FakeViewPadding(bottom: 300);
       await tester.pump();
 
+      expect(attachmentBar, findsNothing);
       expect(tester.getBottomLeft(input).dy, lessThanOrEqualTo(544));
+
+      // A transient viewport reset must not show the context banner while the
+      // field still owns focus; doing so collapses the mobile browser keyboard.
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pump();
+
+      expect(attachmentBar, findsNothing);
+      expect(tester.widget<EditableText>(editable).focusNode.hasFocus, isTrue);
+      expect(
+        tester.state<EditableTextState>(editable),
+        same(focusedEditableState),
+      );
+
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+
+      final focusedInputWidget = tester.widget<TextField>(input);
+
+      await tester.enterText(input, 'x');
+      await tester.pump();
+
+      expect(tester.widget<TextField>(input), same(focusedInputWidget));
+      expect(
+        tester.state<EditableTextState>(editable),
+        same(focusedEditableState),
+      );
+      expect(tester.widget<EditableText>(editable).focusNode.hasFocus, isTrue);
+      expect(tester.widget<EditableText>(editable).controller.text, 'x');
       expect(tester.takeException(), isNull);
     },
   );

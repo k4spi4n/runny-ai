@@ -64,7 +64,7 @@ class _AICoachPageState extends State<AICoachPage> {
   final Set<int> _processingActionIndexes = <int>{};
   bool _hasConfirmedMicrophoneAccess = false;
   bool _autoSendPending = false;
-  bool _hasPromptText = false;
+  final ValueNotifier<bool> _isComposing = ValueNotifier<bool>(false);
   String _coachPersona = CoachPersona.calm.id;
   String _baseText = '';
   Activity? _contextActivity;
@@ -84,7 +84,8 @@ class _AICoachPageState extends State<AICoachPage> {
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_handlePromptChanged);
+    _controller.addListener(_handleComposerStateChanged);
+    _inputFocusNode.addListener(_handleComposerStateChanged);
     _loadGreeting();
     _loadCoachSettings();
     _loadHistory();
@@ -172,14 +173,14 @@ class _AICoachPageState extends State<AICoachPage> {
     );
   }
 
-  void _handlePromptChanged() {
-    if (!mounted) return;
-    final hasPromptText = _controller.text.trim().isNotEmpty;
-    // EditableText paints character/cursor changes itself. Rebuilding the
-    // message list and markdown on every keystroke makes mobile typing laggy;
-    // the surrounding UI only depends on the empty/non-empty transition.
-    if (hasPromptText == _hasPromptText) return;
-    setState(() => _hasPromptText = hasPromptText);
+  void _handleComposerStateChanged() {
+    final isComposing =
+        _inputFocusNode.hasFocus || _controller.text.trim().isNotEmpty;
+    // Keep focus/prompt-dependent controls on their own listenable. Calling
+    // AICoachPage.setState while a mobile IME is composing can reconnect the
+    // browser keyboard to a newly built TextField and drop the active input.
+    if (isComposing == _isComposing.value) return;
+    _isComposing.value = isComposing;
   }
 
   @override
@@ -1019,7 +1020,9 @@ $prompt''';
   void dispose() {
     _cancelLongWaitTimer();
     _hubController?.removeListener(_handleHubRequest);
-    _controller.removeListener(_handlePromptChanged);
+    _controller.removeListener(_handleComposerStateChanged);
+    _inputFocusNode.removeListener(_handleComposerStateChanged);
+    _isComposing.dispose();
     _speech.cancel();
     _controller.dispose();
     _inputFocusNode.dispose();
@@ -1134,19 +1137,11 @@ $prompt''';
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final isCompact = MediaQuery.sizeOf(context).width < 600;
-    final isKeyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
-    // Do not rebuild this large screen synchronously from the FocusNode. On
-    // mobile web that rebuild can replace/resize the editable during its first
-    // pointer event, so the browser requires a second tap before accepting
-    // text. Keyboard metrics arrive after focus is established and are safe to
-    // use for compacting secondary controls.
-    final isComposing = isKeyboardVisible || _hasPromptText;
     final coachName = _coachNameController.text.trim();
     // `Navigator.canPop` cũng trả về true khi bottom sheet thiết lập đang mở.
     // Dùng route chứa trang này để nút quay lại chỉ phản ánh điều hướng trang.
     final canPopPage = ModalRoute.of(context)?.isFirst == false;
-    final showStarter =
-        _messages.isEmpty && !_hasPromptText && !_isRecording && !_isLoading;
+    final canShowStarter = _messages.isEmpty && !_isRecording && !_isLoading;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -1205,12 +1200,17 @@ $prompt''';
                     itemCount:
                         _messages.length +
                         (_greetingText != null ? 1 : 0) +
-                        (showStarter ? 1 : 0),
+                        (canShowStarter ? 1 : 0),
                     itemBuilder: (context, index) {
                       final hasGreeting = _greetingText != null;
                       final messageIndex = index - (hasGreeting ? 1 : 0);
-                      if (showStarter && messageIndex == _messages.length) {
-                        return _buildCoachSuggestionPanel(context);
+                      if (canShowStarter && messageIndex == _messages.length) {
+                        return ValueListenableBuilder<bool>(
+                          valueListenable: _isComposing,
+                          builder: (context, isComposing, child) =>
+                              isComposing ? const SizedBox.shrink() : child!,
+                          child: _buildCoachSuggestionPanel(context),
+                        );
                       }
                       final msg = hasGreeting && index == 0
                           ? <String, dynamic>{
@@ -1292,8 +1292,15 @@ $prompt''';
                     ),
                   ),
                 if (_isRecording) _buildListeningIndicator(context),
-                if (!_isAttachmentBarCollapsed && !isComposing)
-                  _buildAttachmentBar(context),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _isComposing,
+                  builder: (context, isComposing, _) {
+                    if (_isAttachmentBarCollapsed || isComposing) {
+                      return const SizedBox.shrink();
+                    }
+                    return _buildAttachmentBar(context);
+                  },
+                ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
                     0,
@@ -1317,8 +1324,13 @@ $prompt''';
                             ),
                           ),
                         ),
-                      if (!_isRecording && !_hasPromptText) ...[
-                        Padding(
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _isComposing,
+                        builder: (context, isComposing, child) =>
+                            _isRecording || isComposing
+                            ? const SizedBox.shrink()
+                            : child!,
+                        child: Padding(
                           padding: const EdgeInsets.only(right: 4),
                           child: IconButton.filledTonal(
                             key: const ValueKey('open_coach_suggestions'),
@@ -1332,7 +1344,7 @@ $prompt''';
                             ),
                           ),
                         ),
-                      ],
+                      ),
                       Expanded(
                         child: TextField(
                           key: const ValueKey('coach-chat-input'),
@@ -1372,21 +1384,32 @@ $prompt''';
                           ),
                         ),
                       ),
-                      if (!isComposing || _isRecording) ...[
-                        if (_isAttachmentBarCollapsed) ...[
-                          const SizedBox(width: 8),
-                          _AttachmentContextButton(
-                            color: colorScheme.primary,
-                            onTap: _showAttachmentSettings,
-                          ),
-                        ],
-                        const SizedBox(width: 8),
-                        _MicButton(
-                          isRecording: _isRecording,
-                          color: colorScheme.primary,
-                          onTap: _toggleRecording,
-                        ),
-                      ],
+                      ValueListenableBuilder<bool>(
+                        valueListenable: _isComposing,
+                        builder: (context, isComposing, _) {
+                          if (isComposing && !_isRecording) {
+                            return const SizedBox.shrink();
+                          }
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_isAttachmentBarCollapsed) ...[
+                                const SizedBox(width: 8),
+                                _AttachmentContextButton(
+                                  color: colorScheme.primary,
+                                  onTap: _showAttachmentSettings,
+                                ),
+                              ],
+                              const SizedBox(width: 8),
+                              _MicButton(
+                                isRecording: _isRecording,
+                                color: colorScheme.primary,
+                                onTap: _toggleRecording,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                       const SizedBox(width: 8),
                       Container(
                         decoration: BoxDecoration(
@@ -1770,6 +1793,7 @@ $prompt''';
           ]);
 
     return Padding(
+      key: const ValueKey('coach-attachment-bar'),
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
       child: LayoutBuilder(
         builder: (context, constraints) {
