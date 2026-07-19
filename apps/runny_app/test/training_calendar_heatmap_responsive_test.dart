@@ -5,6 +5,10 @@ import 'package:runny_app/l10n/app_localizations.dart';
 import 'package:runny_app/widgets/training_calendar_heatmap.dart';
 
 void main() {
+  setUpAll(() async {
+    expect(await AppLocalizations.preload(const Locale('en')), isTrue);
+  });
+
   testWidgets('keeps the header within a narrow phone viewport', (
     tester,
   ) async {

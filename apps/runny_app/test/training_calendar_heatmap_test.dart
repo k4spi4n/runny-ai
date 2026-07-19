@@ -5,6 +5,10 @@ import 'package:runny_app/l10n/app_localizations.dart';
 import 'package:runny_app/widgets/training_calendar_heatmap.dart';
 
 void main() {
+  setUpAll(() async {
+    expect(await AppLocalizations.preload(const Locale('en')), isTrue);
+  });
+
   Widget buildSubject(
     List<TrainingCalendarEntry> workouts, {
     ValueChanged<DateTime?>? onDateSelected,
@@ -154,13 +158,12 @@ void main() {
     );
   });
 
-  testWidgets('shows the last AI plan adjustment below progress', (tester) async {
+  testWidgets('shows the last AI plan adjustment below progress', (
+    tester,
+  ) async {
     await tester.runAsync(() async {
       await tester.pumpWidget(
-        buildSubject(
-          const [],
-          lastAiAdjustedAt: DateTime(2026, 7, 15, 14, 30),
-        ),
+        buildSubject(const [], lastAiAdjustedAt: DateTime(2026, 7, 15, 14, 30)),
       );
       await tester.pumpAndSettle();
     });
@@ -172,7 +175,9 @@ void main() {
     expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget);
     expect(
       tester.getTopLeft(adjustmentTime).dy,
-      greaterThan(tester.getBottomLeft(find.byType(LinearProgressIndicator)).dy),
+      greaterThan(
+        tester.getBottomLeft(find.byType(LinearProgressIndicator)).dy,
+      ),
     );
   });
 

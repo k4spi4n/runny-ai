@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class AppLocalizations {
   final Locale locale;
   Map<String, String>? _localizedStrings;
+
+  static final Map<String, Map<String, String>> _localizedStringsCache = {};
 
   AppLocalizations(this.locale);
 
@@ -15,16 +18,35 @@ class AppLocalizations {
   static const LocalizationsDelegate<AppLocalizations> delegate =
       _AppLocalizationsDelegate();
 
+  /// Loads a locale ahead of widget construction so subsequent delegates can
+  /// complete synchronously from the in-memory cache.
+  static Future<bool> preload(Locale locale) => AppLocalizations(locale).load();
+
+  static AppLocalizations? _fromCache(Locale locale) {
+    final strings = _localizedStringsCache[locale.languageCode];
+    if (strings == null) return null;
+    return AppLocalizations(locale).._localizedStrings = strings;
+  }
+
   Future<bool> load() async {
+    final languageCode = locale.languageCode;
+    final cachedStrings = _localizedStringsCache[languageCode];
+    if (cachedStrings != null) {
+      _localizedStrings = cachedStrings;
+      return true;
+    }
+
     try {
       String jsonString = await rootBundle.loadString(
-        'lib/l10n/locales/${locale.languageCode}.json',
+        'lib/l10n/locales/$languageCode.json',
       );
       Map<String, dynamic> jsonMap = json.decode(jsonString);
 
-      _localizedStrings = jsonMap.map((key, value) {
-        return MapEntry(key, value.toString());
-      });
+      final strings = Map<String, String>.unmodifiable(
+        jsonMap.map((key, value) => MapEntry(key, value.toString())),
+      );
+      _localizedStringsCache[languageCode] = strings;
+      _localizedStrings = strings;
       return true;
     } catch (e) {
       debugPrint('Error loading localization: $e');
@@ -378,10 +400,14 @@ class _AppLocalizationsDelegate
   }
 
   @override
-  Future<AppLocalizations> load(Locale locale) async {
-    AppLocalizations localizations = AppLocalizations(locale);
-    await localizations.load();
-    return localizations;
+  Future<AppLocalizations> load(Locale locale) {
+    final cachedLocalizations = AppLocalizations._fromCache(locale);
+    if (cachedLocalizations != null) {
+      return SynchronousFuture(cachedLocalizations);
+    }
+
+    final localizations = AppLocalizations(locale);
+    return localizations.load().then((_) => localizations);
   }
 
   @override

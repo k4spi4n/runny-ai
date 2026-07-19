@@ -6,6 +6,10 @@ import 'package:runny_app/widgets/manual_workout_form.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUpAll(() async {
+    expect(await AppLocalizations.preload(const Locale('en')), isTrue);
+  });
+
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   Widget buildSubject({

@@ -19,6 +19,10 @@ Widget _buildSubject(String password) {
 }
 
 void main() {
+  setUpAll(() async {
+    expect(await AppLocalizations.preload(const Locale('en')), isTrue);
+  });
+
   testWidgets('updates each requirement from the entered password', (
     tester,
   ) async {

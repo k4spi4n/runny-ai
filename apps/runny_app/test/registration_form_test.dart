@@ -116,6 +116,7 @@ void main() {
   setUpAll(() async {
     SharedPreferences.setMockInitialValues({'selected_locale': 'en'});
     _testPreferences = await SharedPreferences.getInstance();
+    expect(await AppLocalizations.preload(const Locale('en')), isTrue);
   });
 
   testWidgets('renders one password field with a Done keyboard action', (
