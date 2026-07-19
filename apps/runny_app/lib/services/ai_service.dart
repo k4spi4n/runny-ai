@@ -22,6 +22,8 @@ abstract final class AiFeature {
 
 class AiService {
   static _CoachPreference? _cachedCoachPreference;
+  static const int _historyMaxMessages = 12;
+  static const int _historyMaxChars = 5000;
 
   AiService() {
     debugPrint('AiService: Using server-owned multi-provider policies.');
@@ -66,13 +68,75 @@ class AiService {
     List<Map<String, dynamic>> messages,
   ) async {
     final preference = await _loadCoachPreference();
+    final preferencesJson = jsonEncode({
+      'coach_name': preference.coachName,
+      'style': preference.persona.promptDescription,
+    });
     messages.insert(0, {
       'role': 'user',
-      'content':
-          'Tùy chọn cá nhân hóa của tôi: gọi HLV là '
-          '${preference.coachName}; phong cách mong muốn: '
-          '${preference.persona.promptDescription}',
+      'content': 'PREFERENCES_JSON:$preferencesJson',
     });
+  }
+
+  /// Chuẩn hóa và chỉ giữ ngữ cảnh hội thoại mới nhất trong ngân sách.
+  ///
+  /// Server còn cần chỗ cho câu hỏi hiện tại, persona và các vòng gọi tool;
+  /// do đó lịch sử không được phép dùng hết giới hạn request của feature.
+  @visibleForTesting
+  static List<Map<String, dynamic>> compactHistory(
+    Iterable<Map<String, dynamic>>? history, {
+    int maxMessages = _historyMaxMessages,
+    int maxChars = _historyMaxChars,
+  }) {
+    if (history == null || maxMessages <= 0 || maxChars <= 0) {
+      return const [];
+    }
+
+    final source = history.toList(growable: false);
+    final newestFirst = <Map<String, dynamic>>[];
+    var usedChars = 0;
+
+    for (
+      var index = source.length - 1;
+      index >= 0 && newestFirst.length < maxMessages;
+      index--
+    ) {
+      final item = source[index];
+      final rawRole = item['role'];
+      final role = rawRole == 'model' || rawRole == 'assistant'
+          ? 'assistant'
+          : rawRole == 'user'
+          ? 'user'
+          : null;
+      final content = item['content'] is String
+          ? (item['content'] as String).trim()
+          : '';
+      if (role == null || content.isEmpty) continue;
+
+      final remaining = maxChars - usedChars;
+      if (remaining <= 0) break;
+      if (content.length > remaining) {
+        // Chỉ cắt tin mới nhất; với tin cũ hơn, dừng tại ranh giới message để
+        // không tạo lịch sử khó hiểu bằng những mảnh hội thoại rời rạc.
+        if (newestFirst.isEmpty && remaining >= 64) {
+          const marker = '\n[truncated]';
+          final kept = content.substring(0, remaining - marker.length);
+          newestFirst.add({'role': role, 'content': '$kept$marker'});
+        }
+        break;
+      }
+
+      newestFirst.add({'role': role, 'content': content});
+      usedChars += content.length;
+    }
+
+    final result = newestFirst.reversed.toList(growable: true);
+    // Một assistant message không có user message đứng trước thường là lời
+    // chào hoặc nửa sau của cặp đã bị cắt; bỏ nó để ngữ cảnh có nghĩa rõ ràng.
+    while (result.isNotEmpty && result.first['role'] != 'user') {
+      result.removeAt(0);
+    }
+    return result;
   }
 
   /// Trích thông báo lỗi thân thiện từ phản hồi/exception của Edge Function.
@@ -111,16 +175,11 @@ class AiService {
     String feature = AiFeature.chat,
   }) async {
     try {
-      final messages = <Map<String, dynamic>>[];
-
-      if (history != null) {
-        for (final m in history) {
-          final role = m['role'] == 'model' || m['role'] == 'assistant'
-              ? 'assistant'
-              : 'user';
-          messages.add({'role': role, 'content': m['content'] ?? ''});
-        }
-      }
+      final messages = compactHistory(
+        history?.map<Map<String, dynamic>>(
+          (item) => Map<String, dynamic>.from(item),
+        ),
+      );
 
       messages.add({'role': 'user', 'content': prompt});
       if (includeCoachPersona) {
@@ -178,21 +237,7 @@ class AiService {
     )
     executeTool,
   }) async {
-    final messages = <Map<String, dynamic>>[];
-    if (history != null) {
-      for (final item in history) {
-        final role = item['role'] == 'model'
-            ? 'assistant'
-            : (item['role'] as String? ?? 'user');
-        if (role != 'user' && role != 'assistant') {
-          continue;
-        }
-        messages.add({
-          'role': role,
-          'content': item['content'] as String? ?? '',
-        });
-      }
-    }
+    final messages = compactHistory(history);
     messages.add({'role': 'user', 'content': prompt});
     await _addCoachPersonaMessage(messages);
 
@@ -317,15 +362,11 @@ class AiService {
     List<Map<String, String>>? history,
     bool includeCoachPersona = false,
   }) async* {
-    final messages = <Map<String, dynamic>>[];
-    if (history != null) {
-      for (final m in history) {
-        final role = m['role'] == 'model' || m['role'] == 'assistant'
-            ? 'assistant'
-            : 'user';
-        messages.add({'role': role, 'content': m['content'] ?? ''});
-      }
-    }
+    final messages = compactHistory(
+      history?.map<Map<String, dynamic>>(
+        (item) => Map<String, dynamic>.from(item),
+      ),
+    );
     messages.add({'role': 'user', 'content': prompt});
     if (includeCoachPersona) {
       await _addCoachPersonaMessage(messages);
@@ -394,26 +435,17 @@ class AiService {
   }
 
   Future<Map<String, dynamic>> generateStructuredResponse(
-    String prompt,
-    String systemPrompt, {
+    String inputJson, {
     required String feature,
-    Map<String, dynamic>? responseFormat,
   }) async {
     try {
       final messages = [
-        {
-          'role': 'user',
-          'content': 'Yêu cầu tác vụ:\n$systemPrompt\n\nDữ liệu:\n$prompt',
-        },
+        {'role': 'user', 'content': 'INPUT_JSON:${inputJson.trim()}'},
       ];
 
       final response = await Supabase.instance.client.functions.invoke(
         'openrouter',
-        body: {
-          'feature': feature,
-          'messages': messages,
-          'response_format': responseFormat ?? {'type': 'json_object'},
-        },
+        body: {'feature': feature, 'messages': messages},
       );
 
       if (response.status != 200) {
@@ -438,7 +470,12 @@ class AiService {
       }
 
       // Cleanup code blocks if returned
-      var cleanedContent = content.trim();
+      var cleanedContent = content
+          .replaceAll(
+            RegExp(r'<think>[\s\S]*?</think>', caseSensitive: false),
+            '',
+          )
+          .trim();
       if (cleanedContent.startsWith('```')) {
         final lastBackticks = cleanedContent.lastIndexOf('```');
         if (lastBackticks > 0) {
@@ -449,7 +486,13 @@ class AiService {
             .trim();
       }
 
-      return jsonDecode(cleanedContent);
+      final parsed = jsonDecode(cleanedContent);
+      if (parsed is! Map) {
+        throw const FormatException(
+          'Structured AI response must be an object.',
+        );
+      }
+      return Map<String, dynamic>.from(parsed);
     } catch (e) {
       debugPrint('AI gateway structured call failed: $e');
       if (e is FunctionException) {

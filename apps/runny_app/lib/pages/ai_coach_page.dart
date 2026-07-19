@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -8,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/training_service.dart';
 import '../services/training_refresh_service.dart';
+import '../services/ai_request_builder.dart';
 import '../services/ai_service.dart';
 import '../services/chat_service.dart';
 import '../services/ai_coach_tool_service.dart';
@@ -68,16 +70,12 @@ class _AICoachPageState extends State<AICoachPage> {
   String _coachPersona = CoachPersona.calm.id;
   String _baseText = '';
   Activity? _contextActivity;
+  CoachInteractiveAction? _discussionAction;
   AICoachHubController? _hubController;
   var _lastHubRequestId = 0;
-  // Dữ liệu người dùng chọn đính kèm vào câu hỏi để AI phân tích.
-  // Mặc định bật tất cả để AI luôn có ngữ cảnh đầy đủ.
-  final Set<_ChatAttachment> _attachments = {
-    _ChatAttachment.activities,
-    _ChatAttachment.metrics,
-    _ChatAttachment.plan,
-    _ChatAttachment.nutrition,
-  };
+  // Chỉ gửi dữ liệu người dùng khi họ chọn hoặc câu hỏi rõ ràng cần dữ liệu
+  // hoạt động/chỉ số. Kế hoạch và bữa ăn đã có tool đọc theo nhu cầu.
+  final Set<_ChatAttachment> _attachments = {};
   bool _isAttachmentBarCollapsed = false;
   int _suggestionVariant = Random().nextInt(3);
 
@@ -306,7 +304,9 @@ class _AICoachPageState extends State<AICoachPage> {
 
     // Chụp nhanh lựa chọn dữ liệu đính kèm trước khi reset UI (đọc Provider
     // đồng bộ, không dùng context sau async gap).
-    final attachments = Set<_ChatAttachment>.from(_attachments);
+    final attachments = _attachments.isEmpty
+        ? _inferredAttachments(text)
+        : Set<_ChatAttachment>.from(_attachments);
     final nutritionSummary = attachments.contains(_ChatAttachment.nutrition)
         ? context.read<NutritionService>().getDailySummary(DateTime.now())
         : null;
@@ -324,28 +324,41 @@ class _AICoachPageState extends State<AICoachPage> {
     final errorOccurredTranslation = context.translate('error_occurred');
 
     String prompt = text;
+    final discussionAction = _discussionAction;
+    _discussionAction = null;
+    if (discussionAction != null) {
+      final relevantBefore = <String, dynamic>{
+        for (final key in discussionAction.changes.keys)
+          if (discussionAction.before.containsKey(key))
+            key: discussionAction.before[key],
+      };
+      final actionContextJson = jsonEncode({
+        'kind': discussionAction.kind,
+        'target_id': discussionAction.targetId,
+        'before': relevantBefore,
+        'changes': discussionAction.changes,
+      });
+      prompt = 'ACTION_CONTEXT_JSON:$actionContextJson\nQUESTION:$prompt';
+    }
     final contextActivity = _contextActivity;
     if (contextActivity != null) {
-      final hasEnglishL10n = context.translate('english') == 'English';
-      final activityContextParts = <String>[
-        if (contextActivity.name != null && contextActivity.name!.isNotEmpty)
-          '${hasEnglishL10n ? 'Name' : 'Tên'}: ${contextActivity.name}',
-        if (contextActivity.notes != null &&
-            contextActivity.notes!.isNotEmpty &&
+      final activityContextJson = jsonEncode({
+        'distance_km': double.parse(
+          contextActivity.distanceKm.toStringAsFixed(2),
+        ),
+        'duration_min': double.parse(
+          contextActivity.durationMin.toStringAsFixed(1),
+        ),
+        if (contextActivity.avgHr != null) 'avg_hr': contextActivity.avgHr,
+        if (contextActivity.elevationGainM != null)
+          'elevation_gain_m': contextActivity.elevationGainM,
+        if (contextActivity.name?.trim().isNotEmpty == true)
+          'name': contextActivity.name!.trim(),
+        if (contextActivity.notes?.trim().isNotEmpty == true &&
             contextActivity.notes != contextActivity.name)
-          '${hasEnglishL10n ? 'Notes' : 'Ghi chú'}: ${contextActivity.notes}',
-      ];
-      final activityContextText = activityContextParts.isEmpty
-          ? (hasEnglishL10n ? 'None' : 'Không có')
-          : activityContextParts.join('; ');
-      prompt = context.translate('ai_prompt_context', [
-        contextActivity.distanceKm.toStringAsFixed(2),
-        contextActivity.durationMin.toStringAsFixed(1),
-        contextActivity.avgHr?.toString() ?? 'N/A',
-        contextActivity.elevationGainM?.toString() ?? '0',
-        activityContextText,
-        text,
-      ]);
+          'notes': contextActivity.notes!.trim(),
+      });
+      prompt = 'ACTIVITY_CONTEXT_JSON:$activityContextJson\nQUESTION:$prompt';
       setState(
         () => _contextActivity = null,
       ); // Reset context immediately (safe since it's synchronous)
@@ -369,10 +382,16 @@ class _AICoachPageState extends State<AICoachPage> {
     if (readinessIntent) {
       try {
         final readiness = await ReadinessService().getSnapshot();
-        prompt =
-            '''CÔNG CỤ READINESS (dữ liệu hiện tại): điểm ${readiness.score}/100, trạng thái ${readiness.status}, tải 7 ngày ${readiness.acuteLoad.toStringAsFixed(0)}, tải nền 28 ngày ${readiness.chronicLoad.toStringAsFixed(0)}, ACWR ${readiness.acwr?.toStringAsFixed(2) ?? 'chưa đủ dữ liệu'}, cờ đau bất thường ${readiness.painFlag ? 'CÓ' : 'không'}. ${readiness.painFlag ? 'Không đề xuất điều chỉnh lịch; khuyên nghỉ và tìm tư vấn y tế phù hợp.' : 'Nếu khuyến nghị giảm/dời lịch, nói rõ người dùng cần xác nhận trong tab Lịch tập.'}
-
-$prompt''';
+        final acwr = readiness.acwr;
+        final readinessJson = jsonEncode({
+          'score': readiness.score,
+          'status': readiness.status,
+          'load_7d': double.parse(readiness.acuteLoad.toStringAsFixed(1)),
+          'load_28d': double.parse(readiness.chronicLoad.toStringAsFixed(1)),
+          if (acwr != null) 'acwr': double.parse(acwr.toStringAsFixed(2)),
+          'pain_flag': readiness.painFlag,
+        });
+        prompt = 'READINESS_JSON:$readinessJson\nQUESTION:$prompt';
       } catch (e) {
         debugPrint('Readiness tool error: $e');
       }
@@ -461,6 +480,18 @@ $prompt''';
         if (anchorKey != null) scrollChatResponseToStart(anchorKey);
       }
     }
+  }
+
+  Set<_ChatAttachment> _inferredAttachments(String question) {
+    return AiRequestBuilder.inferredCoachContext(question)
+        .map(
+          (source) => switch (source) {
+            'activities' => _ChatAttachment.activities,
+            'metrics' => _ChatAttachment.metrics,
+            _ => throw StateError('Unknown AI context source: $source'),
+          },
+        )
+        .toSet();
   }
 
   void _startLongWaitTimer() {
@@ -1008,6 +1039,7 @@ $prompt''';
   void _discussInteractiveAction(int messageIndex) {
     final action = _interactiveActionAt(messageIndex);
     if (action == null) return;
+    _discussionAction = action;
     _controller.text = context.translate('coach_discuss_prompt', [
       action.title,
     ]);

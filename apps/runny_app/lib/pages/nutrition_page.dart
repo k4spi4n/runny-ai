@@ -8,7 +8,7 @@ import '../widgets/nutrition_goal_sheet.dart';
 import '../models/nutrition_models.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
-import 'dart:convert';
+import '../services/ai_request_builder.dart';
 import '../services/ai_service.dart';
 import '../widgets/ui_components.dart';
 import '../utils/date_time_utils.dart';
@@ -950,81 +950,28 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
     });
 
     try {
-      final mealNameVi = widget.mealType == MealType.breakfast
-          ? 'Bữa sáng'
-          : widget.mealType == MealType.lunch
-          ? 'Bữa trưa'
-          : widget.mealType == MealType.dinner
-          ? 'Bữa tối'
-          : 'Bữa phụ';
-
-      final prompt =
-          """
-      Act as a professional sports nutritionist and AI diet coach. 
-      Suggest exactly 3 healthy, clean food options for a runner's $mealNameVi meal.
-      The user's daily goals and current progress:
-      - Daily target calories: ${widget.summary.goal.dailyCalories} kcal
-      - Calories consumed so far: ${widget.summary.caloriesIn} kcal
-      - Calories still available in the food target: ${widget.summary.caloriesRemaining} kcal
-      - Calories burned through exercise: ${widget.summary.caloriesOut} kcal
-      - Current protein: ${widget.summary.protein.toStringAsFixed(1)}g (target: ${widget.summary.goal.targetProteinGrams.toStringAsFixed(1)}g)
-      - Current carbs: ${widget.summary.carbs.toStringAsFixed(1)}g (target: ${widget.summary.goal.targetCarbsGrams.toStringAsFixed(1)}g)
-      - Current fat: ${widget.summary.fat.toStringAsFixed(1)}g (target: ${widget.summary.goal.targetFatGrams.toStringAsFixed(1)}g)
-
-      Suggest foods that balance the remaining macros. 
-      Return the response in a raw JSON array format (do not include any markdown styling like ```json or other conversational text). Each item in the array MUST contain:
-      "foodName": String (in Vietnamese, user-friendly, e.g. "Cháo yến mạch và ức gà")
-      "calories": double/int (kcal)
-      "protein": double/int (g)
-      "carbs": double/int (g)
-      "fat": double/int (g)
-      "amount": double/int (amount size)
-      "unit": String (e.g. "bát", "đĩa", "ly", "quả")
-
-      Format:
-      [
-        {
-          "foodName": "...",
-          "calories": 350,
-          "protein": 15,
-          "carbs": 45,
-          "fat": 8,
-          "amount": 1,
-          "unit": "bát"
-        }
-      ]
-      """;
-
-      final response = await _aiService.generateResponse(
-        prompt,
+      final goal = widget.summary.goal;
+      final inputJson = AiRequestBuilder.nutritionSuggestions(
+        locale: Localizations.localeOf(context).languageCode,
+        date: widget.selectedDate,
+        mealType: widget.mealType.name,
+        remainingCalories: widget.summary.caloriesRemaining,
+        remainingProtein: goal.targetProteinGrams - widget.summary.protein,
+        remainingCarbs: goal.targetCarbsGrams - widget.summary.carbs,
+        remainingFat: goal.targetFatGrams - widget.summary.fat,
+      );
+      final response = await _aiService.generateStructuredResponse(
+        inputJson,
         feature: AiFeature.nutritionSuggestions,
       );
-
-      // Clean up markdown markers if any
-      var cleanResponse = response.trim();
-      if (cleanResponse.startsWith('```')) {
-        final lines = cleanResponse.split('\n');
-        if (lines.first.startsWith('```')) {
-          lines.removeAt(0);
-        }
-        if (lines.last.startsWith('```')) {
-          lines.removeLast();
-        }
-        cleanResponse = lines.join('\n').trim();
-      }
-
-      final decoded = json.decode(cleanResponse);
-      if (decoded is List) {
-        if (mounted) {
-          setState(() {
-            _suggestions = decoded
-                .map((e) => Map<String, dynamic>.from(e))
-                .toList();
-            _isLoading = false;
-          });
-        }
-      } else {
-        throw const FormatException('Response is not a JSON list');
+      final suggestions = AiStructuredResponseParser.nutritionSuggestions(
+        response,
+      );
+      if (mounted) {
+        setState(() {
+          _suggestions = suggestions;
+          _isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {

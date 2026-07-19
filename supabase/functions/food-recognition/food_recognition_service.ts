@@ -57,22 +57,7 @@ const MAX_CALORIES = 5000;
 const MAX_MACRO_GRAMS = 500;
 const MAX_FOOD_NAME_CHARS = 80;
 
-// Yeu cau model tra ve JSON co cau truc, va TU CHOI anh khong phai mon an (is_food=false).
-// Day la lop guardrail noi dung: chong nguoi dung upload anh rac/khong lien quan.
-const SYSTEM_PROMPT =
-  "Bạn là chuyên gia dinh dưỡng nhận diện món ăn qua ảnh. " +
-  "Chỉ phân tích DUY NHẤT món ăn/đồ uống chính trong ảnh. " +
-  "Nếu ảnh KHÔNG chứa thức ăn/đồ uống thật (ví dụ: người, phong cảnh, văn bản, ảnh chụp màn hình, nội dung phản cảm...), " +
-  'hãy đặt "is_food": false và để các trường còn lại bằng 0/"". ' +
-  "Ước lượng dinh dưỡng cho MỘT khẩu phần như thấy trong ảnh. " +
-  "Đặt tên món bằng tiếng Việt nếu có thể. " +
-  "CHỈ trả về JSON đúng schema, không thêm chữ nào khác.";
-
-const USER_PROMPT =
-  "Nhận diện món ăn trong ảnh và CHỈ trả về một đối tượng JSON hợp lệ theo schema sau " +
-  "(số là số thực, không kèm đơn vị, không thêm chữ hay markdown nào ngoài JSON):\n" +
-  '{"is_food": boolean, "food_name": string, "confidence": number (0..1), ' +
-  '"nutrition": {"calories": number (kcal), "protein": number (g), "carbs": number (g), "fat": number (g)}}';
+const USER_PROMPT = "Phân tích món ăn hoặc đồ uống chính trong ảnh.";
 
 // Trich JSON tu noi dung model tra ve, chiu duoc fence markdown (```json ... ```)
 // hoac chu thua quanh JSON. Tra ve null neu khong tim thay JSON hop le.
@@ -126,11 +111,10 @@ export class MultiProviderFoodRecognitionService
       messages: [{
         role: "user",
         content: [
-          { type: "text", text: `${SYSTEM_PROMPT}\n\n${USER_PROMPT}` },
+          { type: "text", text: USER_PROMPT },
           { type: "image_url", image_url: { url: dataUrl } },
         ],
       }],
-      response_format: { type: "json_object" },
     });
 
     let parsed: Record<string, unknown> | null = null;

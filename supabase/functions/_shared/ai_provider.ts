@@ -137,6 +137,33 @@ export function providerHeaders(
   return headers;
 }
 
+const SCHEMA_CONTRACT_LABEL = "Schema JSON bắt buộc:";
+
+function appendCanonicalSchemaContract(body: Record<string, unknown>): void {
+  const format = body.response_format as Record<string, unknown> | undefined;
+  const jsonSchema = format?.json_schema as
+    | Record<string, unknown>
+    | undefined;
+  const schema = jsonSchema?.schema;
+  if (!schema || typeof schema !== "object") return;
+
+  const messages = body.messages;
+  if (!Array.isArray(messages)) return;
+  const system = messages.find((message) =>
+    message && typeof message === "object" &&
+    (message as Record<string, unknown>).role === "system"
+  ) as Record<string, unknown> | undefined;
+  if (!system || typeof system.content !== "string") return;
+  if (system.content.includes(SCHEMA_CONTRACT_LABEL)) return;
+  system.content += `\n${SCHEMA_CONTRACT_LABEL}${JSON.stringify(schema)}`;
+}
+
+function preservesJsonSchema(provider: AiProvider, model: string): boolean {
+  if (provider === "modal") return true;
+  if (provider === "groq") return model.startsWith("openai/gpt-oss-");
+  return false;
+}
+
 export function providerBody(
   request: NormalizedAiRequest,
   provider: AiProvider,
@@ -154,14 +181,17 @@ export function providerBody(
   if (provider === "groq" && request.feature === "food_recognition") {
     // Groq's Qwen vision endpoint currently behaves more reliably with a
     // strict JSON prompt than with response_format.
+    appendCanonicalSchemaContract(body);
     delete body.response_format;
     body.reasoning_effort = "none";
   }
-  if (provider !== "groq" && provider !== "modal") {
-    const format = body.response_format as Record<string, unknown> | undefined;
-    if (format?.type === "json_schema") {
-      body.response_format = { type: "json_object" };
-    }
+  const format = body.response_format as Record<string, unknown> | undefined;
+  if (
+    format?.type === "json_schema" &&
+    !preservesJsonSchema(provider, String(body.model))
+  ) {
+    appendCanonicalSchemaContract(body);
+    body.response_format = { type: "json_object" };
   }
   return body;
 }

@@ -244,8 +244,8 @@ class AICoachToolService {
     return CoachToolExecution(
       output: {
         'status': 'pending_confirmation',
-        'message': 'Đã tạo thẻ đề xuất; chưa lưu thay đổi.',
-        'proposal': action.toJson(),
+        'target_id': id,
+        'changed_fields': changes.keys.toList(growable: false),
       },
       action: action,
     );
@@ -297,8 +297,8 @@ class AICoachToolService {
     return CoachToolExecution(
       output: {
         'status': 'pending_confirmation',
-        'message': 'Đã tạo thẻ đề xuất; chưa lưu thay đổi.',
-        'proposal': action.toJson(),
+        'target_id': id,
+        'changed_fields': changes.keys.toList(growable: false),
       },
       action: action,
     );

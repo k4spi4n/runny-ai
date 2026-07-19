@@ -36,10 +36,11 @@ void main() {
         today: DateTime(2026, 7, 14, 9),
       );
 
-      expect(prompt, contains('Local current date: 2026-07-14'));
+      expect(prompt, contains('REFERENCE_DATE:2026-07-14'));
       expect(prompt, contains('2026-07-13'));
-      expect(prompt, contains('Do not discuss the training plan'));
-      expect(prompt, contains('Do not invent'));
+      expect(prompt, contains('no training-plan discussion'));
+      expect(prompt, contains('Listed metrics only'));
+      expect(prompt.length, lessThan(700));
     },
   );
 
@@ -62,9 +63,34 @@ void main() {
       today: DateTime(2026, 7, 14),
     );
 
-    expect(prompt, contains('exactly one short conclusion sentence'));
-    expect(prompt, contains('at most 24 words'));
-    expect(prompt, contains('2 completed / 3 scheduled'));
+    expect(prompt, contains('exactly one sentence'));
+    expect(prompt, contains('maximum 24 words'));
+    expect(prompt, contains('completed=2,scheduled=3'));
     expect(prompt, contains('2026-07-14'));
+    expect(prompt.length, lessThan(700));
   });
+
+  test(
+    'activity prompt keeps missing pace and heart rate explicit but compact',
+    () {
+      final prompt = AiInsightService.buildActivityTrendPrompt(
+        activities: [
+          Activity(
+            id: 'activity-1',
+            userId: 'user-1',
+            startedAt: DateTime(2026, 7, 14),
+            distanceKm: 0,
+            durationMin: 12,
+          ),
+        ],
+        languageCode: 'en',
+        today: DateTime(2026, 7, 14),
+      );
+
+      expect(prompt, contains('OUTPUT_LANGUAGE:en'));
+      expect(prompt, contains('2026-07-14,0.0,12,,'));
+      expect(prompt, isNot(contains('NaN')));
+      expect(prompt, isNot(contains('null')));
+    },
+  );
 }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../utils/activity_parser.dart';
+import 'ai_request_builder.dart';
 import 'paywall_exception.dart';
 
 class ActivityScreenshotImportException implements Exception {
@@ -62,7 +63,7 @@ class ActivityScreenshotImportService {
 
     final dataUrl =
         'data:image/${imageType.mediaSubtype};base64,${base64Encode(bytes)}';
-    final today = DateTime.now().toIso8601String();
+    final referenceTime = DateTime.now();
 
     try {
       final response = await _supabase.functions.invoke(
@@ -73,7 +74,12 @@ class ActivityScreenshotImportService {
             {
               'role': 'user',
               'content': [
-                {'type': 'text', 'text': _userPrompt(today)},
+                {
+                  'type': 'text',
+                  'text': AiRequestBuilder.activityScreenshot(
+                    referenceTime: referenceTime,
+                  ),
+                },
                 {
                   'type': 'image_url',
                   'image_url': {'url': dataUrl},
@@ -81,7 +87,6 @@ class ActivityScreenshotImportService {
               ],
             },
           ],
-          'response_format': {'type': 'json_object'},
         },
       );
 
@@ -310,19 +315,6 @@ class ActivityScreenshotImportService {
     }
     return 'Dịch vụ AI đang bận. Vui lòng thử lại sau.';
   }
-
-  static String _userPrompt(String todayIso) =>
-      'Đọc ảnh chụp màn hình buổi tập và trả về JSON theo schema: '
-      '{"is_activity": boolean, "activity_type": "run|walk|cardio|other", '
-      '"started_at": string ISO-8601, "distance_km": number, '
-      '"duration_min": number, "avg_hr": number|null, '
-      '"avg_cadence": number|null, '
-      '"elevation_gain_m": number|null, "confidence": number, '
-      '"source_app": string|null, "notes": string|null}. '
-      'Quy đổi mile sang km, giờ:phút:giây sang phút, pace không dùng làm duration. '
-      'Nếu ảnh ghi Today/Yesterday, quy đổi tương đối theo thời điểm hiện tại $todayIso. '
-      'Nếu thiếu ngày chính xác nhưng các chỉ số tập hợp lệ, để started_at là chuỗi rỗng. '
-      'distance_km và duration_min là bắt buộc khi is_activity=true.';
 }
 
 class ImageType {

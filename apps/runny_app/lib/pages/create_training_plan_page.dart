@@ -1,9 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/ai_request_builder.dart';
 import '../services/ai_service.dart';
 import '../services/training_service.dart';
 import '../widgets/ui_components.dart';
@@ -133,33 +132,24 @@ class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
           .maybeSingle();
       if (!mounted) return;
       final constraints = _constraintsController.text.trim();
-      final prompt =
-          '''
-Tao 2 den 4 muc tieu chay bo an toan, cu the va phu hop nguoi dung Runny AI.
-
-Thong tin nguoi dung:
-- Gioi tinh: ${profile?['gender'] ?? 'chua ro'}
-- Can nang: ${profile?['weight_kg'] ?? 'chua ro'} kg
-- Chieu cao: ${profile?['height_cm'] ?? 'chua ro'} cm
-- Nhip tim toi da: ${profile?['max_hr'] ?? 'chua ro'} bpm
-- Muc tieu dang nhap: ${_goalController.text.trim().isEmpty ? 'chua co' : _goalController.text.trim()}
-- Ngay bat dau: ${DateFormat('yyyy-MM-dd').format(_startDate)}
-- Ngay ket thuc: ${_letAiDecideEnd ? 'de AI tu quyet dinh' : (_endDate == null ? 'chua chon' : DateFormat('yyyy-MM-dd').format(_endDate!))}
-- So buoi co the tap moi tuan: $_trainingDaysPerWeek
-- Thoi gian uu tien: ${context.translate('plan_time_$_preferredTime')}
-- Gioi han/luu y suc khoe: ${constraints.isEmpty ? 'khong co' : constraints}
-
-Yeu cau:
-- Moi muc tieu la mot cau ngan, cu the va phu hop the trang hien tai.
-- Co the gom cu ly, tan suat, thoi gian, muc do an toan.
-- Khong tao lich tap chi tiet.
-- Tra ve JSON dung schema: {"goals":["..."]}.
-''';
-      final content = await _aiService.generateResponse(
-        prompt,
+      final inputJson = AiRequestBuilder.onboardingGoals(
+        locale: Localizations.localeOf(context).languageCode,
+        gender: profile?['gender']?.toString(),
+        weightKg: profile?['weight_kg'] as num?,
+        heightCm: profile?['height_cm'] as num?,
+        maxHr: profile?['max_hr'] as num?,
+        goal: _goalController.text,
+        startDate: _startDate,
+        endDate: _letAiDecideEnd ? null : _endDate,
+        trainingDaysPerWeek: _trainingDaysPerWeek,
+        preferredTime: _preferredTime,
+        constraints: constraints,
+      );
+      final response = await _aiService.generateStructuredResponse(
+        inputJson,
         feature: AiFeature.onboardingGoals,
       );
-      final suggestions = _parseGoalSuggestions(content);
+      final suggestions = AiStructuredResponseParser.goalSuggestions(response);
 
       if (!mounted) return;
       if (suggestions.length < 2) {
@@ -180,21 +170,6 @@ Yeu cau:
     } finally {
       if (mounted) setState(() => _isSuggestingGoals = false);
     }
-  }
-
-  List<String> _parseGoalSuggestions(String content) {
-    final trimmed = content.trim();
-    final start = trimmed.indexOf('{');
-    final end = trimmed.lastIndexOf('}');
-    if (start < 0 || end <= start) return const [];
-    final decoded = jsonDecode(trimmed.substring(start, end + 1));
-    final rawGoals = decoded is Map ? decoded['goals'] : null;
-    if (rawGoals is! List) return const [];
-    return rawGoals
-        .map((item) => item.toString().trim())
-        .where((item) => item.isNotEmpty)
-        .take(4)
-        .toList();
   }
 
   @override

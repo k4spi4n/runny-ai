@@ -83,26 +83,23 @@ class AiInsightService {
           final pace = activity.distanceKm > 0
               ? activity.durationMin / activity.distanceKm
               : null;
-          return '- ${DateFormat('yyyy-MM-dd').format(activity.startedAt.toLocal())}: '
-              '${activity.distanceKm.toStringAsFixed(1)} km, '
-              '${activity.durationMin.toStringAsFixed(0)} min, '
-              'pace ${formatPace(pace, invalid: '--')}/km'
-              '${activity.avgHr == null ? '' : ', HR ${activity.avgHr} bpm'}';
+          return '${DateFormat('yyyy-MM-dd').format(activity.startedAt.toLocal())},'
+              '${activity.distanceKm.toStringAsFixed(1)},'
+              '${activity.durationMin.toStringAsFixed(0)},'
+              '${formatPace(pace, invalid: '')},'
+              '${activity.avgHr ?? ''}';
         })
         .join('\n');
-    final language = languageCode == 'en' ? 'English' : 'Vietnamese';
+    final language = languageCode == 'en' ? 'en' : 'vi';
 
     return '''
-You are reviewing only the runner's recent recorded activities.
 ${_todayContext(today)}
-
-Recorded activities, newest first:
+OUTPUT_LANGUAGE:$language
+ACTIVITIES_CSV_NEWEST_FIRST:
+date,distance_km,duration_min,pace_min_per_km,avg_hr
 $activityLines
-
-Write 2 concise sentences in $language:
-1) State one evidence-based activity trend using only the listed dates and metrics.
-2) Give exactly one concrete, low-risk improvement suggestion.
-Do not discuss the training plan. Do not claim improvement or decline unless the data supports a comparison. Do not invent missing workouts, goals, feelings, injuries, dates, or metrics. No markdown and no heading.
+TASK: Write exactly 2 concise sentences: (1) one trend supported by the CSV; (2) one concrete, low-risk action.
+CONSTRAINTS: Listed metrics only; no training-plan discussion, unsupported comparison, markdown, or heading.
 ''';
   }
 
@@ -115,32 +112,27 @@ Do not discuss the training plan. Do not claim improvement or decline unless the
     required String languageCode,
     required DateTime today,
   }) {
-    final language = languageCode == 'en' ? 'English' : 'Vietnamese';
+    final language = languageCode == 'en' ? 'en' : 'vi';
     return '''
-You are writing the final weekly training conclusion shown inside a training plan.
 ${_todayContext(today)}
-Current week so far: ${_metricsLine(currentWeek)}.
-Previous calendar week: ${_metricsLine(previousWeek)}.
-Current-week plan adherence: $completedWorkouts completed / $plannedWorkouts scheduled, $skippedWorkouts skipped.
-
-Return exactly one short conclusion sentence in $language, at most 24 words. Focus on weekly momentum or plan adherence, not individual activity details. If comparison is insufficient, say only that momentum has started; never fabricate progress. Do not give a list, detailed advice, markdown, heading, emoji, or medical claim.
+OUTPUT_LANGUAGE:$language
+CURRENT_WEEK:${_metricsLine(currentWeek)}
+PREVIOUS_WEEK:${_metricsLine(previousWeek)}
+ADHERENCE:completed=$completedWorkouts,scheduled=$plannedWorkouts,skipped=$skippedWorkouts
+TASK: Return exactly one sentence (maximum 24 words) about weekly momentum or adherence.
+CONSTRAINTS: If comparison is insufficient, only say momentum has started; no activity detail, advice, list, markdown, emoji, or medical claim.
 ''';
   }
 
   static String _metricsLine(WeeklyTrainingMetrics metrics) {
-    return '${metrics.activityCount} activities, '
-        '${metrics.distanceKm.toStringAsFixed(1)} km, '
-        '${metrics.durationMin.toStringAsFixed(0)} min, '
-        'average pace ${formatPace(metrics.averagePaceMinPerKm, invalid: '--')}/km';
+    return 'activities=${metrics.activityCount},'
+        'distance_km=${metrics.distanceKm.toStringAsFixed(1)},'
+        'duration_min=${metrics.durationMin.toStringAsFixed(0)},'
+        'avg_pace=${formatPace(metrics.averagePaceMinPerKm, invalid: 'unknown')}';
   }
 
   static String _todayContext(DateTime today) {
     final local = today.toLocal();
-    final offset = local.timeZoneOffset;
-    final sign = offset.isNegative ? '-' : '+';
-    final hours = offset.inHours.abs().toString().padLeft(2, '0');
-    final minutes = (offset.inMinutes.abs() % 60).toString().padLeft(2, '0');
-    return 'Local current date: ${DateFormat('yyyy-MM-dd').format(local)} '
-        '(UTC$sign$hours:$minutes). Treat this as the only definition of today.';
+    return 'REFERENCE_DATE:${DateFormat('yyyy-MM-dd').format(local)}';
   }
 }

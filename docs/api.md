@@ -19,13 +19,13 @@ Hệ thống sử dụng chuẩn xác thực JWT thông qua dịch vụ Supabase
 Chuyển tiếp và bảo mật các yêu cầu xử lý trí tuệ nhân tạo.
 
 - **Đường dẫn**: `POST /functions/v1/openrouter`
-- **Chức năng**: Bảo mật khóa API và điều phối yêu cầu tới các mô hình ngôn ngữ lớn (LLM). Provider chính là **Groq** (suy luận nhanh nhờ LPU); khi Groq lỗi hoặc bị rate-limit (429), proxy tự **fallback sang Cerebras**, rồi mới sang **OpenRouter**.
-- **Định dạng dữ liệu**: Tuân theo chuẩn OpenAI Chat Completions (Groq, Cerebras và OpenRouter đều tương thích). Header `X-AI-Provider` cho biết provider đã phục vụ request.
+- **Chức năng**: Bảo mật khóa API và điều phối yêu cầu tới các mô hình ngôn ngữ lớn (LLM) theo tier và tính năng. Paid/trial cùng các tác vụ onboarding (gợi ý mục tiêu và sinh lịch tập) dùng thứ tự **Groq → Modal → Cerebras → OpenRouter**; các tính năng free khác dùng **Groq → Cerebras → OpenRouter → Modal**.
+- **Định dạng dữ liệu**: Dùng payload tương thích OpenAI Chat Completions cho Groq, Modal, Cerebras và OpenRouter. Header `X-AI-Provider` cho biết provider đã phục vụ request.
 - **Guardrails (bảo vệ phía server, không thể bỏ qua từ client)**:
   - **Yêu cầu đăng nhập**: request phải kèm JWT của người dùng (`role = authenticated`). Thiếu → `401`.
-  - **Giới hạn chủ đề**: tự chèn system prompt giới hạn trợ lý CHỈ trả lời về chạy bộ & thể chất liên quan; câu hỏi ngoài phạm vi sẽ bị từ chối lịch sự. (Bỏ qua với các yêu cầu `response_format` nội bộ như sinh lịch tập — vốn đã đúng chủ đề.)
-  - **Kiểm tra đầu vào**: chặn payload bất thường (số tin nhắn / độ dài vượt ngưỡng). Vi phạm → `400`.
-  - **Rate-limit theo user**: mặc định 12 request/phút và 200 request/ngày (đếm atomic qua RPC `check_ai_rate_limit` + bảng `ai_rate_limit`, dùng service role). Vượt → `429`. Ngưỡng chỉnh qua secret `AI_MAX_PER_MIN` / `AI_MAX_PER_DAY` / `AI_MAX_MESSAGES` / `AI_MAX_MESSAGE_CHARS` / `AI_MAX_TOTAL_CHARS`.
+  - **Policy theo tính năng**: request phải khai báo `feature` hợp lệ. Máy chủ luôn chèn system prompt riêng; client không được gửi role `system`, tự chọn model, nâng trần output token hay thay response schema. Với tác vụ có cấu trúc, schema chuẩn do policy phía máy chủ sở hữu và tự gắn vào request provider.
+  - **Kiểm tra đầu vào**: giới hạn số tin nhắn, độ dài, ảnh, tool và streaming theo từng feature trong `supabase/functions/_shared/ai_policy.ts`. Vi phạm → `400`.
+  - **Entitlement và rate-limit theo user/feature**: kiểm tra atomic qua RPC `check_ai_access` và fail-closed nếu dịch vụ kiểm tra không khả dụng. Ngưỡng có thể cấu hình bằng `AI_<FEATURE>_MAX_PER_MIN`, `AI_<FEATURE>_MAX_PER_DAY`, `AI_FREE_<FEATURE>_MAX_PER_MIN` và `AI_FREE_<FEATURE>_MAX_PER_DAY`; mặc định nằm trong code. Vượt quota → `429`.
   - **Lỗi trả về** dạng `{ "error": "<thông báo tiếng Việt>" }`; client hiển thị trực tiếp thông báo này.
 
 ### 2. Nhận dạng món ăn bằng AI

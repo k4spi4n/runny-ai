@@ -15,6 +15,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run AI Gateway Policy Tests
+        run: >-
+          deno test --allow-env=MODAL_MODEL
+          supabase/functions/_shared/ai_policy_test.ts
+          supabase/functions/_shared/ai_provider_test.ts
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:

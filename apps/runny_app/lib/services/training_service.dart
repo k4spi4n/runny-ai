@@ -664,8 +664,8 @@ class TrainingService {
     );
   }
 
-  /// Yêu cầu AI đề xuất tinh chỉnh các buổi tập SẮP TỚI dựa trên TẤT CẢ các buổi
-  /// đã hoàn thành (đã gắn hoạt động thực tế) trong lịch hiện hành. KHÔNG ghi DB
+  /// Yêu cầu AI đề xuất tinh chỉnh các buổi tập SẮP TỚI dựa trên các buổi
+  /// hoàn thành gần nhất (đã gắn hoạt động thực tế). KHÔNG ghi DB
   /// — trả về đề xuất để người dùng xem trước rồi xác nhận qua
   /// [applyPlanAdjustments].
   ///
@@ -707,17 +707,35 @@ class TrainingService {
     );
 
     // Căn cứ điều chỉnh = các buổi đã hoàn thành và có hoạt động thực tế đính kèm.
-    final completed = workouts
+    final allCompleted = workouts
         .where((w) => w['status'] == 'completed' && w['activity_id'] != null)
         .toList();
-    if (completed.isEmpty) {
+    if (allCompleted.isEmpty) {
       throw NoCompletedWorkoutException();
     }
+    // Giữ phần lịch sử gần nhất đủ để nhận biết tải/xu hướng mà không đẩy toàn
+    // bộ giáo án cũ vào mỗi request.
+    final completed = allCompleted.length <= 8
+        ? allCompleted
+        : allCompleted.sublist(allCompleted.length - 8);
 
     final upcoming = workouts.where((w) => w['status'] == 'planned').toList();
     if (upcoming.isEmpty) {
       return const PlanAdjustmentProposal(adjustments: []);
     }
+    // Điều chỉnh thích ứng chỉ cần cửa sổ sắp tới; DB validation bên dưới vẫn
+    // kiểm tra kết quả trên toàn bộ lịch trước khi cho người dùng xác nhận.
+    final adjustableContext = upcoming
+        .where((workout) => workout['source'] != 'manual')
+        .take(12)
+        .toList(growable: false);
+    if (adjustableContext.isEmpty) {
+      return const PlanAdjustmentProposal(adjustments: []);
+    }
+    final fixedManualContext = upcoming
+        .where((workout) => workout['source'] == 'manual')
+        .take(12)
+        .toList(growable: false);
 
     // Nạp hoạt động thực tế của các buổi đã hoàn thành để so sánh kế hoạch vs thực tế.
     final activityIds = completed
@@ -728,63 +746,51 @@ class TrainingService {
     );
     final activityById = {for (final a in activities) a['id'] as String: a};
 
-    const systemPrompt = '''
-Bạn là Huấn luyện viên Chạy bộ Ảo. Dựa trên KẾT QUẢ THỰC TẾ của các buổi đã tập, hãy tinh chỉnh các buổi tập SẮP TỚI cho phù hợp thể trạng người dùng.
-Nếu người dùng tập tốt hơn mục tiêu, có thể tăng nhẹ cường độ; nếu chưa đạt hoặc có dấu hiệu quá sức, hãy giảm cường độ hoặc dời lịch.
-
-ĐẶC BIỆT LƯU Ý VỀ CÁC BUỔI TẬP DO NGƯỜI DÙNG TỰ ĐẶT (nguồn: do người dùng tự đặt (manual)):
-- Bạn KHÔNG ĐƯỢC PHÉP thay đổi bất kỳ thông tin nào của các buổi tập do người dùng tự đặt (không thay đổi ngày, quãng đường, mục tiêu và KHÔNG đưa workout_id của chúng vào danh sách "adjustments").
-- Bạn chỉ được phép điều chỉnh các buổi tập do AI tạo (nguồn: do AI tự động tạo (ai)) xoay quanh các buổi tập của người dùng để phân bổ hợp lý, tránh trùng lặp ngày tập hoặc quá tải.
-
-CHỈ điều chỉnh các buổi do AI tạo có trong danh sách "buổi tập sắp tới" và CHỈ dùng đúng workout_id được cung cấp. Buổi nào đã hợp lý hoặc là buổi của người dùng thì bỏ qua (không đưa vào danh sách adjustments).
-Phản hồi của bạn PHẢI là một đối tượng JSON:
-{
-  "summary": "Nhận xét tổng quan ngắn gọn về tiến độ và hướng điều chỉnh",
-  "adjustments": [
-    {
-      "workout_id": "uuid của buổi sắp tới do AI tạo",
-      "new_date": "YYYY-MM-DD",
-      "new_target_distance_km": 5.0,
-      "reason": "Giải thích ngắn gọn lý do điều chỉnh buổi này"
-    }
-  ]
-}
-''';
-
-    final completedSummary = completed
-        .map((w) {
-          final act = activityById[w['activity_id']];
-          final planned = _formatWorkoutTargets(w);
-          final actual = act == null ? 'không rõ' : _formatActivityActual(act);
-          return '- ${w['title']} (${w['date']}): kế hoạch [$planned], thực tế [$actual]';
-        })
-        .join('\n');
-
-    final upcomingSummary = upcoming
-        .map((w) {
-          final isManual = w['source'] == 'manual';
-          final sourceLabel = isManual
-              ? 'do người dùng tự đặt (manual)'
-              : 'do AI tự động tạo (ai)';
-          return '- id ${w['id']}: ${w['title']} vào ${w['date']}, mục tiêu [${_formatWorkoutTargets(w)}], nguồn: $sourceLabel';
-        })
-        .join('\n');
-
-    final context =
-        '''
-Thời gian hiện tại: ${_dateTimeFullStr(DateTime.now())}
-Lịch tập hiện tại: ${activeSchedule['title']}
-Readiness hiện tại: ${readiness.score}/100 (${readiness.status}); tải 7 ngày ${readiness.acuteLoad.toStringAsFixed(0)}, tải nền 28 ngày ${readiness.chronicLoad.toStringAsFixed(0)}, ACWR ${readiness.acwr?.toStringAsFixed(2) ?? 'chưa đủ dữ liệu'}. Khi readiness thấp/caution hoặc ACWR cao, ưu tiên giảm quãng đường hoặc dời buổi AI để có ngày hồi phục.
-Các buổi đã hoàn thành (kế hoạch vs thực tế):
-$completedSummary
-
-Các buổi tập sắp tới (có thể điều chỉnh):
-$upcomingSummary
-''';
+    final acwr = readiness.acwr;
+    final context = jsonEncode({
+      'now': DateTime.now().toIso8601String(),
+      'readiness': {
+        'score': readiness.score,
+        'status': readiness.status,
+        'load_7d': double.parse(readiness.acuteLoad.toStringAsFixed(1)),
+        'load_28d': double.parse(readiness.chronicLoad.toStringAsFixed(1)),
+        if (acwr != null) 'acwr': double.parse(acwr.toStringAsFixed(2)),
+      },
+      'completed': completed
+          .map((workout) {
+            final activity = activityById[workout['activity_id']];
+            return {
+              'date': workout['date'],
+              'source': workout['source'],
+              'type': workout['workout_type'],
+              'planned': _workoutPromptMetrics(workout),
+              if (activity != null) 'actual': _activityPromptMetrics(activity),
+            };
+          })
+          .toList(growable: false),
+      'adjustable_ai_workouts': adjustableContext
+          .map(
+            (workout) => {
+              'workout_id': workout['id'],
+              'date': workout['date'],
+              'type': workout['workout_type'],
+              'target': _workoutPromptMetrics(workout),
+            },
+          )
+          .toList(growable: false),
+      'fixed_manual_workouts': fixedManualContext
+          .map(
+            (workout) => {
+              'date': workout['date'],
+              'type': workout['workout_type'],
+              'target': _workoutPromptMetrics(workout),
+            },
+          )
+          .toList(growable: false),
+    });
 
     final json = await _ai.generateStructuredResponse(
       context,
-      systemPrompt,
       feature: AiFeature.trainingAdjustment,
     );
 
@@ -844,29 +850,24 @@ $upcomingSummary
     TrainingRefreshService.instance.notifyTrainingChanged();
   }
 
-  /// Ghép mục tiêu của một buổi tập thành chuỗi ngắn cho prompt (an toàn với null).
-  String _formatWorkoutTargets(Map<String, dynamic> w) {
-    final dist = (w['target_distance_km'] as num?)?.toDouble();
-    final dur = (w['target_duration_min'] as num?)?.toDouble();
-    final pace = (w['target_pace_min_per_km'] as num?)?.toDouble();
-    final parts = <String>[];
-    if (dist != null) parts.add('${dist}km');
-    if (dur != null) parts.add('$dur phút');
-    if (pace != null) parts.add('pace $pace');
-    return parts.isEmpty ? 'không rõ' : parts.join(', ');
-  }
+  Map<String, num> _workoutPromptMetrics(Map<String, dynamic> workout) => {
+    if (workout['target_distance_km'] is num)
+      'distance_km': workout['target_distance_km'] as num,
+    if (workout['target_duration_min'] is num)
+      'duration_min': workout['target_duration_min'] as num,
+    if (workout['target_pace_min_per_km'] is num)
+      'pace_min_per_km': workout['target_pace_min_per_km'] as num,
+  };
 
-  /// Ghép kết quả thực tế của một hoạt động; pace tính AN TOÀN (không chia cho 0).
-  String _formatActivityActual(Map<String, dynamic> a) {
-    final dist = (a['distance_km'] as num?)?.toDouble() ?? 0;
-    final dur = (a['duration_min'] as num?)?.toDouble() ?? 0;
-    final pace = dist > 0 ? (dur / dist).toStringAsFixed(2) : 'N/A';
-    final hr = a['avg_hr'];
-    final hrPart = hr == null ? '' : ', nhịp tim ${hr}bpm';
-    final cadence = a['avg_cadence'];
-    final cadencePart = cadence == null ? '' : ', guồng chân ${cadence}spm';
-    return '${dist}km, $dur phút, pace $pace$hrPart$cadencePart';
-  }
+  Map<String, num> _activityPromptMetrics(Map<String, dynamic> activity) => {
+    if (activity['distance_km'] is num)
+      'distance_km': activity['distance_km'] as num,
+    if (activity['duration_min'] is num)
+      'duration_min': activity['duration_min'] as num,
+    if (activity['avg_hr'] is num) 'avg_hr': activity['avg_hr'] as num,
+    if (activity['avg_cadence'] is num)
+      'avg_cadence': activity['avg_cadence'] as num,
+  };
 
   /// Xác thực chuỗi ngày do AI trả về; trả null nếu không phải ngày hợp lệ.
   String? _validDate(dynamic value) {
@@ -883,8 +884,6 @@ $upcomingSummary
         .eq('id', activityId)
         .single();
 
-    final systemPrompt =
-        'Bạn là Huấn luyện viên Chạy bộ Ảo. Hãy phân tích buổi tập này và đưa ra nhận xét ngắn gọn, khích lệ.';
     final name = activity['name'] ?? activity['notes'] ?? 'Buổi tập';
     final rawNotes = activity['notes'];
     final notes = rawNotes != null && rawNotes != name ? rawNotes : 'Không có';
@@ -892,14 +891,21 @@ $upcomingSummary
     final startedAtStr = startedAtRaw != null
         ? _dateTimeFullStr(DateTime.parse(startedAtRaw).toLocal())
         : 'chưa rõ';
-    final cadence = activity['avg_cadence'];
-    final cadenceStr = cadence != null ? ', guồng chân $cadence spm' : '';
+    final inputJson = jsonEncode({
+      'name': name,
+      'started_at': startedAtStr,
+      'distance_km': activity['distance_km'],
+      'duration_min': activity['duration_min'],
+      if (activity['avg_hr'] != null) 'avg_hr': activity['avg_hr'],
+      if (activity['avg_cadence'] != null)
+        'avg_cadence': activity['avg_cadence'],
+      if (notes != 'Không có') 'notes': notes,
+    });
     final userPrompt =
-        'Thời gian hiện tại: ${_dateTimeFullStr(DateTime.now())}\n'
-        'Buổi tập "$name" diễn ra lúc $startedAtStr: ${activity['distance_km']}km, thời gian ${activity['duration_min']} phút, nhịp tim ${activity['avg_hr']} bpm$cadenceStr. Ghi chú: $notes';
+        'Phân tích buổi tập này ngắn gọn, khích lệ. INPUT_JSON:$inputJson';
 
     final insight = await _ai.generateResponse(
-      '$systemPrompt\n\n$userPrompt',
+      userPrompt,
       feature: AiFeature.activityInsight,
     );
 

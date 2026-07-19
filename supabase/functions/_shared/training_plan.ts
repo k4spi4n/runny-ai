@@ -32,74 +32,6 @@ export interface TrainingPlanJob {
 // deno-lint-ignore no-explicit-any
 type ServiceClient = any;
 
-const PLAN_RESPONSE_FORMAT = {
-  type: "json_schema",
-  json_schema: {
-    name: "training_plan",
-    strict: true,
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        title: { type: "string" },
-        target_distance_km: { type: "number" },
-        target_pace_min_per_km: { type: "number" },
-        weeks: { type: "integer" },
-        workouts: {
-          type: "array",
-          minItems: 1,
-          maxItems: 200,
-          items: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              day_offset: { type: "integer" },
-              title: { type: "string" },
-              description: { type: "string" },
-              target_distance_km: { type: "number" },
-              target_duration_min: { type: "number" },
-              target_pace_min_per_km: { type: "number" },
-              source: { type: "string", enum: ["ai"] },
-              workout_type: {
-                type: "string",
-                enum: [
-                  "easy_run",
-                  "long_run",
-                  "interval",
-                  "tempo",
-                  "recovery",
-                ],
-              },
-              start_time: {
-                type: "string",
-                pattern: "^(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$",
-              },
-            },
-            required: [
-              "day_offset",
-              "title",
-              "description",
-              "target_distance_km",
-              "target_duration_min",
-              "target_pace_min_per_km",
-              "source",
-              "workout_type",
-              "start_time",
-            ],
-          },
-        },
-      },
-      required: [
-        "title",
-        "target_distance_km",
-        "target_pace_min_per_km",
-        "weeks",
-        "workouts",
-      ],
-    },
-  },
-} as const;
-
 function serviceClient(): ServiceClient {
   const url = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -153,7 +85,6 @@ async function callPlanProvider(
   const normalized = normalizeAiRequest({
     feature: "training_plan",
     messages: [{ role: "user", content: prompt }],
-    response_format: PLAN_RESPONSE_FORMAT,
   });
   const totalTimeoutMs = envInt(
     "TRAINING_PLAN_AI_TOTAL_TIMEOUT_MS",
@@ -286,7 +217,7 @@ async function buildPlanPrompt(
     const manualResult = await supabase
       .from("scheduled_workouts")
       .select(
-        "date,title,description,target_distance_km,target_duration_min,target_pace_min_per_km,workout_type,start_time",
+        "date,target_distance_km,target_duration_min,target_pace_min_per_km,workout_type",
       )
       .eq("schedule_id", activeScheduleId)
       .eq("source", "manual")
@@ -299,28 +230,17 @@ async function buildPlanPrompt(
     manualWorkouts = manualResult.data ?? [];
   }
 
-  return `
-Tạo một lịch chạy bộ an toàn bằng tiếng Việt.
-
-Mục tiêu: ${job.goal}
-Ngày bắt đầu: ${job.start_date}
-Ngày kết thúc: ${job.end_date ?? "AI tự chọn, tối đa 52 tuần"}
-Hồ sơ: ${JSON.stringify(profileResult.data)}
-5 hoạt động gần nhất: ${JSON.stringify(activitiesResult.data ?? [])}
-Các buổi manual bắt buộc giữ nguyên trong DB: ${JSON.stringify(manualWorkouts)}
-
-Quy tắc:
-- Chỉ trả về JSON đúng schema. Mảng workouts chỉ chứa buổi source="ai";
-  máy chủ sẽ tự sao chép các buổi manual.
-- day_offset tính từ ngày bắt đầu, không âm, không vượt ngày kết thúc.
-- Không xếp buổi AI trùng ngày với bất kỳ buổi manual nào ở trên.
-- Không quá một buổi AI mỗi ngày.
-- workout_type chỉ là easy_run, long_run, interval, tempo hoặc recovery.
-- start_time dùng HH:mm:ss.
-- Số liệu dùng km, phút và phút/km; phải dương, thực tế và tương thích nhau.
-- Không xếp hai bài nặng liên tiếp. Tăng tải bảo thủ dựa trên lịch sử; nếu dữ
-  liệu ít thì ưu tiên easy/recovery và cự ly thấp.
-`.trim();
+  return `UNTRUSTED_INPUT_JSON:${
+    JSON.stringify({
+      goal: job.goal,
+      start_date: job.start_date,
+      end_date: job.end_date ?? null,
+      max_weeks_if_end_date_missing: 52,
+      profile: profileResult.data,
+      recent_activities: activitiesResult.data ?? [],
+      manual_workouts: manualWorkouts,
+    })
+  }`;
 }
 
 function safeJobError(error: unknown): string {

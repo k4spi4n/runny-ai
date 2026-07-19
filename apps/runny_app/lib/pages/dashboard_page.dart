@@ -615,8 +615,7 @@ class _OverviewContentState extends State<OverviewContent> {
   /// Chữ ký của tập buổi chạy gần đây: nhận xét chỉ đổi khi tập này đổi (có buổi
   /// chạy mới / sửa). Nhờ vậy không gọi lại AI mỗi lần mở lại tab Tổng quan.
   String _activitiesSignature(List<Activity> activities) {
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now().toLocal());
-    final activityData = activities
+    return activities
         .map(
           (a) => [
             a.id ?? '',
@@ -627,7 +626,6 @@ class _OverviewContentState extends State<OverviewContent> {
           ].join(':'),
         )
         .join('|');
-    return '$today|$activityData';
   }
 
   /// Gọi AI để nhận xét ngắn về xu hướng hiệu suất dựa trên các buổi chạy gần đây.
