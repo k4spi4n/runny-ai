@@ -64,6 +64,7 @@ class _AICoachPageState extends State<AICoachPage> {
   final Set<int> _processingActionIndexes = <int>{};
   bool _hasConfirmedMicrophoneAccess = false;
   bool _autoSendPending = false;
+  bool _hasPromptText = false;
   String _coachPersona = CoachPersona.calm.id;
   String _baseText = '';
   Activity? _contextActivity;
@@ -84,7 +85,6 @@ class _AICoachPageState extends State<AICoachPage> {
   void initState() {
     super.initState();
     _controller.addListener(_handlePromptChanged);
-    _inputFocusNode.addListener(_handlePromptChanged);
     _loadGreeting();
     _loadCoachSettings();
     _loadHistory();
@@ -174,12 +174,13 @@ class _AICoachPageState extends State<AICoachPage> {
 
   void _handlePromptChanged() {
     if (!mounted) return;
-    setState(() {});
+    final hasPromptText = _controller.text.trim().isNotEmpty;
+    // EditableText paints character/cursor changes itself. Rebuilding the
+    // message list and markdown on every keystroke makes mobile typing laggy;
+    // the surrounding UI only depends on the empty/non-empty transition.
+    if (hasPromptText == _hasPromptText) return;
+    setState(() => _hasPromptText = hasPromptText);
   }
-
-  /// Theo kiểu Messenger, các điều khiển phụ ẩn ngay khi người dùng chạm vào
-  /// ô nhập. Nút gửi luôn được giữ để người dùng có thể gửi ngay.
-  bool get _isComposing => _inputFocusNode.hasFocus;
 
   @override
   void didChangeDependencies() {
@@ -1019,7 +1020,6 @@ $prompt''';
     _cancelLongWaitTimer();
     _hubController?.removeListener(_handleHubRequest);
     _controller.removeListener(_handlePromptChanged);
-    _inputFocusNode.removeListener(_handlePromptChanged);
     _speech.cancel();
     _controller.dispose();
     _inputFocusNode.dispose();
@@ -1134,15 +1134,19 @@ $prompt''';
     final colorScheme = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
     final isCompact = MediaQuery.sizeOf(context).width < 600;
+    final isKeyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    // Do not rebuild this large screen synchronously from the FocusNode. On
+    // mobile web that rebuild can replace/resize the editable during its first
+    // pointer event, so the browser requires a second tap before accepting
+    // text. Keyboard metrics arrive after focus is established and are safe to
+    // use for compacting secondary controls.
+    final isComposing = isKeyboardVisible || _hasPromptText;
     final coachName = _coachNameController.text.trim();
     // `Navigator.canPop` cũng trả về true khi bottom sheet thiết lập đang mở.
     // Dùng route chứa trang này để nút quay lại chỉ phản ánh điều hướng trang.
     final canPopPage = ModalRoute.of(context)?.isFirst == false;
     final showStarter =
-        _messages.isEmpty &&
-        _controller.text.trim().isEmpty &&
-        !_isRecording &&
-        !_isLoading;
+        _messages.isEmpty && !_hasPromptText && !_isRecording && !_isLoading;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -1190,6 +1194,8 @@ $prompt''';
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
                     padding: EdgeInsets.fromLTRB(
                       0,
                       isCompact ? 4 : 16,
@@ -1286,7 +1292,7 @@ $prompt''';
                     ),
                   ),
                 if (_isRecording) _buildListeningIndicator(context),
-                if (!_isAttachmentBarCollapsed && !_isComposing)
+                if (!_isAttachmentBarCollapsed && !isComposing)
                   _buildAttachmentBar(context),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
@@ -1311,7 +1317,7 @@ $prompt''';
                             ),
                           ),
                         ),
-                      if (!_isRecording && _controller.text.trim().isEmpty) ...[
+                      if (!_isRecording && !_hasPromptText) ...[
                         Padding(
                           padding: const EdgeInsets.only(right: 4),
                           child: IconButton.filledTonal(
@@ -1329,6 +1335,7 @@ $prompt''';
                       ],
                       Expanded(
                         child: TextField(
+                          key: const ValueKey('coach-chat-input'),
                           controller: _controller,
                           focusNode: _inputFocusNode,
                           style: TextStyle(color: colorScheme.onSurface),
@@ -1336,6 +1343,11 @@ $prompt''';
                           maxLines: 5,
                           keyboardType: TextInputType.multiline,
                           textInputAction: TextInputAction.newline,
+                          textCapitalization: TextCapitalization.sentences,
+                          autocorrect: true,
+                          enableSuggestions: true,
+                          scrollPadding: const EdgeInsets.all(8),
+                          onTapOutside: (_) => _inputFocusNode.unfocus(),
                           decoration: InputDecoration(
                             hintText: _isRecording
                                 ? context.translate('chat_listening_hint')
@@ -1360,7 +1372,7 @@ $prompt''';
                           ),
                         ),
                       ),
-                      if (!_isComposing || _isRecording) ...[
+                      if (!isComposing || _isRecording) ...[
                         if (_isAttachmentBarCollapsed) ...[
                           const SizedBox(width: 8),
                           _AttachmentContextButton(
@@ -1944,7 +1956,26 @@ class _MicButtonState extends State<_MicButton>
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isRecording) _controller.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _MicButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isRecording == widget.isRecording) return;
+    if (widget.isRecording) {
+      _controller.repeat(reverse: true);
+    } else {
+      _controller
+        ..stop()
+        ..value = 0;
+    }
+  }
 
   @override
   void dispose() {

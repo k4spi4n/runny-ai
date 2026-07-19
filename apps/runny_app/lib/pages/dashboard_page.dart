@@ -351,6 +351,10 @@ class _DashboardPageState extends State<DashboardPage> {
     ];
 
     return Scaffold(
+      // Child pages own their keyboard insets. Resizing this outer scaffold as
+      // well makes nested pages (notably AI Coach) subtract the mobile keyboard
+      // twice, leaving a large empty band above the keyboard on web.
+      resizeToAvoidBottomInset: false,
       extendBody: true,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
