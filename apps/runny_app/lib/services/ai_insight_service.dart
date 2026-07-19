@@ -2,7 +2,7 @@ import 'package:intl/intl.dart';
 
 import '../models/workout_models.dart';
 import '../utils/activity_formatters.dart';
-import 'gemini_service.dart';
+import 'ai_service.dart';
 
 class WeeklyTrainingMetrics {
   const WeeklyTrainingMetrics({
@@ -20,9 +20,9 @@ class WeeklyTrainingMetrics {
 }
 
 class AiInsightService {
-  AiInsightService({GeminiService? ai}) : _ai = ai ?? GeminiService();
+  AiInsightService({AiService? ai}) : _ai = ai ?? AiService();
 
-  final GeminiService _ai;
+  final AiService _ai;
 
   /// Khoá cache theo tuần Thứ Hai–Chủ Nhật. Ngày trong cùng một tuần luôn trả
   /// về cùng khoá; sang Thứ Hai kế tiếp mới cho phép tạo kết luận mới.

@@ -9,7 +9,7 @@ import '../models/nutrition_models.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/app_theme.dart';
 import 'dart:convert';
-import '../services/gemini_service.dart';
+import '../services/ai_service.dart';
 import '../widgets/ui_components.dart';
 import '../utils/date_time_utils.dart';
 
@@ -931,7 +931,7 @@ class _AISuggestionsView extends StatefulWidget {
 }
 
 class _AISuggestionsViewState extends State<_AISuggestionsView> {
-  final GeminiService _geminiService = GeminiService();
+  final AiService _aiService = AiService();
   bool _isLoading = true;
   String? _errorMessage;
   List<Map<String, dynamic>> _suggestions = [];
@@ -995,7 +995,7 @@ class _AISuggestionsViewState extends State<_AISuggestionsView> {
       ]
       """;
 
-      final response = await _geminiService.generateResponse(
+      final response = await _aiService.generateResponse(
         prompt,
         feature: AiFeature.nutritionSuggestions,
       );

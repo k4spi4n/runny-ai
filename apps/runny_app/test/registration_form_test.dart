@@ -9,6 +9,7 @@ import 'package:runny_app/l10n/language_provider.dart';
 import 'package:runny_app/pages/login_page.dart';
 import 'package:runny_app/services/auth_service.dart';
 import 'package:runny_app/theme/theme_provider.dart';
+import 'package:runny_app/widgets/password_requirements_checklist.dart';
 import 'package:runny_app/widgets/ui_components.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -59,6 +60,7 @@ Future<void> _pumpSubject(
   WidgetTester tester,
   _FakeRegistrationService service, {
   ThemeMode themeMode = ThemeMode.light,
+  bool initialIsSignUp = true,
 }) async {
   await tester.runAsync(() async {
     await tester.pumpWidget(
@@ -87,7 +89,7 @@ Future<void> _pumpSubject(
           supportedLocales: const [Locale('en'), Locale('vi')],
           home: LoginPage(
             key: ObjectKey(service),
-            initialIsSignUp: true,
+            initialIsSignUp: initialIsSignUp,
             registrationService: service,
           ),
         ),
@@ -134,6 +136,33 @@ void main() {
     final password = _editableText(tester, _passwordField);
     expect(password.obscureText, isTrue);
     expect(password.textInputAction, TextInputAction.done);
+  });
+
+  testWidgets('switches auth mode at the top without unavailable providers', (
+    tester,
+  ) async {
+    final service = _FakeRegistrationService();
+    await _pumpSubject(tester, service);
+
+    final signUpMode = find.byKey(const ValueKey('auth-signup-mode'));
+    final loginMode = find.byKey(const ValueKey('auth-login-mode'));
+    expect(signUpMode, findsOneWidget);
+    expect(loginMode, findsOneWidget);
+    expect(
+      tester.getTopLeft(signUpMode).dy,
+      lessThan(tester.getTopLeft(_emailField).dy),
+    );
+    expect(find.byIcon(Icons.g_mobiledata), findsNothing);
+    expect(find.byIcon(Icons.facebook), findsNothing);
+
+    await tester.tap(loginMode);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Forgot password?'), findsOneWidget);
+    expect(
+      _editableText(tester, _passwordField).autofillHints,
+      contains(AutofillHints.password),
+    );
   });
 
   testWidgets('toggles password visibility with semantics', (tester) async {
@@ -321,6 +350,30 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byType(SingleChildScrollView), findsOneWidget);
     expect(service.callCount, 0);
+  });
+
+  testWidgets('keeps password guidance above the mobile keyboard', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 700));
+    tester.view.viewInsets = FakeViewPadding(
+      bottom: 280 * tester.view.devicePixelRatio,
+    );
+    addTearDown(() {
+      tester.view.resetViewInsets();
+      tester.binding.setSurfaceSize(null);
+    });
+    final service = _FakeRegistrationService();
+    await _pumpSubject(tester, service);
+
+    expect(find.byKey(const ValueKey('auth-brand')), findsNothing);
+    await tester.tap(_passwordField);
+    await tester.pumpAndSettle();
+
+    final guidance = find.byType(PasswordRequirementsChecklist);
+    expect(guidance, findsOneWidget);
+    expect(tester.getBottomRight(guidance).dy, lessThanOrEqualTo(420));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('disposes local password field state when page is removed', (

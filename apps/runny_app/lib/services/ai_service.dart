@@ -17,13 +17,14 @@ abstract final class AiFeature {
   static const trainingPlan = 'training_plan';
   static const trainingAdjustment = 'training_adjustment';
   static const activityScreenshot = 'activity_screenshot';
+  static const foodRecognition = 'food_recognition';
 }
 
-class GeminiService {
+class AiService {
   static _CoachPreference? _cachedCoachPreference;
 
-  GeminiService() {
-    debugPrint('GeminiService: Using server-owned AI feature policies.');
+  AiService() {
+    debugPrint('AiService: Using server-owned multi-provider policies.');
   }
 
   bool get isConfigured => true;
@@ -143,20 +144,18 @@ class GeminiService {
           : (response.data as Map);
       final choices = decoded['choices'] as List?;
       if (choices == null || choices.isEmpty) {
-        throw Exception(
-          'Invalid response structure from OpenRouter proxy: $decoded',
-        );
+        throw Exception('Invalid response structure from AI gateway: $decoded');
       }
 
       final message = choices[0]['message'] as Map?;
       final content = message?['content'] as String?;
       if (content == null) {
-        throw Exception('No message content returned from OpenRouter proxy');
+        throw Exception('No message content returned from AI gateway');
       }
 
       return content;
     } catch (e) {
-      debugPrint('OpenRouter proxy call failed: $e');
+      debugPrint('AI gateway call failed: $e');
       if (e is FunctionException) {
         if (PaywallException.isUpgradeSignal(e.status, e.details)) {
           throw PaywallException(_extractError(e));
@@ -306,7 +305,8 @@ class GeminiService {
   }
 
   /// Phiên bản streaming của [generateResponse]: gọi thẳng Edge Function
-  /// `openrouter` với `stream: true` và phát từng đoạn văn bản (`delta.content`)
+  /// AI gateway (`openrouter` là tên Edge Function tương thích ngược) với
+  /// `stream: true` và phát từng đoạn văn bản (`delta.content`)
   /// ngay khi tới, để UI hiển thị chữ chạy dần thay vì đợi phản hồi đầy đủ.
   ///
   /// SSE (OpenAI-compatible): mỗi sự kiện là một dòng `data: {json}`; kết thúc
@@ -428,15 +428,13 @@ class GeminiService {
           : (response.data as Map);
       final choices = decoded['choices'] as List?;
       if (choices == null || choices.isEmpty) {
-        throw Exception(
-          'Invalid response structure from OpenRouter proxy: $decoded',
-        );
+        throw Exception('Invalid response structure from AI gateway: $decoded');
       }
 
       final message = choices[0]['message'] as Map?;
       final content = message?['content'] as String? ?? '';
       if (content.isEmpty) {
-        throw Exception('No message content returned from OpenRouter proxy');
+        throw Exception('No message content returned from AI gateway');
       }
 
       // Cleanup code blocks if returned
@@ -453,7 +451,7 @@ class GeminiService {
 
       return jsonDecode(cleanedContent);
     } catch (e) {
-      debugPrint('OpenRouter proxy structured call failed: $e');
+      debugPrint('AI gateway structured call failed: $e');
       if (e is FunctionException) {
         if (PaywallException.isUpgradeSignal(e.status, e.details)) {
           throw PaywallException(_extractError(e));

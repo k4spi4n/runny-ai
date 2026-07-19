@@ -117,10 +117,18 @@ serve(async (req) => {
     const access = await rpc(config, "check_ai_access", {
       p_user_id: userId,
       p_feature: "plan",
-      p_max_per_min: envInt("AI_MAX_PER_MIN", 8, { max: 100 }),
-      p_max_per_day: envInt("AI_MAX_PER_DAY", 30, { max: 10_000 }),
-      p_free_max_per_min: envInt("AI_FREE_MAX_PER_MIN", 3, { max: 20 }),
-      p_free_max_per_day: envInt("AI_FREE_MAX_PER_DAY", 5, { max: 100 }),
+      p_max_per_min: envInt("AI_PLAN_MAX_PER_MIN", 3, { max: 30 }),
+      p_max_per_day: envInt("AI_PLAN_MAX_PER_DAY", 30, { max: 500 }),
+      p_free_max_per_min: envInt(
+        "AI_FREE_PLAN_MAX_PER_MIN",
+        1,
+        { max: 5 },
+      ),
+      p_free_max_per_day: envInt(
+        "AI_FREE_PLAN_MAX_PER_DAY",
+        1,
+        { max: 10 },
+      ),
     });
     const accessData = access.data as Record<string, unknown> | null;
     if (!access.ok || accessData?.allowed !== true) {

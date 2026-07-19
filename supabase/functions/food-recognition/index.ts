@@ -15,6 +15,7 @@ import {
   createFoodRecognitionService,
   FoodRecognitionError,
 } from "./food_recognition_service.ts";
+import type { AiTier } from "../_shared/ai_provider.ts";
 
 const MAX_IMAGE_BYTES = 2_900_000;
 const MIN_IMAGE_BYTES = 1_024;
@@ -61,7 +62,7 @@ function detectImageMime(bytes: Uint8Array): string | null {
 
 async function checkAiAccess(
   userId: string,
-): Promise<{ allowed: boolean; reason?: string }> {
+): Promise<{ allowed: boolean; reason?: string; tier?: AiTier }> {
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) return { allowed: false, reason: "unavailable" };
@@ -78,10 +79,18 @@ async function checkAiAccess(
         body: JSON.stringify({
           p_user_id: userId,
           p_feature: "food",
-          p_max_per_min: envInt("FOOD_AI_MAX_PER_MIN", 6, { max: 30 }),
-          p_max_per_day: envInt("FOOD_AI_MAX_PER_DAY", 30, { max: 500 }),
-          p_free_max_per_min: 1,
-          p_free_max_per_day: 1,
+          p_max_per_min: envInt("AI_FOOD_MAX_PER_MIN", 4, { max: 30 }),
+          p_max_per_day: envInt("AI_FOOD_MAX_PER_DAY", 40, { max: 500 }),
+          p_free_max_per_min: envInt(
+            "AI_FREE_FOOD_MAX_PER_MIN",
+            1,
+            { max: 5 },
+          ),
+          p_free_max_per_day: envInt(
+            "AI_FREE_FOOD_MAX_PER_DAY",
+            1,
+            { max: 10 },
+          ),
         }),
       },
       { timeoutMs: 5_000 },
@@ -94,6 +103,11 @@ async function checkAiAccess(
     return {
       allowed: data?.allowed === true,
       reason: typeof data?.reason === "string" ? data.reason : undefined,
+      tier: data?.tier === "paid"
+        ? "paid"
+        : data?.tier === "free"
+        ? "free"
+        : "trial",
     };
   } catch {
     return { allowed: false, reason: "unavailable" };
@@ -195,7 +209,7 @@ serve(async (req) => {
       );
     }
 
-    const service = createFoodRecognitionService();
+    const service = createFoodRecognitionService(access.tier ?? "free");
     const result = await service.analyze({
       filename: uploadedFile.name,
       contentType: mime,

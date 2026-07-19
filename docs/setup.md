@@ -39,11 +39,15 @@ flutter pub get
    ```env
    # supabase/functions/.env
    GROQ_API_KEY=YOUR_KEY            # AI text/chat (CHÍNH) — https://console.groq.com/keys
-   CEREBRAS_API_KEY=YOUR_KEY        # AI text/chat (FALLBACK 1) — https://cloud.cerebras.ai/
-   OPENROUTER_API_KEY=YOUR_KEY      # AI text/chat (FALLBACK 2) — https://openrouter.ai/keys
+   MODAL_ENDPOINT_URL=YOUR_URL       # Modal private endpoint
+   MODAL_MODEL=Qwen/Qwen3.5-27B-FP8
+   MODAL_PROXY_TOKEN_ID=wk-...
+   MODAL_PROXY_TOKEN_SECRET=ws-...
+   CEREBRAS_API_KEY=YOUR_KEY        # Public/free fallback — https://cloud.cerebras.ai/
+   OPENROUTER_API_KEY=YOUR_KEY      # Public/free fallback — https://openrouter.ai/keys
    WAQI_API_KEY=YOUR_KEY            # AQI (chính) — https://aqicn.org/data-platform/token/
    OPENWEATHER_API_KEY=YOUR_KEY     # Thời tiết + AQI dự phòng — https://openweathermap.org/api
-   FOOD_RECOGNITION_PROVIDER=mock   # Nhận dạng món ăn hiện dùng mock, chưa cần key
+   FOOD_RECOGNITION_PROVIDER=ai     # Vision dùng cùng gateway đa provider
    ```
    > Hàm `weather` chỉ cần **một trong hai** `WAQI_API_KEY` hoặc `OPENWEATHER_API_KEY` là chạy. Tuy nhiên nếu chỉ có WAQI thì nhiệt độ/icon thời tiết phụ thuộc trạm đo gần đó; nên cấu hình thêm `OPENWEATHER_API_KEY` để có dữ liệu thời tiết ổn định.
    > Tệp `supabase/functions/.env` đã được `.gitignore` bỏ qua — không commit key lên git.
@@ -56,20 +60,11 @@ flutter pub get
 #### Triển khai lên Cloud (Production Deployment)
 1. Tạo một dự án mới trên bảng điều khiển [Supabase Dashboard](https://supabase.com/).
 2. Áp dụng migrations lên database của dự án.
-3. Thiết lập các keys bảo mật trên cloud backend:
-   ```bash
-   supabase secrets set GROQ_API_KEY=YOUR_KEY
-   supabase secrets set CEREBRAS_API_KEY=YOUR_KEY
-   supabase secrets set OPENROUTER_API_KEY=YOUR_KEY
-   supabase secrets set WAQI_API_KEY=YOUR_KEY
-   supabase secrets set OPENWEATHER_API_KEY=YOUR_KEY
-   ```
-4. Triển khai các Hàm Edge:
-   ```bash
-   supabase functions deploy openrouter
-   supabase functions deploy strava_webhook
-   supabase functions deploy weather
-   ```
+3. Trong Supabase Dashboard, mở **Edge Functions → Secrets** và nhập các biến
+   server trong `supabase/functions/.env.example`, gồm toàn bộ bộ Modal proxy
+   token. Không đặt chúng trong Render hay `.env` của Flutter.
+4. Trong Dashboard, deploy lại `openrouter`, `training-plan`,
+   `training-plan-worker` và `food-recognition` sau khi áp dụng migration mới.
 
 ### Bước 4: Cấu hình Biến môi trường Client (.env)
 Tạo tệp cấu hình hệ thống từ tệp mẫu:
@@ -80,19 +75,16 @@ supabase functions deploy weather
 ```
 Mở tệp `.env` và cập nhật các thông số:
 - **SUPABASE_URL** và **SUPABASE_ANON_KEY**: Địa chỉ URL và khóa public của dự án Supabase (lấy từ kết quả lệnh `supabase status` khi chạy local, hoặc tại mục Cài đặt API trên Cloud). Lưu ý dùng **Project URL** (cổng API `http://127.0.0.1:34321` khi local) chứ không phải chuỗi kết nối database; `SUPABASE_ANON_KEY` nhận `Publishable key` (`sb_publishable_...`) hoặc `anon key` JWT, **không phải** Storage S3 Access Key.
-- **Chú ý bảo mật**: Không cấu hình các private API key (`GROQ_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`, `WAQI_API_KEY`, `OPENWEATHER_API_KEY`) trong file `.env` này. Toàn bộ các dịch vụ AI và thời tiết sẽ được proxy qua Edge Functions để bảo mật 100% (tránh lộ key khi đóng gói Web app). Các key đó cấu hình ở phía server theo Bước 3.
+- **Chú ý bảo mật**: Không cấu hình các private API key hoặc Modal proxy token trong file `.env` này. Toàn bộ AI và thời tiết được proxy qua Edge Functions; các secret chỉ cấu hình ở Dashboard theo Bước 3.
 
 ### 4. Environment Variables
 Copy the `.env.example` to `.env` in the `apps/runny_app` directory:
 ```bash
 cp .env.example .env
 ```
-Fill in the required keys:
-- `SUPABASE_URL` & `SUPABASE_ANON_KEY`: From your Supabase Project Settings.
-- `OPENROUTER_API_KEY`: From [OpenRouter](https://openrouter.ai/).
-- `CEREBRAS_API_KEY`: From [Cerebras Cloud](https://cloud.cerebras.ai/).
-- `GEMINI_API_KEY`: From [Google AI Studio](https://aistudio.google.com/).
-- `STRAVA_CLIENT_ID` & `STRAVA_CLIENT_SECRET`: From [Strava API Settings](https://www.strava.com/settings/api).
+The Flutter client only needs `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and optional
+non-secret model hints. Provider, Modal, weather, payment, and Strava secrets
+belong in Supabase Edge Function secrets.
 
 ## Running the App
 

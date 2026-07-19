@@ -207,7 +207,7 @@ update public.profiles
 set trial_ends_at = now() - interval '1 day'
 where id = '10000000-0000-4000-8000-000000000001';
 
-select is(
+select ok(
   (
     public.check_ai_access(
       '10000000-0000-4000-8000-000000000001',
@@ -216,12 +216,11 @@ select is(
       1000,
       100,
       1000
-    ) ->> 'reason'
-  ),
-  'upgrade_required',
-  'free users cannot access plan generation'
+    ) ->> 'allowed'
+  )::boolean,
+  'free users receive a tightly rate-limited plan allowance'
 );
-select is(
+select ok(
   (
     public.check_ai_access(
       '10000000-0000-4000-8000-000000000001',
@@ -230,10 +229,9 @@ select is(
       1000,
       100,
       1000
-    ) ->> 'reason'
-  ),
-  'upgrade_required',
-  'free users cannot access vision by changing payload shape'
+    ) ->> 'allowed'
+  )::boolean,
+  'free users receive a tightly rate-limited vision allowance'
 );
 select is(
   (

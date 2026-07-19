@@ -1,3 +1,17 @@
+import { normalizeAiRequest, providerModels } from "../_shared/ai_policy.ts";
+import {
+  type AiTier,
+  isProviderCircuitOpen,
+  isRetryableProviderStatus,
+  providerBody,
+  providerConfigs,
+  providerHeaders,
+  providerTimeoutMs,
+  recordProviderFailure,
+  recordProviderSuccess,
+} from "../_shared/ai_provider.ts";
+import { fetchWithTimeout, readTextLimited } from "../_shared/http.ts";
+
 export interface FoodNutrition {
   calories: number;
   protein: number;
@@ -34,15 +48,9 @@ export interface FoodRecognitionService {
 }
 
 // =============================================================================
-// Groq vision provider: nhan dien mon an that bang model vision cua Groq.
-// OpenAI-compatible chat/completions + image_url (data URL base64).
+// Multi-provider vision gateway. Provider order is tier-aware and shared with
+// the text gateway.
 // =============================================================================
-
-// Model vision mac dinh. Ghi de bang secret: `supabase secrets set FOOD_RECOGNITION_MODEL=...`
-// qwen/qwen3.6-27b la model multimodal con song tren Groq (llama-4-scout shutdown 2026-07-17).
-// LUU Y: model nay khong ho tro response_format json_object on dinh -> phai prompt JSON + tu parse.
-const GROQ_DEFAULT_VISION_MODEL = "qwen/qwen3.6-27b";
-const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
 
 // Gioi han hop ly de clamp ket qua model (chong gia tri vo ly / bi prompt-inject).
 const MAX_CALORIES = 5000;
@@ -103,11 +111,9 @@ function clampNumber(value: unknown, min: number, max: number): number {
   return Math.min(Math.max(n, min), max);
 }
 
-export class GroqFoodRecognitionService implements FoodRecognitionService {
-  constructor(
-    private readonly apiKey: string,
-    private readonly model: string,
-  ) {}
+export class MultiProviderFoodRecognitionService
+  implements FoodRecognitionService {
+  constructor(private readonly tier: AiTier) {}
 
   async analyze(image: FoodImageInput): Promise<FoodRecognitionResult> {
     const mime = image.contentType.toLowerCase().startsWith("image/")
@@ -115,77 +121,72 @@ export class GroqFoodRecognitionService implements FoodRecognitionService {
       : "image/jpeg";
     const dataUrl = `data:${mime};base64,${bytesToBase64(image.bytes)}`;
 
-    let res: Response;
-    try {
-      res = await fetchWithTimeout(GROQ_ENDPOINT, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            {
-              role: "user",
-              content: [
-                { type: "text", text: USER_PROMPT },
-                { type: "image_url", image_url: { url: dataUrl } },
-              ],
-            },
-          ],
-          // Tat che do suy luan (thinking) cua qwen3.6: tranh dot het token vao reasoning
-          // khien `content` rong/cut -> JSON khong parse duoc.
-          reasoning_effort: "none",
-          temperature: 0.2,
-          max_tokens: 700,
-        }),
-      }, {
-        timeoutMs: envInt(
-          "FOOD_PROVIDER_TIMEOUT_MS",
-          20_000,
-          { min: 3_000, max: 45_000 },
-        ),
-      });
-    } catch {
-      console.error("Groq vision request failed.");
+    const normalized = normalizeAiRequest({
+      feature: "food_recognition",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: `${SYSTEM_PROMPT}\n\n${USER_PROMPT}` },
+          { type: "image_url", image_url: { url: dataUrl } },
+        ],
+      }],
+      response_format: { type: "json_object" },
+    });
+
+    let parsed: Record<string, unknown> | null = null;
+    for (const config of providerConfigs("food_recognition", this.tier)) {
+      if (isProviderCircuitOpen(config.provider)) continue;
+      for (const model of providerModels("food_recognition", config.provider)) {
+        try {
+          const res = await fetchWithTimeout(config.endpoint, {
+            method: "POST",
+            headers: providerHeaders(config),
+            body: JSON.stringify(
+              providerBody(normalized, config.provider, model),
+            ),
+          }, { timeoutMs: providerTimeoutMs(config.provider) });
+          if (!res.ok) {
+            recordProviderFailure(
+              config.provider,
+              isRetryableProviderStatus(res.status),
+            );
+            await res.body?.cancel();
+            console.warn(JSON.stringify({
+              event: "food_provider_rejected",
+              provider: config.provider,
+              model,
+              status: res.status,
+            }));
+            continue;
+          }
+          const responseText = await readTextLimited(res, 1_000_000);
+          const payload = JSON.parse(responseText);
+          const content: unknown = payload?.choices?.[0]?.message?.content;
+          parsed = typeof content === "string"
+            ? extractJsonObject(content)
+            : null;
+          if (!parsed) {
+            recordProviderFailure(config.provider, true);
+            continue;
+          }
+          recordProviderSuccess(config.provider);
+          break;
+        } catch {
+          recordProviderFailure(config.provider, true);
+          console.warn(JSON.stringify({
+            event: "food_provider_failed",
+            provider: config.provider,
+            model,
+          }));
+        }
+      }
+      if (parsed) break;
+    }
+    if (!parsed) {
       throw new FoodRecognitionError(
         "provider_unavailable",
-        "Không thể kết nối dịch vụ nhận diện. Vui lòng thử lại sau.",
-        503,
-      );
-    }
-
-    if (!res.ok) {
-      await readTextLimited(res);
-      console.error(`Groq vision returned ${res.status}.`);
-      // 429 -> de client biet la qua tai/han muc nha cung cap.
-      const status = res.status === 429 ? 429 : 502;
-      throw new FoodRecognitionError(
-        "provider_error",
         "Dịch vụ nhận diện đang bận. Vui lòng thử lại sau ít phút.",
-        status,
-      );
-    }
-
-    const payload = await res.json();
-    const choice = payload?.choices?.[0];
-    const content: unknown = choice?.message?.content;
-    if (typeof content !== "string" || content.trim().length === 0) {
-      console.error("Groq vision returned empty content.");
-      throw new FoodRecognitionError(
-        "food_not_recognized",
-        "AI không nhận diện được món ăn trong ảnh. Vui lòng thử ảnh khác rõ hơn.",
-      );
-    }
-
-    const parsed = extractJsonObject(content);
-    if (!parsed) {
-      console.error("Groq vision returned invalid JSON.");
-      throw new FoodRecognitionError(
-        "food_not_recognized",
-        "AI không nhận diện được món ăn trong ảnh. Vui lòng thử ảnh khác rõ hơn.",
+        503,
       );
     }
 
@@ -256,11 +257,13 @@ const mockProfiles: MockFoodProfile[] = [
 ];
 
 export class MockFoodRecognitionService implements FoodRecognitionService {
-  async analyze(image: FoodImageInput): Promise<FoodRecognitionResult> {
+  analyze(image: FoodImageInput): Promise<FoodRecognitionResult> {
     if (image.byteLength < 128) {
-      throw new FoodRecognitionError(
-        "food_not_recognized",
-        "AI khong nhan dien duoc mon an trong anh. Vui long thu anh khac ro hon.",
+      return Promise.reject(
+        new FoodRecognitionError(
+          "food_not_recognized",
+          "AI khong nhan dien duoc mon an trong anh. Vui long thu anh khac ro hon.",
+        ),
       );
     }
 
@@ -271,31 +274,30 @@ export class MockFoodRecognitionService implements FoodRecognitionService {
 
     const profile = matchedProfile ?? mockProfiles[0];
 
-    return {
+    return Promise.resolve({
       food_name: profile.food_name,
       confidence: matchedProfile ? profile.confidence : 0.74,
       nutrition: profile.nutrition,
-    };
+    });
   }
 }
 
-export function createFoodRecognitionService(): FoodRecognitionService {
-  const groqKey = Deno.env.get("GROQ_API_KEY");
-  const provider = Deno.env.get("FOOD_RECOGNITION_PROVIDER") ?? "groq";
+export function createFoodRecognitionService(
+  tier: AiTier,
+): FoodRecognitionService {
+  const provider = Deno.env.get("FOOD_RECOGNITION_PROVIDER") ?? "ai";
   const allowMock =
     Deno.env.get("FOOD_RECOGNITION_ALLOW_MOCK")?.toLowerCase() === "true";
 
-  if (provider === "groq") {
-    if (!groqKey) {
+  if (provider === "ai" || provider === "groq") {
+    if (providerConfigs("food_recognition", tier).length === 0) {
       throw new FoodRecognitionError(
         "provider_not_configured",
         "Dịch vụ nhận diện món ăn chưa được cấu hình.",
         503,
       );
     }
-    const model = Deno.env.get("FOOD_RECOGNITION_MODEL") ??
-      GROQ_DEFAULT_VISION_MODEL;
-    return new GroqFoodRecognitionService(groqKey, model);
+    return new MultiProviderFoodRecognitionService(tier);
   }
 
   if (provider === "mock" && allowMock) {
@@ -307,4 +309,3 @@ export function createFoodRecognitionService(): FoodRecognitionService {
     503,
   );
 }
-import { envInt, fetchWithTimeout, readTextLimited } from "../_shared/http.ts";

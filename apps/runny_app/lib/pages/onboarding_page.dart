@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/gemini_service.dart';
+import '../services/ai_service.dart';
 import '../services/training_service.dart';
 import '../widgets/ui_components.dart';
 import 'dashboard_page.dart';
@@ -82,7 +82,7 @@ class _OnboardingContentState extends State<OnboardingContent> {
 
   final _pageController = PageController();
   final _trainingService = TrainingService();
-  final _geminiService = GeminiService();
+  final _aiService = AiService();
   final _supabase = Supabase.instance.client;
 
   final _weightController = TextEditingController();
@@ -378,7 +378,7 @@ Yeu cau:
 - Tra ve JSON dung schema: {"goals":["..."]}.
 ''';
 
-      final content = await _geminiService.generateResponse(
+      final content = await _aiService.generateResponse(
         prompt,
         feature: AiFeature.onboardingGoals,
       );

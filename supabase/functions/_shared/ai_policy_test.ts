@@ -90,3 +90,28 @@ Deno.test("vision input is accepted only by the explicit vision feature", () => 
     "vision entitlement gate missing",
   );
 });
+
+Deno.test("onboarding and food use separate server quota classes", () => {
+  const onboarding = normalizeAiRequest({
+    feature: "onboarding_goals",
+    messages: [{ role: "user", content: "Gợi ý mục tiêu chạy bộ." }],
+  });
+  assert(
+    onboarding.policy.entitlementFeature === "onboarding",
+    "onboarding quota class missing",
+  );
+
+  const image = `data:image/jpeg;base64,${btoa("small food image")}`;
+  const food = normalizeAiRequest({
+    feature: "food_recognition",
+    messages: [{
+      role: "user",
+      content: [
+        { type: "text", text: "Nhận diện món ăn." },
+        { type: "image_url", image_url: { url: image } },
+      ],
+    }],
+    response_format: { type: "json_object" },
+  });
+  assert(food.policy.entitlementFeature === "food", "food quota class missing");
+});

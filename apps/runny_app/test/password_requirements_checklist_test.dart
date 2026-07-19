@@ -25,9 +25,9 @@ void main() {
     await tester.pumpWidget(_buildSubject('runny'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Different from your email password'), findsOneWidget);
     expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
     expect(find.byIcon(Icons.radio_button_unchecked_rounded), findsNWidgets(3));
+    expect(find.byIcon(Icons.info_outline_rounded), findsNothing);
 
     await tester.pumpWidget(_buildSubject('Runny1'));
     await tester.pumpAndSettle();

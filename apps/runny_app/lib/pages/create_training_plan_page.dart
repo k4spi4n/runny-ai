@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../services/gemini_service.dart';
+import '../services/ai_service.dart';
 import '../services/training_service.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/paywall.dart';
@@ -23,7 +23,7 @@ class CreateTrainingPlanPage extends StatefulWidget {
 
 class _CreateTrainingPlanPageState extends State<CreateTrainingPlanPage> {
   final TrainingService _trainingService = TrainingService();
-  final GeminiService _geminiService = GeminiService();
+  final AiService _aiService = AiService();
   final _supabase = Supabase.instance.client;
   final TextEditingController _goalController = TextEditingController();
   final TextEditingController _constraintsController = TextEditingController();
@@ -155,7 +155,7 @@ Yeu cau:
 - Khong tao lich tap chi tiet.
 - Tra ve JSON dung schema: {"goals":["..."]}.
 ''';
-      final content = await _geminiService.generateResponse(
+      final content = await _aiService.generateResponse(
         prompt,
         feature: AiFeature.onboardingGoals,
       );

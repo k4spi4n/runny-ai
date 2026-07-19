@@ -5,7 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/workout_models.dart';
 import '../models/run_reminder_model.dart';
 import 'edge_function_result.dart';
-import 'gemini_service.dart';
+import 'ai_service.dart';
 import 'notification_service.dart';
 import 'paywall_exception.dart';
 import 'readiness_service.dart';
@@ -103,7 +103,7 @@ class TrainingService {
 
   final SupabaseClient _supabase;
   final TrainingPlanJobClient _planJobClient;
-  final GeminiService _gemini = GeminiService();
+  final AiService _ai = AiService();
   static const String _manualMetadataPrefix = 'RUNNY_MANUAL_WORKOUT_V1:';
 
   Future<void> completeScheduledWorkout({
@@ -179,9 +179,9 @@ class TrainingService {
     return rescheduledWorkouts;
   }
 
-  void _ensureGeminiReady() {
-    if (!_gemini.isConfigured) {
-      throw Exception('OPENROUTER_API_KEY not found in .env');
+  void _ensureAiReady() {
+    if (!_ai.isConfigured) {
+      throw Exception('AI gateway is not configured');
     }
   }
 
@@ -673,7 +673,7 @@ class TrainingService {
   /// nhắc người dùng tập ít nhất một buổi trước. Trả về đề xuất rỗng nếu không có
   /// lịch active hoặc không còn buổi 'planned' nào để điều chỉnh.
   Future<PlanAdjustmentProposal> proposePlanAdjustments() async {
-    _ensureGeminiReady();
+    _ensureAiReady();
     final user = _supabase.auth.currentUser;
     if (user == null) throw Exception('User not logged in');
     final readiness = await ReadinessService().getSnapshot();
@@ -782,7 +782,7 @@ Các buổi tập sắp tới (có thể điều chỉnh):
 $upcomingSummary
 ''';
 
-    final json = await _gemini.generateStructuredResponse(
+    final json = await _ai.generateStructuredResponse(
       context,
       systemPrompt,
       feature: AiFeature.trainingAdjustment,
@@ -876,7 +876,7 @@ $upcomingSummary
   }
 
   Future<String> analyzeActivity(String activityId) async {
-    _ensureGeminiReady();
+    _ensureAiReady();
     final activity = await _supabase
         .from('activities')
         .select()
@@ -898,7 +898,7 @@ $upcomingSummary
         'Thời gian hiện tại: ${_dateTimeFullStr(DateTime.now())}\n'
         'Buổi tập "$name" diễn ra lúc $startedAtStr: ${activity['distance_km']}km, thời gian ${activity['duration_min']} phút, nhịp tim ${activity['avg_hr']} bpm$cadenceStr. Ghi chú: $notes';
 
-    final insight = await _gemini.generateResponse(
+    final insight = await _ai.generateResponse(
       '$systemPrompt\n\n$userPrompt',
       feature: AiFeature.activityInsight,
     );

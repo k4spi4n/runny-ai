@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/training_service.dart';
 import '../services/training_refresh_service.dart';
-import '../services/gemini_service.dart';
+import '../services/ai_service.dart';
 import '../services/chat_service.dart';
 import '../services/ai_coach_tool_service.dart';
 import '../services/speech_service.dart';
@@ -44,7 +44,7 @@ class _AICoachPageState extends State<AICoachPage> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _inputFocusNode = FocusNode();
   final TrainingService _trainingService = TrainingService();
-  final GeminiService _geminiService = GeminiService();
+  final AiService _aiService = AiService();
   final ChatService _chatService = ChatService();
   final SpeechService _speech = SpeechService();
   final AICoachToolService _coachToolService = AICoachToolService();
@@ -133,7 +133,7 @@ class _AICoachPageState extends State<AICoachPage> {
             'coach_persona': CoachPersona.byId(_coachPersona).id,
           })
           .eq('id', user.id);
-      GeminiService.clearCoachPreferenceCache();
+      AiService.clearCoachPreferenceCache();
       if (mounted) {
         setState(() {});
         Navigator.of(context).pop();
@@ -305,7 +305,7 @@ class _AICoachPageState extends State<AICoachPage> {
     // Chặn gửi chồng khi đang chờ phản hồi trước đó.
     if (_isLoading) return;
 
-    if (!_geminiService.isConfigured) {
+    if (!_aiService.isConfigured) {
       setState(() {
         _messages.add({
           'role': 'assistant',
@@ -399,7 +399,7 @@ $prompt''';
       final history = allHistory.length <= 30
           ? allHistory
           : allHistory.sublist(allHistory.length - 30);
-      final result = await _geminiService.generateCoachTurn(
+      final result = await _aiService.generateCoachTurn(
         prompt,
         history: history,
         executeTool: _coachToolService.execute,

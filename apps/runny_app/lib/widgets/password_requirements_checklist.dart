@@ -31,34 +31,24 @@ class PasswordRequirementsChecklist extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final requirements = [
       (
-        key: 'password-requirement-email-reminder',
-        label: context.translate('password_requirement_email_reminder'),
-        isMet: false,
-        isReminder: true,
-      ),
-      (
         key: 'password-requirement-length',
         label: context.translate('password_requirement_length'),
         isMet: hasMinimumLength(password),
-        isReminder: false,
       ),
       (
         key: 'password-requirement-uppercase',
         label: context.translate('password_requirement_uppercase'),
         isMet: hasUppercase(password),
-        isReminder: false,
       ),
       (
         key: 'password-requirement-lowercase',
         label: context.translate('password_requirement_lowercase'),
         isMet: hasLowercase(password),
-        isReminder: false,
       ),
       (
         key: 'password-requirement-number',
         label: context.translate('password_requirement_number'),
         isMet: hasNumber(password),
-        isReminder: false,
       ),
     ];
 
@@ -66,27 +56,36 @@ class PasswordRequirementsChecklist extends StatelessWidget {
       container: true,
       label: context.translate('password_requirements_title'),
       child: Padding(
-        padding: const EdgeInsets.only(top: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              context.translate('password_requirements_title'),
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              ),
+        padding: const EdgeInsets.only(top: 10),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.07),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: colorScheme.primary.withValues(alpha: 0.14),
             ),
-            const SizedBox(height: 8),
-            ...requirements.map(
-              (requirement) => _PasswordRequirementItem(
-                key: Key(requirement.key),
-                label: requirement.label,
-                isMet: requirement.isMet,
-                isReminder: requirement.isReminder,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.translate('password_requirements_title'),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 6),
+              ...requirements.map(
+                (requirement) => _PasswordRequirementItem(
+                  key: Key(requirement.key),
+                  label: requirement.label,
+                  isMet: requirement.isMet,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -96,49 +95,38 @@ class PasswordRequirementsChecklist extends StatelessWidget {
 class _PasswordRequirementItem extends StatelessWidget {
   final String label;
   final bool isMet;
-  final bool isReminder;
 
   const _PasswordRequirementItem({
     super.key,
     required this.label,
     required this.isMet,
-    required this.isReminder,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final color = isReminder
-        ? colorScheme.secondary
-        : isMet
-        ? colorScheme.primary
-        : colorScheme.onSurfaceVariant;
+    final color = isMet ? colorScheme.primary : colorScheme.onSurfaceVariant;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Semantics(
-        checked: isReminder ? null : isMet,
-        label: isReminder ? label : null,
+        checked: isMet,
         child: Row(
           children: [
             Icon(
-              isReminder
-                  ? Icons.info_outline_rounded
-                  : isMet
+              isMet
                   ? Icons.check_circle_rounded
                   : Icons.radio_button_unchecked_rounded,
               color: color,
-              size: 18,
+              size: 17,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 7),
             Expanded(
               child: Text(
                 label,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: color,
-                  fontWeight: isMet || isReminder
-                      ? FontWeight.w600
-                      : FontWeight.w400,
+                  fontWeight: isMet ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
             ),

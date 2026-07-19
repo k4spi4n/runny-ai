@@ -27,6 +27,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordFocusNode = FocusNode();
+  final _passwordGuidanceKey = GlobalKey();
   late final RegistrationService _registrationService;
   bool _isLoading = false;
   late bool _isSignUp = widget.initialIsSignUp;
@@ -43,7 +44,26 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _onPasswordFocusChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    if (_passwordFocusNode.hasFocus && _isSignUp) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_revealPasswordGuidance());
+      });
+    }
+  }
+
+  Future<void> _revealPasswordGuidance() async {
+    if (!mounted || !_passwordFocusNode.hasFocus || !_isSignUp) return;
+
+    final guidanceContext = _passwordGuidanceKey.currentContext;
+    if (guidanceContext == null) return;
+    await Scrollable.ensureVisible(
+      guidanceContext,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Future<void> _handleAuth() async {
@@ -97,7 +117,7 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         await Supabase.instance.client.auth.signInWithPassword(
           email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
+          password: _passwordController.text,
         );
         // Đăng nhập thành công: pop LoginPage để AuthGate (gốc) vào dashboard.
         if (mounted) {
@@ -195,29 +215,15 @@ class _LoginPageState extends State<LoginPage> {
     _passwordController.clear();
   }
 
-  void _toggleAuthMode() {
+  void _setAuthMode(bool isSignUp) {
+    if (_isSignUp == isSignUp) return;
+    FocusScope.of(context).unfocus();
     setState(() {
-      _isSignUp = !_isSignUp;
+      _isSignUp = isSignUp;
       _hasSubmitted = false;
       _formKey = GlobalKey<FormState>();
       _obscurePassword = true;
     });
-  }
-
-  void _showComingSoon() {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(dialogContext.translate('feature_coming_soon_title')),
-        content: Text(dialogContext.translate('feature_coming_soon_body')),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(dialogContext.translate('ok')),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _resendConfirmation() async {
@@ -346,19 +352,17 @@ class _LoginPageState extends State<LoginPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final hasPassword = _passwordController.text.isNotEmpty;
+    final mediaQuery = MediaQuery.of(context);
+    final isKeyboardVisible = mediaQuery.viewInsets.bottom > 0;
+    final isCompact = isKeyboardVisible || mediaQuery.size.height < 700;
+    final isNarrow = mediaQuery.size.width < 400;
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           Container(
             decoration: BoxDecoration(gradient: sportPlatformGradient(context)),
-          ),
-          Positioned(
-            top: 40,
-            right: 20,
-            child: Row(
-              children: [const LanguageSwitcher(), const ThemeToggle()],
-            ),
           ),
           Positioned(
             top: -120,
@@ -379,189 +383,298 @@ class _LoginPageState extends State<LoginPage> {
           ),
           Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 96, 24, 42),
+              key: const ValueKey('auth-scroll-view'),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(
+                isNarrow ? 16 : 24,
+                isKeyboardVisible
+                    ? 12
+                    : isCompact
+                    ? 76
+                    : 92,
+                isNarrow ? 16 : 24,
+                isKeyboardVisible ? 20 : 36,
+              ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 460),
                 child: glassCard(
                   context: context,
-                  padding: const EdgeInsets.all(28),
-                  child: Form(
-                    key: _formKey,
-                    autovalidateMode: _hasSubmitted
-                        ? AutovalidateMode.onUserInteraction
-                        : AutovalidateMode.disabled,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: RunnyLogo(fontSize: 32),
-                        ),
-                        const SizedBox(height: 28),
-                        if (_pendingConfirmationEmail != null)
-                          _ConfirmationPendingContent(
-                            email: _pendingConfirmationEmail!,
-                            isLoading: _isLoading,
-                            onResend: _resendConfirmation,
-                            onBackToLogin: () => setState(() {
-                              _isSignUp = false;
-                              _clearPasswords();
-                              _pendingConfirmationEmail = null;
-                            }),
-                          )
-                        else ...[
-                          Text(
-                            _isSignUp
-                                ? context.translate('signup')
-                                : context.translate('login'),
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              color: isDark ? Colors.white : Colors.black87,
+                  padding: EdgeInsets.all(isCompact ? 20 : 28),
+                  borderRadius: BorderRadius.circular(isNarrow ? 22 : 28),
+                  child: AutofillGroup(
+                    child: Form(
+                      key: _formKey,
+                      autovalidateMode: _hasSubmitted
+                          ? AutovalidateMode.onUserInteraction
+                          : AutovalidateMode.disabled,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (!isKeyboardVisible) ...[
+                            FittedBox(
+                              key: const ValueKey('auth-brand'),
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: RunnyLogo(fontSize: isCompact ? 26 : 32),
                             ),
-                          ),
-                          const SizedBox(height: 24),
-                          TextFormField(
-                            key: const ValueKey('auth-email-field'),
-                            controller: _emailController,
-                            decoration: themedInputDecoration(
-                              context,
-                              context.translate('email'),
-                              icon: Icons.email,
-                              isRequired: true,
+                            SizedBox(height: isCompact ? 20 : 28),
+                          ],
+                          if (_pendingConfirmationEmail != null)
+                            _ConfirmationPendingContent(
+                              email: _pendingConfirmationEmail!,
+                              isLoading: _isLoading,
+                              onResend: _resendConfirmation,
+                              onBackToLogin: () => setState(() {
+                                _isSignUp = false;
+                                _clearPasswords();
+                                _pendingConfirmationEmail = null;
+                              }),
+                            )
+                          else ...[
+                            _AuthModeSwitcher(
+                              isSignUp: _isSignUp,
+                              enabled: !_isLoading,
+                              onChanged: _setAuthMode,
                             ),
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.next,
-                            autofillHints: const [AutofillHints.email],
-                            validator: _validateEmail,
-                            style: TextStyle(
-                              color: isDark ? Colors.white : Colors.black87,
-                            ),
-                            inputFormatters: [UnsignedTextInputFormatter()],
-                          ),
-                          const SizedBox(height: 16),
-                          _PasswordFormField(
-                            fieldKey: const ValueKey('auth-password-field'),
-                            controller: _passwordController,
-                            focusNode: _passwordFocusNode,
-                            label: context.translate('password'),
-                            obscureText: _obscurePassword,
-                            visibilityToggleKey: const ValueKey(
-                              'auth-password-visibility-toggle',
-                            ),
-                            textInputAction: TextInputAction.done,
-                            validator: _validatePassword,
-                            onChanged: _onPasswordChanged,
-                            onFieldSubmitted: (_) => _handleAuth(),
-                            onToggleVisibility: () => setState(
-                              () => _obscurePassword = !_obscurePassword,
-                            ),
-                          ),
-                          AnimatedSize(
-                            duration: const Duration(milliseconds: 180),
-                            curve: Curves.easeOut,
-                            alignment: Alignment.topCenter,
-                            child:
-                                _isSignUp &&
-                                    (_passwordFocusNode.hasFocus || hasPassword)
-                                ? PasswordRequirementsChecklist(
-                                    password: _passwordController.text,
-                                  )
-                                : const SizedBox.shrink(),
-                          ),
-                          const SizedBox(height: 24),
-                          GradientButton(
-                            key: const ValueKey('auth-submit-button'),
-                            onPressed: _isLoading ? null : _handleAuth,
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : Text(
-                                    _isSignUp
-                                        ? context.translate('signup')
-                                        : context.translate('login'),
-                                  ),
-                          ),
-                          if (!_isSignUp)
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: _isLoading
-                                    ? null
-                                    : _handleForgotPassword,
-                                child: Text(
-                                  context.translate('forgot_password'),
-                                  style: TextStyle(
-                                    color: isDark
-                                        ? Colors.white70
-                                        : Colors.black54,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                            SizedBox(height: isCompact ? 16 : 22),
+                            TextFormField(
+                              key: const ValueKey('auth-email-field'),
+                              controller: _emailController,
+                              decoration: themedInputDecoration(
+                                context,
+                                context.translate('email'),
+                                icon: Icons.email_outlined,
+                                isRequired: true,
                               ),
-                            ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _SocialLoginButton(
-                                  onPressed: _isLoading
-                                      ? null
-                                      : _showComingSoon,
-                                  icon: const Icon(
-                                    Icons.g_mobiledata,
-                                    color: Colors.redAccent,
-                                    size: 28,
-                                  ),
-                                  label: context.translate('google_login'),
-                                  isDark: isDark,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _SocialLoginButton(
-                                  onPressed: _isLoading
-                                      ? null
-                                      : _showComingSoon,
-                                  icon: const Icon(
-                                    Icons.facebook,
-                                    color: Color(0xFF1877F2),
-                                    size: 24,
-                                  ),
-                                  label: context.translate('facebook_login'),
-                                  isDark: isDark,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          TextButton(
-                            onPressed: _isLoading ? null : _toggleAuthMode,
-                            child: Text(
-                              _isSignUp
-                                  ? context.translate('already_have_account')
-                                  : context.translate('no_account_signup'),
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.next,
+                              autofillHints: const [AutofillHints.email],
+                              validator: _validateEmail,
+                              onFieldSubmitted: (_) =>
+                                  _passwordFocusNode.requestFocus(),
                               style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black54,
-                                fontWeight: FontWeight.w600,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
+                              inputFormatters: [UnsignedTextInputFormatter()],
+                            ),
+                            const SizedBox(height: 16),
+                            _PasswordFormField(
+                              fieldKey: const ValueKey('auth-password-field'),
+                              controller: _passwordController,
+                              focusNode: _passwordFocusNode,
+                              label: context.translate('password'),
+                              obscureText: _obscurePassword,
+                              visibilityToggleKey: const ValueKey(
+                                'auth-password-visibility-toggle',
+                              ),
+                              textInputAction: TextInputAction.done,
+                              autofillHints: [
+                                _isSignUp
+                                    ? AutofillHints.newPassword
+                                    : AutofillHints.password,
+                              ],
+                              scrollPadding: EdgeInsets.only(
+                                top: 24,
+                                bottom: _isSignUp ? 180 : 40,
+                              ),
+                              validator: _validatePassword,
+                              onChanged: _onPasswordChanged,
+                              onFieldSubmitted: (_) => _handleAuth(),
+                              onToggleVisibility: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
                               ),
                             ),
-                          ),
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 180),
+                              curve: Curves.easeOut,
+                              alignment: Alignment.topCenter,
+                              child:
+                                  _isSignUp &&
+                                      (_passwordFocusNode.hasFocus ||
+                                          hasPassword)
+                                  ? KeyedSubtree(
+                                      key: _passwordGuidanceKey,
+                                      child: PasswordRequirementsChecklist(
+                                        password: _passwordController.text,
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                            if (!_isSignUp)
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
+                                  onPressed: _isLoading
+                                      ? null
+                                      : _handleForgotPassword,
+                                  child: Text(
+                                    context.translate('forgot_password'),
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? Colors.white70
+                                          : Colors.black54,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            SizedBox(
+                              height: _isSignUp
+                                  ? isCompact
+                                        ? 18
+                                        : 24
+                                  : 8,
+                            ),
+                            GradientButton(
+                              key: const ValueKey('auth-submit-button'),
+                              onPressed: _isLoading ? null : _handleAuth,
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Text(
+                                      _isSignUp
+                                          ? context.translate('signup')
+                                          : context.translate('login'),
+                                    ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
+          if (!isKeyboardVisible)
+            Positioned(
+              top: mediaQuery.padding.top + 8,
+              right: 12,
+              child: Row(
+                children: [const LanguageSwitcher(), const ThemeToggle()],
+              ),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+class _AuthModeSwitcher extends StatelessWidget {
+  final bool isSignUp;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  const _AuthModeSwitcher({
+    required this.isSignUp,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: colorScheme.onSurface.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _AuthModeButton(
+              buttonKey: const ValueKey('auth-login-mode'),
+              label: context.translate('login'),
+              selected: !isSignUp,
+              enabled: enabled,
+              onPressed: () => onChanged(false),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: _AuthModeButton(
+              buttonKey: const ValueKey('auth-signup-mode'),
+              label: context.translate('signup'),
+              selected: isSignUp,
+              enabled: enabled,
+              onPressed: () => onChanged(true),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AuthModeButton extends StatelessWidget {
+  final Key buttonKey;
+  final String label;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  const _AuthModeButton({
+    required this.buttonKey,
+    required this.label,
+    required this.selected,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Semantics(
+      key: buttonKey,
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      label: label,
+      child: ExcludeSemantics(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          decoration: BoxDecoration(
+            gradient: selected ? accentPulseGradient : null,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFFA6B27).withValues(alpha: 0.22),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: enabled ? onPressed : null,
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                height: 44,
+                child: Center(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: selected ? Colors.white : colorScheme.onSurface,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -575,6 +688,8 @@ class _PasswordFormField extends StatelessWidget {
   final bool obscureText;
   final Key visibilityToggleKey;
   final TextInputAction textInputAction;
+  final Iterable<String> autofillHints;
+  final EdgeInsets scrollPadding;
   final FormFieldValidator<String> validator;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onFieldSubmitted;
@@ -587,6 +702,8 @@ class _PasswordFormField extends StatelessWidget {
     required this.obscureText,
     required this.visibilityToggleKey,
     required this.textInputAction,
+    required this.autofillHints,
+    required this.scrollPadding,
     required this.validator,
     required this.onToggleVisibility,
     this.focusNode,
@@ -646,7 +763,8 @@ class _PasswordFormField extends StatelessWidget {
       obscureText: obscureText,
       autocorrect: false,
       enableSuggestions: false,
-      autofillHints: const [AutofillHints.newPassword],
+      autofillHints: autofillHints,
+      scrollPadding: scrollPadding,
       style: TextStyle(
         color: theme.brightness == Brightness.dark
             ? Colors.white
@@ -731,68 +849,6 @@ class _ConfirmationPendingContent extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SocialLoginButton extends StatelessWidget {
-  final VoidCallback? onPressed;
-  final Widget icon;
-  final String label;
-  final bool isDark;
-
-  const _SocialLoginButton({
-    required this.onPressed,
-    required this.icon,
-    required this.label,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = isDark ? Colors.white : Colors.black87;
-
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: textColor,
-          backgroundColor: isDark
-              ? Colors.white.withValues(alpha: 0.065)
-              : Colors.black.withValues(alpha: 0.025),
-          side: BorderSide(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.16)
-                : Colors.black.withValues(alpha: 0.08),
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: SizedBox(width: 30, child: Center(child: icon)),
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

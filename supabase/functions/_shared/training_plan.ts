@@ -1,24 +1,23 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
+import { normalizeAiRequest, providerModels } from "./ai_policy.ts";
 import {
-  normalizeAiRequest,
-  type NormalizedAiRequest,
-  providerModels,
-} from "./ai_policy.ts";
+  type AiTier,
+  isProviderCircuitOpen,
+  isRetryableProviderStatus,
+  providerBody,
+  providerConfigs,
+  providerHeaders,
+  providerTimeoutMs,
+  recordProviderFailure,
+  recordProviderSuccess,
+} from "./ai_provider.ts";
 import {
   correlationId,
   envInt,
   fetchWithTimeout,
   readTextLimited,
 } from "./http.ts";
-
-type Provider = "groq" | "cerebras" | "openrouter";
-
-interface ProviderConfig {
-  provider: Provider;
-  endpoint: string;
-  apiKey: string;
-}
 
 export interface TrainingPlanJob {
   id: string;
@@ -108,64 +107,6 @@ function serviceClient(): ServiceClient {
   return createClient(url, key);
 }
 
-function providerConfigs(): ProviderConfig[] {
-  const configs: ProviderConfig[] = [];
-  const groq = Deno.env.get("GROQ_API_KEY");
-  const cerebras = Deno.env.get("CEREBRAS_API_KEY");
-  const openRouter = Deno.env.get("OPENROUTER_API_KEY");
-  if (groq) {
-    configs.push({
-      provider: "groq",
-      endpoint: "https://api.groq.com/openai/v1/chat/completions",
-      apiKey: groq,
-    });
-  }
-  if (cerebras) {
-    configs.push({
-      provider: "cerebras",
-      endpoint: "https://api.cerebras.ai/v1/chat/completions",
-      apiKey: cerebras,
-    });
-  }
-  if (openRouter) {
-    configs.push({
-      provider: "openrouter",
-      endpoint: "https://openrouter.ai/api/v1/chat/completions",
-      apiKey: openRouter,
-    });
-  }
-  return configs;
-}
-
-function providerBody(
-  normalized: NormalizedAiRequest,
-  provider: Provider,
-  model: string,
-): Record<string, unknown> {
-  const body = structuredClone(normalized.body);
-  body.model = model;
-  if (provider === "openrouter") {
-    body.max_tokens = body.max_completion_tokens;
-    delete body.max_completion_tokens;
-  }
-  if (provider !== "groq") {
-    body.response_format = { type: "json_object" };
-  }
-  return body;
-}
-
-function providerHeaders(config: ProviderConfig): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${config.apiKey}`,
-  };
-  if (config.provider === "openrouter") {
-    headers["HTTP-Referer"] = "https://runny-ai.onrender.com";
-    headers["X-Title"] = "Runny AI";
-  }
-  return headers;
-}
-
 function planFromProviderPayload(payload: unknown): Record<string, unknown> {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new Error("training_plan_provider_shape");
@@ -183,10 +124,20 @@ function planFromProviderPayload(payload: unknown): Record<string, unknown> {
     throw new Error("training_plan_provider_shape");
   }
   let decoded: unknown;
+  const cleaned = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   try {
-    decoded = JSON.parse(content);
+    decoded = JSON.parse(cleaned);
   } catch {
-    throw new Error("training_plan_invalid_json");
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start < 0 || end <= start) {
+      throw new Error("training_plan_invalid_json");
+    }
+    try {
+      decoded = JSON.parse(cleaned.slice(start, end + 1));
+    } catch {
+      throw new Error("training_plan_invalid_json");
+    }
   }
   if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
     throw new Error("training_plan_invalid_json");
@@ -197,25 +148,22 @@ function planFromProviderPayload(payload: unknown): Record<string, unknown> {
 async function callPlanProvider(
   prompt: string,
   requestId: string,
+  tier: AiTier,
 ): Promise<Record<string, unknown>> {
   const normalized = normalizeAiRequest({
     feature: "training_plan",
     messages: [{ role: "user", content: prompt }],
     response_format: PLAN_RESPONSE_FORMAT,
   });
-  const timeoutMs = envInt(
-    "AI_PROVIDER_TIMEOUT_MS",
-    25_000,
-    { min: 3_000, max: 60_000 },
-  );
   const totalTimeoutMs = envInt(
-    "AI_TOTAL_TIMEOUT_MS",
-    55_000,
-    { min: 5_000, max: 90_000 },
+    "TRAINING_PLAN_AI_TOTAL_TIMEOUT_MS",
+    180_000,
+    { min: 30_000, max: 280_000 },
   );
   const deadline = Date.now() + totalTimeoutMs;
 
-  for (const config of providerConfigs()) {
+  for (const config of providerConfigs("training_plan", tier)) {
+    if (isProviderCircuitOpen(config.provider)) continue;
     for (const model of providerModels("training_plan", config.provider)) {
       const remainingMs = deadline - Date.now();
       if (remainingMs < 1_000) {
@@ -231,9 +179,18 @@ async function callPlanProvider(
               providerBody(normalized, config.provider, model),
             ),
           },
-          { timeoutMs: Math.min(timeoutMs, remainingMs) },
+          {
+            timeoutMs: Math.min(
+              providerTimeoutMs(config.provider),
+              remainingMs,
+            ),
+          },
         );
         if (!response.ok) {
+          recordProviderFailure(
+            config.provider,
+            isRetryableProviderStatus(response.status),
+          );
           await response.body?.cancel();
           console.warn(JSON.stringify({
             event: "training_plan_provider_rejected",
@@ -245,8 +202,11 @@ async function callPlanProvider(
           continue;
         }
         const text = await readTextLimited(response, 1_000_000);
-        return planFromProviderPayload(JSON.parse(text));
+        const plan = planFromProviderPayload(JSON.parse(text));
+        recordProviderSuccess(config.provider);
+        return plan;
       } catch (error) {
+        recordProviderFailure(config.provider, true);
         console.warn(JSON.stringify({
           event: "training_plan_provider_failed",
           request_id: requestId,
@@ -260,6 +220,35 @@ async function callPlanProvider(
     }
   }
   throw new Error("training_plan_provider_unavailable");
+}
+
+async function resolveAiTier(
+  supabase: ServiceClient,
+  userId: string,
+): Promise<AiTier> {
+  const now = new Date();
+  const [subscriptionResult, profileResult] = await Promise.all([
+    supabase
+      .from("user_subscriptions")
+      .select("end_date")
+      .eq("user_id", userId)
+      .eq("status", "active")
+      .gt("end_date", now.toISOString())
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("profiles")
+      .select("trial_ends_at")
+      .eq("id", userId)
+      .maybeSingle(),
+  ]);
+  if (subscriptionResult.error || profileResult.error) {
+    throw new Error("training_plan_tier_read_failed");
+  }
+  if (subscriptionResult.data) return "paid";
+  const trialEnd = profileResult.data?.trial_ends_at;
+  if (typeof trialEnd === "string" && new Date(trialEnd) > now) return "trial";
+  return "free";
 }
 
 async function buildPlanPrompt(
@@ -362,11 +351,12 @@ export async function processClaimedTrainingPlanJob(
 ): Promise<void> {
   const requestId = correlationId();
   try {
-    if (providerConfigs().length === 0) {
+    const tier = await resolveAiTier(supabase, job.user_id);
+    if (providerConfigs("training_plan", tier).length === 0) {
       throw new Error("training_plan_provider_not_configured");
     }
     const prompt = await buildPlanPrompt(supabase, job);
-    const plan = await callPlanProvider(prompt, requestId);
+    const plan = await callPlanProvider(prompt, requestId, tier);
     const result = await supabase.rpc("complete_training_plan_job", {
       p_job_id: job.id,
       p_plan: plan,

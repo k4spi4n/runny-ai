@@ -6,6 +6,17 @@ import {
   type NormalizedAiRequest,
   providerModels,
 } from "../_shared/ai_policy.ts";
+import {
+  type AiTier,
+  isProviderCircuitOpen,
+  isRetryableProviderStatus,
+  providerBody,
+  providerConfigs,
+  providerHeaders,
+  providerTimeoutMs,
+  recordProviderFailure,
+  recordProviderSuccess,
+} from "../_shared/ai_provider.ts";
 import { authenticatedUserId } from "../_shared/auth.ts";
 import {
   correlationId,
@@ -15,82 +26,12 @@ import {
   isAllowedBrowserOrigin,
   jsonResponse,
   readJsonBody,
+  readTextLimited,
   RequestBodyError,
   withIdleTimeout,
 } from "../_shared/http.ts";
 
-const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-const CEREBRAS_ENDPOINT = "https://api.cerebras.ai/v1/chat/completions";
-const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-
 const MAX_REQUEST_BYTES = 4_250_000;
-
-type Provider = "groq" | "cerebras" | "openrouter";
-
-interface ProviderConfig {
-  provider: Provider;
-  endpoint: string;
-  apiKey: string;
-}
-
-function providerConfigs(): ProviderConfig[] {
-  const configs: ProviderConfig[] = [];
-  const groq = Deno.env.get("GROQ_API_KEY");
-  const cerebras = Deno.env.get("CEREBRAS_API_KEY");
-  const openRouter = Deno.env.get("OPENROUTER_API_KEY");
-  if (groq) {
-    configs.push({ provider: "groq", endpoint: GROQ_ENDPOINT, apiKey: groq });
-  }
-  if (cerebras) {
-    configs.push({
-      provider: "cerebras",
-      endpoint: CEREBRAS_ENDPOINT,
-      apiKey: cerebras,
-    });
-  }
-  if (openRouter) {
-    configs.push({
-      provider: "openrouter",
-      endpoint: OPENROUTER_ENDPOINT,
-      apiKey: openRouter,
-    });
-  }
-  return configs;
-}
-
-function providerBody(
-  request: NormalizedAiRequest,
-  provider: Provider,
-  model: string,
-): Record<string, unknown> {
-  const body = structuredClone(request.body);
-  body.model = model;
-  if (provider === "openrouter") {
-    body.max_tokens = body.max_completion_tokens;
-    delete body.max_completion_tokens;
-  }
-  if (provider !== "groq") {
-    const format = body.response_format as Record<string, unknown> | undefined;
-    if (format?.type === "json_schema") {
-      body.response_format = { type: "json_object" };
-    }
-  }
-  return body;
-}
-
-function providerHeaders(
-  config: ProviderConfig,
-): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${config.apiKey}`,
-  };
-  if (config.provider === "openrouter") {
-    headers["HTTP-Referer"] = "https://runny-ai.onrender.com";
-    headers["X-Title"] = "Runny AI";
-  }
-  return headers;
-}
 
 function successResponse(
   req: Request,
@@ -133,20 +74,25 @@ async function callProviders(
   req: Request,
   normalized: NormalizedAiRequest,
   requestId: string,
+  tier: AiTier,
 ): Promise<Response | null> {
-  const timeoutMs = envInt(
-    "AI_PROVIDER_TIMEOUT_MS",
-    25_000,
-    { min: 3_000, max: 60_000 },
-  );
   const totalTimeoutMs = envInt(
     "AI_TOTAL_TIMEOUT_MS",
-    55_000,
-    { min: 5_000, max: 90_000 },
+    100_000,
+    { min: 10_000, max: 180_000 },
   );
   const deadline = Date.now() + totalTimeoutMs;
 
-  for (const config of providerConfigs()) {
+  for (const config of providerConfigs(normalized.feature, tier)) {
+    if (isProviderCircuitOpen(config.provider)) {
+      console.warn(JSON.stringify({
+        event: "ai_provider_circuit_open",
+        request_id: requestId,
+        provider: config.provider,
+        feature: normalized.feature,
+      }));
+      continue;
+    }
     const models = providerModels(normalized.feature, config.provider);
     for (const model of models) {
       const remainingMs = deadline - Date.now();
@@ -161,9 +107,48 @@ async function callProviders(
               providerBody(normalized, config.provider, model),
             ),
           },
-          { timeoutMs: Math.min(timeoutMs, remainingMs) },
+          {
+            timeoutMs: Math.min(
+              providerTimeoutMs(config.provider),
+              remainingMs,
+            ),
+          },
         );
         if (response.ok) {
+          if (!normalized.wantsStream && normalized.policy.structuredOutput) {
+            const text = await readTextLimited(response, 1_000_000);
+            try {
+              const payload = JSON.parse(text);
+              const content = payload?.choices?.[0]?.message?.content;
+              if (typeof content !== "string") throw new Error("no_content");
+              const start = content.indexOf("{");
+              const end = content.lastIndexOf("}");
+              if (start < 0 || end <= start) throw new Error("no_json");
+              JSON.parse(content.slice(start, end + 1));
+            } catch {
+              recordProviderFailure(config.provider, true);
+              console.warn(JSON.stringify({
+                event: "ai_provider_invalid_structured_output",
+                request_id: requestId,
+                provider: config.provider,
+                model,
+                feature: normalized.feature,
+              }));
+              continue;
+            }
+            recordProviderSuccess(config.provider);
+            return successResponse(
+              req,
+              new Response(text, {
+                status: response.status,
+                headers: response.headers,
+              }),
+              `${config.provider}:${model}`,
+              requestId,
+              false,
+            );
+          }
+          recordProviderSuccess(config.provider);
           return successResponse(
             req,
             response,
@@ -180,8 +165,13 @@ async function callProviders(
           feature: normalized.feature,
           status: response.status,
         }));
+        recordProviderFailure(
+          config.provider,
+          isRetryableProviderStatus(response.status),
+        );
         await response.body?.cancel();
       } catch (error) {
+        recordProviderFailure(config.provider, true);
         console.warn(JSON.stringify({
           event: "ai_provider_failed",
           request_id: requestId,
@@ -200,7 +190,7 @@ async function callProviders(
 
 async function checkAiAccess(
   userId: string,
-  feature: "chat" | "plan" | "vision",
+  feature: "onboarding" | "chat" | "plan" | "vision" | "food",
   requestId: string,
 ): Promise<{ allowed: boolean; reason?: string; tier?: string }> {
   const url = Deno.env.get("SUPABASE_URL");
@@ -226,10 +216,26 @@ async function checkAiAccess(
         body: JSON.stringify({
           p_user_id: userId,
           p_feature: feature,
-          p_max_per_min: envInt("AI_MAX_PER_MIN", 8, { max: 100 }),
-          p_max_per_day: envInt("AI_MAX_PER_DAY", 30, { max: 10_000 }),
-          p_free_max_per_min: envInt("AI_FREE_MAX_PER_MIN", 3, { max: 20 }),
-          p_free_max_per_day: envInt("AI_FREE_MAX_PER_DAY", 5, { max: 100 }),
+          p_max_per_min: envInt(
+            `AI_${feature.toUpperCase()}_MAX_PER_MIN`,
+            feature === "plan" ? 3 : feature === "vision" ? 4 : 12,
+            { max: 100 },
+          ),
+          p_max_per_day: envInt(
+            `AI_${feature.toUpperCase()}_MAX_PER_DAY`,
+            feature === "plan" ? 30 : feature === "vision" ? 40 : 200,
+            { max: 10_000 },
+          ),
+          p_free_max_per_min: envInt(
+            `AI_FREE_${feature.toUpperCase()}_MAX_PER_MIN`,
+            1,
+            { max: 10 },
+          ),
+          p_free_max_per_day: envInt(
+            `AI_FREE_${feature.toUpperCase()}_MAX_PER_DAY`,
+            feature === "chat" ? 8 : feature === "onboarding" ? 2 : 1,
+            { max: 50 },
+          ),
         }),
       },
       {
@@ -327,19 +333,6 @@ serve(async (req) => {
       { "X-Request-ID": requestId },
     );
   }
-  if (providerConfigs().length === 0) {
-    console.error(JSON.stringify({
-      event: "ai_provider_misconfigured",
-      request_id: requestId,
-    }));
-    return jsonResponse(
-      req,
-      { error: "Dịch vụ AI chưa được cấu hình." },
-      503,
-      { "X-Request-ID": requestId },
-    );
-  }
-
   try {
     const rawBody = await readJsonBody(req, MAX_REQUEST_BYTES);
     const normalized = normalizeAiRequest(rawBody);
@@ -352,7 +345,12 @@ serve(async (req) => {
       return accessDeniedResponse(req, access.reason, requestId);
     }
 
-    const response = await callProviders(req, normalized, requestId);
+    const tier: AiTier = access.tier === "free"
+      ? "free"
+      : access.tier === "paid"
+      ? "paid"
+      : "trial";
+    const response = await callProviders(req, normalized, requestId, tier);
     if (response) return response;
     return jsonResponse(
       req,

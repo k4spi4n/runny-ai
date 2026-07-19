@@ -74,14 +74,10 @@ class EntitlementProvider extends ChangeNotifier {
     return (diff.inMinutes / (60 * 24)).ceil();
   }
 
-  /// Quy tắc gate phía client (đồng bộ với RPC check_ai_access):
-  /// 'chat' luôn cho phép; 'plan'/'vision'/'food' yêu cầu không phải tier free.
-  bool canUse(String feature) {
-    if (feature == 'plan' || feature == 'vision' || feature == 'food') {
-      return _tier != AccessTier.free;
-    }
-    return true;
-  }
+  /// Mọi tier đều có thể thử các lớp AI đã biết. Hạn mức thật được áp nguyên tử
+  /// theo user + feature ở server; free có quota rất thấp, paid/trial thoáng hơn.
+  bool canUse(String feature) =>
+      const {'onboarding', 'chat', 'plan', 'vision', 'food'}.contains(feature);
 
   /// Tải lại tier từ Supabase. Gọi sau đăng nhập, khi mở Dashboard, và sau khi
   /// quay lại từ cổng thanh toán.

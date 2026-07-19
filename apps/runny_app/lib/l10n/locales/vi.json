@@ -196,7 +196,7 @@
   "chat_suggestion_14": "Chạy bộ buổi sáng hay buổi tối tốt hơn?",
   "chat_suggestion_15": "Người mới bắt đầu nên kết hợp đi bộ và chạy như thế nào?",
   "chat_suggestion_16": "Có cần khởi động và giãn cơ trước/sau khi chạy không?",
-  "ai_disabled_no_key": "HLV AI bị vô hiệu hóa vì chưa cấu hình Gemini API key.",
+  "ai_disabled_no_key": "HLV AI tạm thời chưa khả dụng vì cổng AI chưa được cấu hình.",
   "ai_coach_long_wait_notice": "Trợ lý AI đang mất lâu hơn một chút để trả lời, bạn có thể sử dụng các tính năng khác và quay lại sau.",
   "ai_keeping_pace": "Hướng dẫn bằng AI giúp bạn duy trì tốc độ.",
   "ai_prompt_context": "Tôi muốn hỏi về buổi tập: %s km, %s phút, nhịp tim TB %s bpm, độ cao %s m, thông tin: %s. Câu hỏi: %s",

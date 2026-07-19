@@ -103,27 +103,31 @@ void main() {
       expect(provider.canUse('vision'), isTrue);
     });
 
-    test('free tier blocks only paid AI feature classes', () async {
-      when(dataSource.currentUserId).thenReturn('user-1');
-      when(
-        subscriptionService.getActiveSubscription(),
-      ).thenAnswer((_) async => null);
-      when(
-        dataSource.getEntitlementStatus(),
-      ).thenAnswer((_) async => {'tier': 'free', 'trial_ends_at': null});
-      final provider = EntitlementProvider(
-        dataSource: dataSource,
-        subscriptionService: subscriptionService,
-      );
+    test(
+      'free tier exposes AI features while server enforces quotas',
+      () async {
+        when(dataSource.currentUserId).thenReturn('user-1');
+        when(
+          subscriptionService.getActiveSubscription(),
+        ).thenAnswer((_) async => null);
+        when(
+          dataSource.getEntitlementStatus(),
+        ).thenAnswer((_) async => {'tier': 'free', 'trial_ends_at': null});
+        final provider = EntitlementProvider(
+          dataSource: dataSource,
+          subscriptionService: subscriptionService,
+        );
 
-      await provider.refresh();
+        await provider.refresh();
 
-      expect(provider.isFree, isTrue);
-      expect(provider.canUse('chat'), isTrue);
-      expect(provider.canUse('plan'), isFalse);
-      expect(provider.canUse('vision'), isFalse);
-      expect(provider.canUse('food'), isFalse);
-    });
+        expect(provider.isFree, isTrue);
+        expect(provider.canUse('chat'), isTrue);
+        expect(provider.canUse('plan'), isTrue);
+        expect(provider.canUse('vision'), isTrue);
+        expect(provider.canUse('food'), isTrue);
+        expect(provider.canUse('unknown'), isFalse);
+      },
+    );
 
     test('falls back to an active subscription for an unknown tier', () async {
       final subscription = UserSubscription.fromJson(_subscriptionJson());

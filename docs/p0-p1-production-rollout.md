@@ -48,8 +48,10 @@ in `supabase/functions/.env.example`.
 Required for this rollout:
 
 - `APP_ALLOWED_ORIGINS=https://runny-ai.onrender.com`
-- At least one text AI provider key: `GROQ_API_KEY`,
-  `CEREBRAS_API_KEY`, or `OPENROUTER_API_KEY`
+- Public providers: `GROQ_API_KEY`, `CEREBRAS_API_KEY`, and/or
+  `OPENROUTER_API_KEY`
+- Private Modal fallback: `MODAL_ENDPOINT_URL`, `MODAL_MODEL`,
+  `MODAL_PROXY_TOKEN_ID`, and `MODAL_PROXY_TOKEN_SECRET`
 - `TRAINING_PLAN_WORKER_TOKEN` with at least 32 random characters
 - `PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, and `PAYOS_CHECKSUM_KEY`
 - `APP_BASE_URL=https://runny-ai.onrender.com`
@@ -58,7 +60,7 @@ Required for this rollout:
   `STRAVA_REDIRECT_URI=https://runny-ai.onrender.com/`,
   `STRAVA_VERIFY_TOKEN`, and `STRAVA_SUBSCRIPTION_ID`
 - `STRAVA_WEBHOOK_WORKER_TOKEN` with at least 32 random characters
-- `FOOD_RECOGNITION_PROVIDER=groq` for production
+- `FOOD_RECOGNITION_PROVIDER=ai` for production
 
 Do not enable `FOOD_RECOGNITION_ALLOW_MOCK` in production. Supabase injects
 `SUPABASE_URL` and the service-role key; do not copy either into the Flutter

@@ -196,7 +196,7 @@
   "chat_suggestion_14": "Is it better to run in the morning or in the evening?",
   "chat_suggestion_15": "How should a beginner combine walking and running?",
   "chat_suggestion_16": "Do I need to warm up and stretch before/after running?",
-  "ai_disabled_no_key": "AI Coach is disabled because no Gemini API key is configured.",
+  "ai_disabled_no_key": "AI Coach is temporarily unavailable because the AI gateway is not configured.",
   "ai_coach_long_wait_notice": "The AI assistant is taking a little longer to reply. You can use other features and return later.",
   "ai_keeping_pace": "AI-powered guidance keeping you on pace.",
   "ai_prompt_context": "I'm asking about my workout: %s km, %s mins, avg HR %s bpm, elevation %s m, info: %s. Question: %s",

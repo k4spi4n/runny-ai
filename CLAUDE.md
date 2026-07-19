@@ -39,7 +39,7 @@ Deploy to Render (static web): `bash render-build.sh` (installs Flutter SDK, wri
 ## Configuration
 
 - **Client** `.env` (in `apps/runny_app/`, gitignored; template `.env.example`): only `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and non-secret model hints (`OPENROUTER_MODEL`, `OPENROUTER_MODELS`). **Never put provider API keys here** — the web build bundles `.env` into the client.
-- **Server** secrets: set via `supabase secrets set ...` for cloud, or `supabase/functions/.env` (gitignored) for local. Keys: `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `WAQI_API_KEY` (optional — weather AQI/location fallback; Open-Meteo is the keyless primary), plus Strava vars.
+- **Server** secrets: configure through Supabase Dashboard for cloud, or `supabase/functions/.env` (gitignored) for local. AI keys include `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`, and the Modal trio `MODAL_ENDPOINT_URL`, `MODAL_PROXY_TOKEN_ID`, `MODAL_PROXY_TOKEN_SECRET`; weather/Strava secrets remain server-only.
 
 ## Architecture
 
@@ -52,7 +52,7 @@ Deploy to Render (static web): `bash render-build.sh` (installs Flutter SDK, wri
 - `theme/` — `AppTheme.light()/dark()` + `ThemeProvider`.
 
 ### AI proxy (key design point)
-The client's `GeminiService` does **not** call any LLM directly — it invokes the Supabase `openrouter` Edge Function (`supabase/functions/openrouter/index.ts`). Despite the name, that function is a multi-provider proxy: **Groq is primary** (fast LPU), **OpenRouter is the fallback** when Groq is missing/rate-limited/erroring. Both are OpenAI-compatible so request/response bodies pass through unchanged.
+The client's `AiService` does **not** call any LLM directly — it invokes the Supabase `openrouter` Edge Function (`supabase/functions/openrouter/index.ts`; legacy function name). That function is a tier-aware multi-provider gateway. Paid/trial users and onboarding (goal suggestions plus training-plan generation) use **Groq → private Modal → Cerebras → OpenRouter**; other free-tier features reserve Modal as the fourth provider. Text and vision share server-owned policies, per-feature quotas, circuit breaking, and OpenAI-compatible payloads. Modal uses `Modal-Key`/`Modal-Secret` headers rather than Bearer auth.
 
 The Edge Function enforces server-side **guardrails** in order: (1) require an authenticated user (JWT `role == authenticated`), (2) validate payload size/length, (3) per-user rate limiting via the `check_ai_rate_limit` Postgres RPC (fail-open), (4) inject a running-only topic system prompt for free-form chat (skipped when `response_format` is set, e.g. internal JSON requests like plan generation). Provider used is reported back in the `X-AI-Provider` response header. When adding AI features, send model hints via `model` or `models` and let the function handle fallback.
 
