@@ -522,7 +522,7 @@ export const AI_FEATURE_POLICIES: Readonly<Record<AiFeature, AiFeaturePolicy>> =
       temperature: 0.2,
       groqModels: ["qwen/qwen3.6-27b"],
       modalModels: COMMON_MODAL,
-      cerebrasModels: [],
+      cerebrasModels: ["gemma-4-31b"],
       openRouterModels: [
         "google/gemini-2.0-flash-exp:free",
         "meta-llama/llama-3.2-11b-vision-instruct:free",

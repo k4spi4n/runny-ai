@@ -3,7 +3,7 @@ import {
   type NormalizedAiRequest,
   providerModels,
 } from "./ai_policy.ts";
-import { envInt } from "./http.ts";
+import { envInt, fetchWithTimeout } from "./http.ts";
 
 export type AiTier = "free" | "trial" | "paid";
 export type AiProvider = "groq" | "modal" | "cerebras" | "openrouter";
@@ -32,6 +32,12 @@ const FREE_ORDER: readonly AiProvider[] = [
   "openrouter",
   "modal",
 ];
+const VISION_ORDER: readonly AiProvider[] = [
+  "groq",
+  "cerebras",
+  "modal",
+  "openrouter",
+];
 
 interface ProviderHealth {
   failures: number;
@@ -46,6 +52,9 @@ export function providerSequence(
   feature: AiFeature,
   tier: AiTier,
 ): AiProvider[] {
+  if (feature === "activity_screenshot" || feature === "food_recognition") {
+    return [...VISION_ORDER];
+  }
   if (
     feature === "onboarding_goals" ||
     feature === "training_plan" ||
@@ -178,9 +187,10 @@ export function providerBody(
     body.max_tokens = body.max_completion_tokens;
     delete body.max_completion_tokens;
   }
-  if (provider === "groq" && request.feature === "food_recognition") {
-    // Groq's Qwen vision endpoint currently behaves more reliably with a
-    // strict JSON prompt than with response_format.
+  if (provider === "groq" && request.policy.allowImages) {
+    // Qwen vision supports JSON Object Mode, but Groq documents that this
+    // best-effort mode may still fail server-side JSON validation. Keep the
+    // canonical schema in the prompt and validate locally instead.
     appendCanonicalSchemaContract(body);
     delete body.response_format;
     body.reasoning_effort = "none";
@@ -194,6 +204,51 @@ export function providerBody(
     body.response_format = { type: "json_object" };
   }
   return body;
+}
+
+export function modal503RetryDelayMs(retriesCompleted: number): number {
+  return Math.min(8_000, 1_000 * 2 ** Math.max(0, retriesCompleted));
+}
+
+export async function fetchAiProvider(
+  config: AiProviderConfig,
+  body: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<Response> {
+  const deadline = Date.now() + timeoutMs;
+  const maxModal503Retries = envInt("AI_MODAL_503_RETRIES", 4, {
+    min: 0,
+    max: 8,
+  });
+  let retriesCompleted = 0;
+
+  while (true) {
+    const remainingMs = deadline - Date.now();
+    if (remainingMs < 1_000) {
+      throw new DOMException("Provider request timed out.", "AbortError");
+    }
+    const response = await fetchWithTimeout(
+      config.endpoint,
+      {
+        method: "POST",
+        headers: providerHeaders(config),
+        body: JSON.stringify(body),
+      },
+      { timeoutMs: remainingMs },
+    );
+    if (
+      config.provider !== "modal" || response.status !== 503 ||
+      retriesCompleted >= maxModal503Retries
+    ) {
+      return response;
+    }
+
+    const delayMs = modal503RetryDelayMs(retriesCompleted);
+    if (deadline - Date.now() < delayMs + 1_000) return response;
+    await response.body?.cancel();
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    retriesCompleted++;
+  }
 }
 
 export function providerTimeoutMs(provider: AiProvider): number {

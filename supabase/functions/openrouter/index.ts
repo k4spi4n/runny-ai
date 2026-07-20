@@ -8,11 +8,11 @@ import {
 } from "../_shared/ai_policy.ts";
 import {
   type AiTier,
+  fetchAiProvider,
   isProviderCircuitOpen,
   isRetryableProviderStatus,
   providerBody,
   providerConfigs,
-  providerHeaders,
   providerTimeoutMs,
   recordProviderFailure,
   recordProviderSuccess,
@@ -98,21 +98,10 @@ async function callProviders(
       const remainingMs = deadline - Date.now();
       if (remainingMs < 1_000) return null;
       try {
-        const response = await fetchWithTimeout(
-          config.endpoint,
-          {
-            method: "POST",
-            headers: providerHeaders(config),
-            body: JSON.stringify(
-              providerBody(normalized, config.provider, model),
-            ),
-          },
-          {
-            timeoutMs: Math.min(
-              providerTimeoutMs(config.provider),
-              remainingMs,
-            ),
-          },
+        const response = await fetchAiProvider(
+          config,
+          providerBody(normalized, config.provider, model),
+          Math.min(providerTimeoutMs(config.provider), remainingMs),
         );
         if (response.ok) {
           if (!normalized.wantsStream && normalized.policy.structuredOutput) {

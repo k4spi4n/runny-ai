@@ -1,5 +1,6 @@
 import { normalizeAiRequest } from "./ai_policy.ts";
 import {
+  modal503RetryDelayMs,
   modalChatCompletionsUrl,
   providerBody,
   providerHeaders,
@@ -22,7 +23,7 @@ function occurrences(value: string, needle: string): number {
   return value.split(needle).length - 1;
 }
 
-Deno.test("onboarding and paid tiers place Modal immediately after Groq", () => {
+Deno.test("onboarding and paid text place Modal immediately after Groq", () => {
   assert(
     providerSequence("onboarding_goals", "free").join(",") ===
       "groq,modal,cerebras,openrouter",
@@ -38,26 +39,25 @@ Deno.test("onboarding and paid tiers place Modal immediately after Groq", () => 
       "groq,modal,cerebras,openrouter",
     "paid order changed",
   );
+});
+
+Deno.test("free text features reserve Modal as fourth provider", () => {
   assert(
-    providerSequence("activity_screenshot", "trial").join(",") ===
-      "groq,modal,cerebras,openrouter",
-    "trial vision order changed",
+    providerSequence("chat", "free").join(",") ===
+      "groq,cerebras,openrouter,modal",
+    "free provider order changed for chat",
   );
 });
 
-Deno.test("free non-onboarding features reserve Modal as fourth provider", () => {
-  for (
-    const feature of [
-      "chat",
-      "activity_screenshot",
-      "food_recognition",
-    ] as const
-  ) {
-    assert(
-      providerSequence(feature, "free").join(",") ===
-        "groq,cerebras,openrouter,modal",
-      `free provider order changed for ${feature}`,
-    );
+Deno.test("vision features use Groq, Cerebras, Modal, then OpenRouter", () => {
+  for (const feature of ["activity_screenshot", "food_recognition"] as const) {
+    for (const tier of ["free", "trial", "paid"] as const) {
+      assert(
+        providerSequence(feature, tier).join(",") ===
+          "groq,cerebras,modal,openrouter",
+        `vision provider order changed for ${feature}:${tier}`,
+      );
+    }
   }
 });
 
@@ -153,7 +153,7 @@ Deno.test("OpenRouter downgrade retains exactly one canonical schema contract", 
   );
 });
 
-Deno.test("Groq models without strict-schema support receive one fallback contract", () => {
+Deno.test("Groq vision uses prompt JSON with reasoning disabled", () => {
   const image = `data:image/png;base64,${btoa("small activity image")}`;
   const normalized = normalizeAiRequest({
     feature: "activity_screenshot",
@@ -163,11 +163,11 @@ Deno.test("Groq models without strict-schema support receive one fallback contra
     }],
   });
   const body = providerBody(normalized, "groq", "qwen/qwen3.6-27b");
-  const format = body.response_format as Record<string, unknown>;
   assert(
-    format.type === "json_object",
-    "Groq vision format was not downgraded",
+    body.response_format == null,
+    "Groq vision retained server-side JSON validation",
   );
+  assert(body.reasoning_effort === "none", "Groq vision reasoning was enabled");
   const system = systemContent(body);
   assert(
     occurrences(system, "Schema JSON bắt buộc:") === 1,
@@ -177,6 +177,13 @@ Deno.test("Groq models without strict-schema support receive one fallback contra
     system.includes('"is_activity"'),
     "vision fallback lost schema fields",
   );
+});
+
+Deno.test("Modal 503 retry delays are bounded exponential backoff", () => {
+  assert(modal503RetryDelayMs(0) === 1_000, "first retry delay changed");
+  assert(modal503RetryDelayMs(1) === 2_000, "second retry delay changed");
+  assert(modal503RetryDelayMs(3) === 8_000, "fourth retry delay changed");
+  assert(modal503RetryDelayMs(8) === 8_000, "retry delay lost its cap");
 });
 
 Deno.test("Groq food fallback removes response_format but retains its schema", () => {

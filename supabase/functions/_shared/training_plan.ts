@@ -3,21 +3,16 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 import { normalizeAiRequest, providerModels } from "./ai_policy.ts";
 import {
   type AiTier,
+  fetchAiProvider,
   isProviderCircuitOpen,
   isRetryableProviderStatus,
   providerBody,
   providerConfigs,
-  providerHeaders,
   providerTimeoutMs,
   recordProviderFailure,
   recordProviderSuccess,
 } from "./ai_provider.ts";
-import {
-  correlationId,
-  envInt,
-  fetchWithTimeout,
-  readTextLimited,
-} from "./http.ts";
+import { correlationId, envInt, readTextLimited } from "./http.ts";
 
 export interface TrainingPlanJob {
   id: string;
@@ -101,21 +96,10 @@ async function callPlanProvider(
         throw new Error("training_plan_provider_timeout");
       }
       try {
-        const response = await fetchWithTimeout(
-          config.endpoint,
-          {
-            method: "POST",
-            headers: providerHeaders(config),
-            body: JSON.stringify(
-              providerBody(normalized, config.provider, model),
-            ),
-          },
-          {
-            timeoutMs: Math.min(
-              providerTimeoutMs(config.provider),
-              remainingMs,
-            ),
-          },
+        const response = await fetchAiProvider(
+          config,
+          providerBody(normalized, config.provider, model),
+          Math.min(providerTimeoutMs(config.provider), remainingMs),
         );
         if (!response.ok) {
           recordProviderFailure(

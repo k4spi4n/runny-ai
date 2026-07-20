@@ -1,16 +1,16 @@
 import { normalizeAiRequest, providerModels } from "../_shared/ai_policy.ts";
 import {
   type AiTier,
+  fetchAiProvider,
   isProviderCircuitOpen,
   isRetryableProviderStatus,
   providerBody,
   providerConfigs,
-  providerHeaders,
   providerTimeoutMs,
   recordProviderFailure,
   recordProviderSuccess,
 } from "../_shared/ai_provider.ts";
-import { fetchWithTimeout, readTextLimited } from "../_shared/http.ts";
+import { readTextLimited } from "../_shared/http.ts";
 
 export interface FoodNutrition {
   calories: number;
@@ -122,13 +122,11 @@ export class MultiProviderFoodRecognitionService
       if (isProviderCircuitOpen(config.provider)) continue;
       for (const model of providerModels("food_recognition", config.provider)) {
         try {
-          const res = await fetchWithTimeout(config.endpoint, {
-            method: "POST",
-            headers: providerHeaders(config),
-            body: JSON.stringify(
-              providerBody(normalized, config.provider, model),
-            ),
-          }, { timeoutMs: providerTimeoutMs(config.provider) });
+          const res = await fetchAiProvider(
+            config,
+            providerBody(normalized, config.provider, model),
+            providerTimeoutMs(config.provider),
+          );
           if (!res.ok) {
             recordProviderFailure(
               config.provider,
