@@ -1,99 +1,108 @@
 # Setup Guide
 
-This guide will help you get the Runny AI project up and running on your local machine.
+This guide explains how to run Runny AI locally and how to deploy production changes through the Supabase Dashboard.
 
-## Prerequisites
+## 1) Prerequisites
 
-- **Flutter SDK**: `^3.12.0`
-- **Dart SDK**: `^3.0.0`
-- **Supabase CLI**: For local backend development (optional but recommended)
-- **Git**
+- Flutter SDK (Dart `^3.12.0`)
+- Git
+- Supabase CLI + Docker (for local backend development)
 
-## Installation
+## 2) Clone and install client dependencies
 
-### 1. Clone the repository
 ```bash
-git clone https://github.com/your-repo/runny-ai.git
-cd runny-ai
-```
-
-### 2. Frontend Setup (Flutter)
-```bash
-cd apps/runny_app
+git clone https://github.com/k4spi4n/runny-ai.git
+cd runny-ai/apps/runny_app
 flutter pub get
 ```
 
-### Bước 3: Thiết lập Hệ thống Máy chủ (Supabase)
-#### Phát triển cục bộ (Local Development)
-1. Đảm bảo Docker Desktop đang chạy.
-2. Khởi chạy Supabase cục bộ và áp dụng database migrations:
-   ```bash
-   supabase start
-   supabase db reset
-   ```
-   Lệnh `supabase status` sẽ in ra `Project URL` (cổng API, mặc định cấu hình dự án là `http://127.0.0.1:34321`) và khóa public (`Publishable key` dạng `sb_publishable_...` ở CLI mới, hoặc `anon key` JWT ở CLI cũ) dùng cho `.env` của client ở Bước 4.
-3. Cấu hình secrets bảo mật cho các Edge Function (AI, thời tiết). Với môi trường local, các secret được nạp từ một tệp env riêng phía server (**không phải `.env` của client**). Tạo tệp `supabase/functions/.env` từ mẫu rồi điền key thật:
-   ```bash
-   cp supabase/functions/.env.example supabase/functions/.env
-   ```
-   ```env
-   # supabase/functions/.env
-   GROQ_API_KEY=YOUR_KEY            # AI text/chat (CHÍNH) — https://console.groq.com/keys
-   MODAL_ENDPOINT_URL=YOUR_URL       # Modal private endpoint
-   MODAL_MODEL=Qwen/Qwen3.5-27B-FP8
-   MODAL_PROXY_TOKEN_ID=wk-...
-   MODAL_PROXY_TOKEN_SECRET=ws-...
-   CEREBRAS_API_KEY=YOUR_KEY        # Public/free fallback — https://cloud.cerebras.ai/
-   OPENROUTER_API_KEY=YOUR_KEY      # Public/free fallback — https://openrouter.ai/keys
-   WAQI_API_KEY=YOUR_KEY            # AQI (chính) — https://aqicn.org/data-platform/token/
-   OPENWEATHER_API_KEY=YOUR_KEY     # Thời tiết + AQI dự phòng — https://openweathermap.org/api
-   FOOD_RECOGNITION_PROVIDER=ai     # Vision dùng cùng gateway đa provider
-   ```
-   > Hàm `weather` chỉ cần **một trong hai** `WAQI_API_KEY` hoặc `OPENWEATHER_API_KEY` là chạy. Tuy nhiên nếu chỉ có WAQI thì nhiệt độ/icon thời tiết phụ thuộc trạm đo gần đó; nên cấu hình thêm `OPENWEATHER_API_KEY` để có dữ liệu thời tiết ổn định.
-   > Tệp `supabase/functions/.env` đã được `.gitignore` bỏ qua — không commit key lên git.
-4. Phục vụ các Edge Function cục bộ (nạp secrets từ tệp vừa tạo). **Giữ cửa sổ terminal này mở** trong suốt quá trình phát triển; mở terminal khác để chạy ứng dụng:
-   ```bash
-   supabase functions serve --env-file supabase/functions/.env
-   ```
-   > Khi sửa code function (`.ts`) thì runtime tự nạp lại. Nhưng khi đổi/thêm key trong `supabase/functions/.env` thì phải dừng (`Ctrl+C`) và chạy lại lệnh này.
+## 3) Configure Flutter client env
 
-#### Triển khai lên Cloud (Production Deployment)
-1. Tạo một dự án mới trên bảng điều khiển [Supabase Dashboard](https://supabase.com/).
-2. Áp dụng migrations lên database của dự án.
-3. Trong Supabase Dashboard, mở **Edge Functions → Secrets** và nhập các biến
-   server trong `supabase/functions/.env.example`, gồm toàn bộ bộ Modal proxy
-   token. Không đặt chúng trong Render hay `.env` của Flutter.
-4. Trong Dashboard, deploy lại `openrouter`, `training-plan`,
-   `training-plan-worker` và `food-recognition` sau khi áp dụng migration mới.
+Create `apps/runny_app/.env` from the template:
 
-### Bước 4: Cấu hình Biến môi trường Client (.env)
-Tạo tệp cấu hình hệ thống từ tệp mẫu:
-```bash
-supabase functions deploy openrouter
-supabase functions deploy strava_webhook
-supabase functions deploy weather
-```
-Mở tệp `.env` và cập nhật các thông số:
-- **SUPABASE_URL** và **SUPABASE_ANON_KEY**: Địa chỉ URL và khóa public của dự án Supabase (lấy từ kết quả lệnh `supabase status` khi chạy local, hoặc tại mục Cài đặt API trên Cloud). Lưu ý dùng **Project URL** (cổng API `http://127.0.0.1:34321` khi local) chứ không phải chuỗi kết nối database; `SUPABASE_ANON_KEY` nhận `Publishable key` (`sb_publishable_...`) hoặc `anon key` JWT, **không phải** Storage S3 Access Key.
-- **Chú ý bảo mật**: Không cấu hình các private API key hoặc Modal proxy token trong file `.env` này. Toàn bộ AI và thời tiết được proxy qua Edge Functions; các secret chỉ cấu hình ở Dashboard theo Bước 3.
-
-### 4. Environment Variables
-Copy the `.env.example` to `.env` in the `apps/runny_app` directory:
 ```bash
 cp .env.example .env
 ```
-The Flutter client only needs `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and optional
-non-secret model hints. Provider, Modal, weather, payment, and Strava secrets
-belong in Supabase Edge Function secrets.
 
-## Running the App
+Client `.env` should only contain:
 
-To run the Flutter app on your connected device or emulator:
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- optional non-secret model hints
+
+Never place provider API keys in client `.env` because web builds bundle this file.
+
+## 4) Run Supabase locally (optional, recommended)
+
+From repository root:
+
 ```bash
-flutter run
+supabase start
+supabase db reset
 ```
 
-## Troubleshooting
-- **Missing Dependencies**: Ensure `flutter pub get` is run in `apps/runny_app`.
-- **API Errors**: Check your `.env` file for correct keys and ensure Supabase Edge Functions are correctly deployed and accessible.
+Create server secrets file:
 
+```bash
+cp supabase/functions/.env.example supabase/functions/.env
+```
+
+Then serve Edge Functions locally:
+
+```bash
+supabase functions serve --env-file supabase/functions/.env
+```
+
+Keep this process running while developing.
+
+## 5) Required server-side secrets
+
+Configure these in `supabase/functions/.env` for local development (or in Supabase Dashboard secrets for production):
+
+- AI gateway: `GROQ_API_KEY`, `MODAL_ENDPOINT_URL`, `MODAL_PROXY_TOKEN_ID`, `MODAL_PROXY_TOKEN_SECRET`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`
+- Weather fallback: `WAQI_API_KEY` (optional fallback/location naming) and/or `OPENWEATHER_API_KEY`
+- Strava: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `STRAVA_REDIRECT_URI`, `STRAVA_VERIFY_TOKEN`, `STRAVA_SUBSCRIPTION_ID`
+- Food recognition mode: `FOOD_RECOGNITION_PROVIDER=ai` for production (mock only for local testing)
+
+## 6) Run the Flutter app
+
+From `apps/runny_app/`:
+
+```bash
+flutter run -d chrome
+```
+
+## 7) Common development commands
+
+From `apps/runny_app/`:
+
+```bash
+flutter analyze
+flutter test
+flutter build web --release
+```
+
+From repository root (local backend):
+
+```bash
+supabase start
+supabase db reset
+supabase functions serve --env-file supabase/functions/.env
+```
+
+## 8) Production workflow (Supabase Dashboard)
+
+For production, use Supabase Dashboard UI (not CLI):
+
+1. Open **SQL Editor** and apply new migration files.
+2. Open **Edge Functions → Secrets** and set server secrets.
+3. Deploy/update functions from **Edge Functions** UI.
+4. Verify auth settings per function (JWT on/off as required by each function).
+
+Render production site: https://runny-ai.onrender.com/
+
+## Troubleshooting
+
+- `flutter` command not found: install Flutter SDK and add it to `PATH`.
+- Edge Function auth errors: check `SUPABASE_URL`, anon key, and user session.
+- Weather/AI errors: verify server secrets are present in Supabase.

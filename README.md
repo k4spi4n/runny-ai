@@ -7,15 +7,15 @@
 <h1 align="center">Runny AI</h1>
 
 <p align="center">
-  Trợ lý chạy bộ cá nhân kết hợp dữ liệu tập luyện, AI Coach và cộng đồng.
+  AI-powered running coach and community platform · Trợ lý chạy bộ cá nhân tích hợp AI và cộng đồng
 </p>
 
 <p align="center">
-  <a href="https://runny-ai.onrender.com/"><strong>Trải nghiệm web app</strong></a>
+  <a href="https://runny-ai.onrender.com/"><strong>Web app</strong></a>
   ·
-  <a href="docs/setup.md">Cài đặt</a>
+  <a href="docs/setup.md">Setup Guide</a>
   ·
-  <a href="docs/architecture.md">Kiến trúc</a>
+  <a href="docs/architecture.md">Architecture</a>
   ·
   <a href="docs/api.md">API</a>
 </p>
@@ -26,62 +26,30 @@
   <img src="https://img.shields.io/badge/status-alpha-F59E0B" alt="Alpha" />
 </p>
 
-<p align="center">
-  <a href="https://unikorn.vn/p/runny-ai?ref=embed-runny-ai" target="_blank"><img src="https://unikorn.vn/api/widgets/badge/runny-ai?theme=light" alt="Runny AI trên Unikorn.vn" width="256" height="64" /></a>
-  <a href="https://unikorn.vn/p/runny-ai?ref=embed-runny-ai" target="_blank"><img src="https://unikorn.vn/api/widgets/badge/runny-ai/rank?theme=light&amp;type=daily" alt="Runny AI - Hàng ngày" width="250" height="64" /></a>
-  <a href="https://unikorn.vn/p/runny-ai?ref=embed-runny-ai" target="_blank"><img src="https://unikorn.vn/api/widgets/badge/runny-ai/rank?theme=light&amp;type=weekly" alt="Runny AI - Hàng tuần" width="250" height="64" /></a>
-</p>
+## English
 
-## Chạy thông minh hơn, đều đặn hơn
+### Overview
 
-Runny AI là nền tảng huấn luyện chạy bộ dành cho người chạy ở mọi cấp độ. Ứng dụng biến lịch sử chạy, mục tiêu cá nhân, mức độ hồi phục và điều kiện thời tiết thành những gợi ý dễ hành động — từ buổi chạy hôm nay đến một giáo án dài hạn.
+Runny AI helps runners turn training data into actionable coaching. The app combines activity analysis, AI coaching, personalized plans, readiness/recovery signals, nutrition tracking, and social motivation.
 
-Ứng dụng web đang được triển khai tại **[runny-ai.onrender.com](https://runny-ai.onrender.com/)**.
+Production web: **https://runny-ai.onrender.com/**
 
-## Điểm nổi bật
+### Highlights
 
-| | Tính năng | Bạn nhận được |
-| --- | --- | --- |
-| 🤖 | **AI Coach theo ngữ cảnh** | Trò chuyện bằng văn bản hoặc giọng nói với huấn luyện viên AI; câu trả lời có thể dùng ngữ cảnh hoạt động, lịch tập, readiness và thời tiết hiện tại. |
-| 🗓️ | **Giáo án cá nhân hóa** | Tạo kế hoạch theo mục tiêu, theo dõi lịch tập, xem insight tuần và dời buổi tập khi cần. |
-| ❤️ | **Readiness & hồi phục** | Ước tính mức sẵn sàng từ tải tập ngắn/dài hạn, ACWR và tín hiệu đau/mệt để hỗ trợ quyết định nên tập, giảm tải hay nghỉ. |
-| 📈 | **Phân tích hoạt động** | Khám phá pace, nhịp tim, elevation, split và lịch sử tập qua biểu đồ trực quan; lưu kèm điều kiện thời tiết và AQI khi có dữ liệu vị trí. |
-| ⬆️ | **Nhập hoạt động linh hoạt** | Kết nối Strava, nhập GPX/FIT, điền thủ công hoặc tải ảnh chụp kết quả để AI trích xuất số liệu trước khi lưu. |
-| 🥗 | **Dinh dưỡng & thể trạng** | Ghi nhật ký dinh dưỡng, nhận gợi ý phù hợp tải tập, theo dõi cân nặng/BMI và nhận diện món ăn từ ảnh. |
-| 👟 | **Quản lý giày chạy** | Theo dõi số kilomet tích lũy của từng đôi giày và nhận cảnh báo khi đến ngưỡng cần thay. |
-| 🤝 | **Cộng đồng chạy bộ** | Chia sẻ hoạt động, kết nối bạn chạy, theo dõi bảng xếp hạng và các cột mốc huy hiệu. |
+- **AI Coach (text + voice):** context-aware coaching from activities, plans, readiness, and weather.
+- **Personalized plans:** goal-based training schedules with rescheduling support.
+- **Flexible activity import:** Strava sync, GPX/FIT import, manual input, and screenshot extraction.
+- **Health features:** nutrition logs, weight/BMI tracking, and food recognition.
+- **Community:** activity feed, leaderboard, badges, and run partner matching.
 
-## Giao diện
+### Architecture and security principles
 
-<p align="center">
-  <img src="content-factory/out/overview-metrics.png" alt="Tổng quan chỉ số chạy bộ trên Runny AI" width="23%" />
-  <img src="content-factory/out/chatbot.png" alt="AI Coach của Runny AI" width="23%" />
-  <img src="content-factory/out/personalized-training.png" alt="Giáo án chạy bộ cá nhân hóa" width="23%" />
-  <img src="content-factory/out/smart-nutrition.png" alt="Nhật ký dinh dưỡng thông minh" width="23%" />
-</p>
+- Flutter + Provider client (`apps/runny_app`).
+- Supabase backend: Auth, PostgreSQL (RLS), and Edge Functions.
+- AI and weather are proxied through Edge Functions (no provider keys in client).
+- AI gateway provider order is tier-aware and server-managed.
 
-## Công nghệ & nguyên tắc bảo mật
-
-```mermaid
-flowchart LR
-    Runner[Người chạy] --> App[Flutter Web / PWA]
-    App <--> Auth[Supabase Auth]
-    App <--> Data[(Supabase PostgreSQL)]
-    App --> Functions[Supabase Edge Functions]
-    Functions --> AI[Groq / OpenRouter]
-    Functions --> Weather[Open-Meteo / WAQI]
-    Strava[Strava] <--> App
-    Strava --> Functions
-```
-
-- **Flutter + Provider** cung cấp trải nghiệm đa nền tảng, hỗ trợ giao diện sáng/tối và tiếng Việt/English.
-- **Supabase** đảm nhiệm xác thực, PostgreSQL với Row Level Security, realtime và Edge Functions.
-- Các yêu cầu tới AI và thời tiết được đi qua Edge Functions; khóa nhà cung cấp không được đưa vào web client. AI proxy ưu tiên Groq và có thể fallback sang OpenRouter.
-- **Strava OAuth + webhook** hỗ trợ kết nối và đồng bộ hoạt động.
-
-## Bắt đầu phát triển
-
-Yêu cầu: Flutter SDK (Dart `^3.12.0`), một dự án Supabase và cấu hình môi trường cho client/backend. Xem hướng dẫn đầy đủ tại **[docs/setup.md](docs/setup.md)**.
+### Quick start
 
 ```bash
 git clone <repository-url>
@@ -91,48 +59,61 @@ flutter pub get
 flutter run -d chrome
 ```
 
-Tệp `.env` phía client chỉ chứa `SUPABASE_URL`, `SUPABASE_ANON_KEY` và các model hint không nhạy cảm. Các khóa AI, thời tiết và Strava phải được đặt ở Supabase Edge Functions — không thêm chúng vào ứng dụng Flutter.
+Client `.env` must include only `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and optional non-secret model hints.
 
-Các lệnh thường dùng:
+## Tiếng Việt
+
+### Giới thiệu
+
+Runny AI giúp người chạy biến dữ liệu tập luyện thành gợi ý hành động. Ứng dụng kết hợp phân tích hoạt động, AI Coach, giáo án cá nhân, chỉ số hồi phục, dinh dưỡng và động lực cộng đồng.
+
+Web production: **https://runny-ai.onrender.com/**
+
+### Điểm nổi bật
+
+- **AI Coach (văn bản + giọng nói):** tư vấn theo ngữ cảnh từ lịch sử chạy, giáo án, readiness và thời tiết.
+- **Giáo án cá nhân hóa:** lập lịch tập theo mục tiêu, hỗ trợ dời lịch.
+- **Nhập hoạt động linh hoạt:** đồng bộ Strava, nhập GPX/FIT, nhập tay, nhận diện từ ảnh chụp kết quả.
+- **Theo dõi thể trạng:** nhật ký dinh dưỡng, cân nặng/BMI, nhận diện món ăn.
+- **Cộng đồng:** bảng tin hoạt động, bảng xếp hạng, huy hiệu, ghép đôi bạn chạy.
+
+### Kiến trúc và bảo mật
+
+- Client Flutter + Provider (`apps/runny_app`).
+- Backend Supabase: Auth, PostgreSQL (RLS), Edge Functions.
+- AI và thời tiết luôn đi qua Edge Functions (không lộ API key ở client).
+- Thứ tự fallback provider AI được quản lý phía server theo tier/tính năng.
+
+### Bắt đầu nhanh
 
 ```bash
-# Từ apps/runny_app/
-flutter analyze
-flutter test
-flutter build web --release
-
-# Từ thư mục gốc dự án, dành cho môi trường phát triển local
-supabase start
-supabase db reset
-supabase functions serve --env-file supabase/functions/.env
+git clone <repository-url>
+cd runny-ai/apps/runny_app
+cp .env.example .env
+flutter pub get
+flutter run -d chrome
 ```
 
-## Cấu trúc repository
+`.env` phía client chỉ nên chứa `SUPABASE_URL`, `SUPABASE_ANON_KEY` và model hint không nhạy cảm.
+
+## Repository structure
 
 ```text
-apps/runny_app/       Flutter client: pages, widgets, models và services
-supabase/             Database migrations, seed data và Deno Edge Functions
-content-factory/      Nguồn/asset marketing và ảnh demo dùng trong README
-docs/                 Tài liệu kiến trúc, API, thiết lập và tầm nhìn sản phẩm
+apps/runny_app/       Flutter client: pages, widgets, models, services
+supabase/             Database migrations, seed data, Edge Functions
+content-factory/      Marketing source assets and README screenshots
+docs/                 Architecture, API, setup, and product docs
 ```
 
-## Tài liệu
+## Documentation
 
-- [Tầm nhìn sản phẩm, personas & user stories](docs/product-vision.md)
-- [Hướng dẫn cài đặt và cấu hình](docs/setup.md)
-- [Tài liệu API](docs/api.md)
-- [Kiến trúc hệ thống](docs/architecture.md)
-- [Danh mục công nghệ](docs/tech-stack.md)
-- [Ghi chú phát hành v0.1.0](release_notes_v0.1.0.md)
-
-## Trạng thái dự án
-
-Runny AI hiện ở giai đoạn **alpha**. Một số dịch vụ phụ thuộc cấu hình Supabase, nhà cung cấp AI, vị trí thiết bị hoặc tài khoản Strava để hoạt động đầy đủ.
+- [Setup Guide](docs/setup.md)
+- [System Architecture](docs/architecture.md)
+- [API Documentation](docs/api.md)
+- [Tech Stack](docs/tech-stack.md)
+- [Product Vision](docs/product-vision.md)
+- [v0.1.0 release notes](release_notes_v0.1.0.md)
 
 ## License
 
-Phát hành theo [MIT License](LICENSE).
-
----
-
-Được xây dựng với niềm yêu thích dành cho cộng đồng chạy bộ. 🏃
+Released under the [MIT License](LICENSE).
