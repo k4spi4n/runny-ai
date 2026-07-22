@@ -107,7 +107,11 @@
       "Bash(grep -oE '^[A-Z_]+=' supabase/functions/.env)",
       "Bash(cat render-build.sh)",
       "Bash(sed -E 's/=\\(.{8}\\).*/=\\\\1...[REDACTED len shown]/' apps/runny_app/build/web/assets/.env)",
-      "Bash(git --no-pager diff supabase/functions supabase/config.toml apps/runny_app/lib/services/subscription_service.dart)"
+      "Bash(git --no-pager diff supabase/functions supabase/config.toml apps/runny_app/lib/services/subscription_service.dart)",
+      "Bash(gh repo *)",
+      "Bash(gh api *)",
+      "Bash(gh label *)",
+      "Bash(PYTHONIOENCODING=utf-8 python *)"
     ]
   }
 }
