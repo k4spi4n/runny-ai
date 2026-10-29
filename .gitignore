@@ -73,3 +73,12 @@ app.*.map.json
 # Supabase related
 **/supabase/.temp/
 **/supabase/.branches/
+
+# Agents tmp
+.codex_tmp/
+
+# Docs & marketing materials (local only)
+docs/*.docx
+docs/*.pdf
+docs/presentation-speaker-notes.md
+content-factory/

@@ -119,6 +119,7 @@
   "camera_permission_hint": "Use the button to grant camera access when you want to take a food photo for AI recognition.",
   "request_camera_permission": "Allow camera access",
   "retry": "Retry",
+  "load_more": "Load more",
   "nutrition": "Nutrition",
   "history": "History",
   "calories_in": "Calories In",

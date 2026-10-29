@@ -1,10 +1,10 @@
-import 'speech_service_stub.dart'
+import 'speech_service_io.dart'
     if (dart.library.js_interop) 'speech_service_web.dart';
 
 /// Issue #29: Speech-to-Text cho AI Chatbot.
 ///
 /// Trừu tượng hoá nhận diện giọng nói. Trên web dùng Web Speech API của trình
-/// duyệt; các nền tảng khác trả về bản "không hỗ trợ" để vẫn biên dịch được.
+/// duyệt; Android/iOS dùng bộ nhận diện của hệ điều hành.
 abstract class SpeechService {
   /// Trình duyệt/thiết bị có hỗ trợ nhận diện giọng nói hay không.
   bool get isSupported;

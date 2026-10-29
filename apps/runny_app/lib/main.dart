@@ -40,7 +40,10 @@ Future<void> main() async {
   await Supabase.initialize(
     url: supabaseUrl,
     anonKey: supabaseAnonKey,
-    authOptions: FlutterAuthClientOptions(detectSessionInUri: !kIsWeb),
+    // Web xử lý callback thủ công (PasswordRecoveryService); native không có
+    // callback đăng nhập qua deep link và không được nhầm deep link Strava
+    // (`runnyai://.../strava?code=...`) là callback PKCE.
+    authOptions: const FlutterAuthClientOptions(detectSessionInUri: false),
   );
   var recoveryStatus = PasswordRecoveryStatus.none;
   if (kIsWeb) {

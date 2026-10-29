@@ -22,6 +22,7 @@ class ActivityHistoryPage extends StatefulWidget {
 class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   bool _isLoading = true;
+  bool _loadFailed = false;
   List<Activity> _activities = [];
   List<Shoe> _shoes = [];
   static const int _activityPageSize = 100;
@@ -41,7 +42,10 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
   }
 
   Future<void> _fetchData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadFailed = false;
+    });
     try {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return;
@@ -81,7 +85,11 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
       });
     } catch (e) {
       debugPrint('Error fetching history data: $e');
-      setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadFailed = true;
+      });
     }
   }
 
@@ -544,6 +552,25 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_loadFailed) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_rounded, size: 48, color: colorScheme.error),
+            const SizedBox(height: 12),
+            Text(context.translate('error_occurred')),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _fetchData,
+              icon: const Icon(Icons.refresh),
+              label: Text(context.translate('retry')),
+            ),
+          ],
+        ),
+      );
     }
 
     final filtered = _filteredActivities;
@@ -1620,7 +1647,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Tải thêm'),
+                  : Text(context.translate('load_more')),
             ),
           ),
       ],

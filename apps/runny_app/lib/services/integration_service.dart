@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -7,7 +8,9 @@ class IntegrationService {
   Future<void> connectStrava() async {
     final res = await _supabase.functions.invoke(
       'strava_oauth',
-      body: {'action': 'start'},
+      // Native: server trả redirect_uri dạng deep link `runnyai://` để Strava
+      // quay về app thay vì về bản web.
+      body: {'action': 'start', if (!kIsWeb) 'platform': 'mobile'},
     );
     final data = res.data;
     final rawUrl = data is Map ? data['authorizationUrl'] : null;
@@ -17,10 +20,11 @@ class IntegrationService {
     final authUrl = Uri.parse(rawUrl);
 
     // Trên web mở cùng tab ('_self') để sau khi cấp quyền, Strava redirect quay
-    // lại đúng URL ứng dụng và mã `code` được xử lý. Tham số này bị bỏ qua ngoài web.
+    // lại đúng URL ứng dụng và mã `code` được xử lý. Native mở trình duyệt ngoài;
+    // deep link sẽ đưa người dùng quay về app.
     await launchUrl(
       authUrl,
-      mode: LaunchMode.platformDefault,
+      mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
       webOnlyWindowName: '_self',
     );
   }

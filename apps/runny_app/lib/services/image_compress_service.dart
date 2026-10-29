@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'image_compress_service_stub.dart'
+import 'image_compress_service_io.dart'
     if (dart.library.js_interop) 'image_compress_service_web.dart';
 
 /// Dịch vụ nén ảnh thông minh trước khi gửi lên backend.

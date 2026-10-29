@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/subscription_models.dart';
+import '../services/entitlement_service.dart';
 import '../services/subscription_service.dart';
 import '../widgets/ui_components.dart';
 import '../l10n/app_localizations.dart';
@@ -13,17 +16,36 @@ class SubscriptionPage extends StatefulWidget {
   State<SubscriptionPage> createState() => _SubscriptionPageState();
 }
 
-class _SubscriptionPageState extends State<SubscriptionPage> {
+class _SubscriptionPageState extends State<SubscriptionPage>
+    with WidgetsBindingObserver {
   final _subscriptionService = SubscriptionService();
   bool _isLoading = true;
   List<SubscriptionPlan> _plans = [];
   UserSubscription? _activeSubscription;
   bool _isProcessing = false;
+  // Native: PayOS mở ở trình duyệt ngoài và returnUrl trỏ về bản web, nên khi
+  // người dùng quay lại app thì tải lại gói (webhook đã kích hoạt ở server).
+  bool _awaitingCheckout = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !_awaitingCheckout) return;
+    _awaitingCheckout = false;
+    _loadData();
+    context.read<EntitlementProvider>().refresh();
   }
 
   Future<void> _loadData() async {
@@ -59,6 +81,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
         webOnlyWindowName: '_self',
         mode: LaunchMode.externalApplication,
       );
+      if (!kIsWeb) _awaitingCheckout = true;
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

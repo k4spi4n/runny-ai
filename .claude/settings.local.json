@@ -111,7 +111,10 @@
       "Bash(gh repo *)",
       "Bash(gh api *)",
       "Bash(gh label *)",
-      "Bash(PYTHONIOENCODING=utf-8 python *)"
+      "Bash(PYTHONIOENCODING=utf-8 python *)",
+      "Bash(mkdir -p .tmp-props/presentation)",
+      "Bash(npx remotion *)",
+      "Bash(npm run *)"
     ]
   }
 }

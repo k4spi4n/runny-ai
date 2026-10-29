@@ -61,6 +61,8 @@ dependencies:
   flutter_markdown: ^0.7.7+1
   # Pin directly so pub cannot resolve the retracted 7.1.0 transitively.
   app_links: ^7.2.1
+  speech_to_text: ^7.5.0
+  flutter_image_compress: ^2.5.1
 
 dev_dependencies:
   flutter_test:

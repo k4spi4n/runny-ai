@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:hugeicons/hugeicons.dart';
@@ -73,6 +75,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   late final List<Widget> _pages;
   late final List<HoverSync> _navSyncs;
+  StreamSubscription<({String code, String state})>? _stravaLinkSub;
   // Bố cục tùy chỉnh của trang Tổng quan (ẩn/hiện + sắp xếp các mục). Mỗi màn
   // hình tự quản cấu hình riêng; hiện chỉ dashboard có tùy chọn.
   final DashboardLayout _dashboardLayout = DashboardLayout();
@@ -121,7 +124,9 @@ class _DashboardPageState extends State<DashboardPage> {
     ];
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _handleStravaRedirect();
+      final redirect = takePendingStravaRedirect();
+      if (redirect != null) _handleStravaRedirect(redirect);
+      _stravaLinkSub = stravaDeepLinks().listen(_handleStravaRedirect);
       _handlePaymentRedirectAndEntitlement();
       flushPendingRunReminderNavigation();
     });
@@ -195,11 +200,9 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   /// Sau khi người dùng cấp quyền Strava, trình duyệt quay về app kèm ?code=...
-  /// -> đổi lấy token và nhập hoạt động, rồi dọn URL.
-  Future<void> _handleStravaRedirect() async {
-    final redirect = takePendingStravaRedirect();
-    if (redirect == null) return;
-
+  /// (web) hoặc deep link `runnyai://` (native) -> đổi lấy token và nhập hoạt động.
+  Future<void> _handleStravaRedirect(({String code, String state}) redirect) async {
+    if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     final errorText = context.translate('error');
     messenger.showSnackBar(
@@ -231,6 +234,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   @override
   void dispose() {
+    _stravaLinkSub?.cancel();
     _aiCoachHubController
       ..removeListener(_handleAICoachHubRequest)
       ..clear();

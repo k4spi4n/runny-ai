@@ -45,7 +45,7 @@ function randomState(): string {
     .join("");
 }
 
-function redirectUri(): string {
+function redirectUri(platform: unknown): string {
   const raw = Deno.env.get("STRAVA_REDIRECT_URI")?.trim();
   if (!raw) throw new Error("strava_redirect_not_configured");
   const uri = new URL(raw);
@@ -53,6 +53,9 @@ function redirectUri(): string {
   if (uri.protocol !== "https:" && !(local && uri.protocol === "http:")) {
     throw new Error("strava_redirect_invalid");
   }
+  // App native: deep link cố định của app. Strava chỉ kiểm tra host khớp
+  // "Authorization Callback Domain", nên dùng lại host của redirect web.
+  if (platform === "mobile") return `runnyai://${uri.hostname}/strava`;
   return uri.toString();
 }
 
@@ -99,7 +102,7 @@ serve(async (req) => {
 
       const url = new URL("https://www.strava.com/oauth/authorize");
       url.searchParams.set("client_id", clientId);
-      url.searchParams.set("redirect_uri", redirectUri());
+      url.searchParams.set("redirect_uri", redirectUri(payload.platform));
       url.searchParams.set("response_type", "code");
       url.searchParams.set("approval_prompt", "auto");
       url.searchParams.set("scope", "activity:read_all,profile:read_all");
