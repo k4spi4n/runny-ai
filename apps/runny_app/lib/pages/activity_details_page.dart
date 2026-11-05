@@ -6,6 +6,7 @@ import '../models/shoe_models.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/activity_charts.dart';
 import '../widgets/activity_summary_card.dart';
+import '../widgets/saved_run_route.dart';
 import '../widgets/animated_ai_gradient_button.dart';
 import '../services/weather_service.dart';
 import '../services/readiness_service.dart';
@@ -89,6 +90,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
 
       setState(() {
         _activity = Activity(
+          hasGpsRoute: _activity.hasGpsRoute,
           id: _activity.id,
           userId: _activity.userId,
           startedAt: _activity.startedAt,
@@ -463,6 +465,10 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
           ),
         ),
         const SizedBox(height: 24),
+        if (_activity.hasGpsRoute && _activity.id != null) ...[
+          SavedRunRoute(activityId: _activity.id!, userId: _activity.userId),
+          const SizedBox(height: 24),
+        ],
         if (isWide)
           Row(
             key: const ValueKey('activity_details_wide_layout'),
@@ -920,6 +926,7 @@ class _ActivityDetailsPageState extends State<ActivityDetailsPage> {
         name: _activity.name,
         notes: _activity.notes,
         dataPoints: _activity.dataPoints,
+        hasGpsRoute: _activity.hasGpsRoute,
         startLat: _activity.startLat,
         startLon: _activity.startLon,
         weatherSummary: _activity.weatherSummary,

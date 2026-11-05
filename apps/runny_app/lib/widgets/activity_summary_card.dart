@@ -169,7 +169,9 @@ class ActivitySummaryCard extends StatelessWidget {
   }
 
   List<_ActivityMetric> _metrics(BuildContext context) {
-    final pace = activity.distanceKm > 0
+    final pace =
+        activity.distanceKm > 0 &&
+            (!activity.hasGpsRoute || activity.distanceKm >= 0.1)
         ? formatPace(activity.durationMin / activity.distanceKm)
         : '-:--';
     return [

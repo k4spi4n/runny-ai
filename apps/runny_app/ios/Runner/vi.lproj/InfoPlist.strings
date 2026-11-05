@@ -1,0 +1,3 @@
+"NSLocationWhenInUseUsageDescription" = "Runny AI dùng vị trí để ghi lại buổi chạy ngoài trời và hiển thị thời tiết địa phương.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Cho phép vị trí trong buổi chạy để ghi lộ trình và quãng đường khi khóa màn hình hoặc dùng ứng dụng khác.";
+"NSLocationAlwaysUsageDescription" = "Cho phép vị trí trong buổi chạy để tiếp tục ghi khi khóa màn hình.";

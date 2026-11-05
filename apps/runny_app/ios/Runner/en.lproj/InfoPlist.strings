@@ -1,0 +1,3 @@
+"NSLocationWhenInUseUsageDescription" = "Runny AI uses your location to record your outdoor run and show local weather.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Allow location during a run to record your route and distance with the screen locked or while using another app.";
+"NSLocationAlwaysUsageDescription" = "Allow location during a run to keep recording with the screen locked.";

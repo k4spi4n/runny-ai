@@ -67,7 +67,15 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Cho phep ung dung truy cap vi tri de lay thoi tiet hien tai.</string>
+	<string>Runny AI uses your location to record your outdoor run and show local weather.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Runny AI uses your location during a run, including with the screen locked, to record your route and distance.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Runny AI uses your location to continue recording your run with the screen locked.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Cho phep ung dung chup anh mon an de phan tich dinh duong.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
