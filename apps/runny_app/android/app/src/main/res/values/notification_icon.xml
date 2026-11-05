@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- shortcut: dùng icon launcher; thêm icon đơn sắc và R8 keep rules trước khi phát hành. -->
+    <item name="ic_launcher" type="drawable">@mipmap/ic_launcher</item>
+</resources>

@@ -1,4 +1,5 @@
 class Activity {
+  final bool hasGpsRoute;
   final String? id;
   final String userId;
   final DateTime startedAt;
@@ -21,6 +22,7 @@ class Activity {
   final String? shoeId;
 
   Activity({
+    this.hasGpsRoute = false,
     this.id,
     required this.userId,
     required this.startedAt,
@@ -45,6 +47,7 @@ class Activity {
 
   factory Activity.fromJson(Map<String, dynamic> json) {
     return Activity(
+      hasGpsRoute: json['has_gps_route'] == true,
       id: json['id'],
       userId: json['user_id'],
       startedAt: DateTime.parse(json['started_at']).toLocal(),
@@ -77,6 +80,7 @@ class Activity {
   Map<String, dynamic> toJson() {
     return {
       if (id != null) 'id': id,
+      if (hasGpsRoute) 'has_gps_route': true,
       'user_id': userId,
       'started_at': startedAt.toUtc().toIso8601String(),
       if (createdAt != null) 'created_at': createdAt!.toUtc().toIso8601String(),

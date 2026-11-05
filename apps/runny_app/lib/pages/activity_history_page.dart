@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -11,15 +12,22 @@ import '../l10n/app_localizations.dart';
 import '../utils/activity_formatters.dart';
 import 'activity_details_page.dart';
 import 'dart:math' as math;
+import 'package:provider/provider.dart';
+import '../services/run_recording_service.dart';
+import '../services/nutrition_service.dart';
+import '../services/training_refresh_service.dart';
+import 'record_run_page.dart';
 
 class ActivityHistoryPage extends StatefulWidget {
-  const ActivityHistoryPage({super.key});
+  const ActivityHistoryPage({super.key, this.onActivityChanged});
+
+  final VoidCallback? onActivityChanged;
 
   @override
-  State<ActivityHistoryPage> createState() => _ActivityHistoryPageState();
+  State<ActivityHistoryPage> createState() => ActivityHistoryPageState();
 }
 
-class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
+class ActivityHistoryPageState extends State<ActivityHistoryPage> {
   final SupabaseClient _supabase = Supabase.instance.client;
   bool _isLoading = true;
   bool _loadFailed = false;
@@ -40,6 +48,8 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
     super.initState();
     _fetchData();
   }
+
+  Future<void> refresh() => _fetchData();
 
   Future<void> _fetchData() async {
     setState(() {
@@ -76,6 +86,7 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
           .map((json) => Shoe.fromJson(json))
           .toList();
 
+      if (!mounted) return;
       setState(() {
         _activities = fetchedActivities;
         _hasMoreActivities = fetchedActivities.length == _activityPageSize;
@@ -547,6 +558,62 @@ class _ActivityHistoryPageState extends State<ActivityHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!RunRecordingService.supported ||
+        MediaQuery.sizeOf(context).width <= 900) {
+      return _buildHistory(context);
+    }
+    final hasDraft = context.select<RunRecordingService, bool>(
+      (s) => s.draft != null,
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _buildHistory(context),
+        Center(
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFB91C1C),
+              foregroundColor: Colors.white,
+              minimumSize: const Size(220, 88),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+              elevation: 8,
+              textStyle: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            icon: const Icon(Icons.fiber_manual_record, size: 32),
+            label: Text(
+              context.translate(hasDraft ? 'run_continue' : 'run_record'),
+            ),
+            onPressed: () async {
+              final result = await Navigator.push<Activity>(
+                context,
+                MaterialPageRoute(builder: (_) => const RecordRunPage()),
+              );
+              if (result == null || !context.mounted) return;
+              widget.onActivityChanged?.call();
+              unawaited(_fetchData());
+              unawaited(context.read<NutritionService>().refresh());
+              TrainingRefreshService.instance.notifyTrainingChanged();
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ActivityDetailsPage(activity: result),
+                ),
+              );
+              if (mounted) {
+                widget.onActivityChanged?.call();
+                unawaited(_fetchData());
+              }
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHistory(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 

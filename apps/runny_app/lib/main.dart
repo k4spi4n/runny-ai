@@ -17,6 +17,7 @@ import 'services/notification_service.dart';
 import 'services/ai_coach_hub_controller.dart';
 import 'services/auth_redirect.dart';
 import 'services/password_recovery_service.dart';
+import 'services/run_recording_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,6 +65,10 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        ChangeNotifierProvider(
+          lazy: false,
+          create: (_) => RunRecordingService(Supabase.instance.client),
+        ),
         ChangeNotifierProvider(create: (_) => ThemeProvider(prefs)),
         ChangeNotifierProvider(create: (_) => LanguageProvider(prefs)),
         ChangeNotifierProvider(create: (_) => NutritionService()),

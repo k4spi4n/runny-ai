@@ -15,6 +15,9 @@ import 'profile_page.dart';
 import 'community_page.dart';
 import 'nutrition_page.dart';
 import 'activity_history_page.dart';
+import 'record_run_page.dart';
+import '../services/run_recording_service.dart';
+import '../widgets/dashboard_bottom_bar.dart';
 import '../widgets/ui_components.dart';
 import '../widgets/nutrition_components.dart';
 import '../services/nutrition_service.dart';
@@ -72,6 +75,7 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _isRailHovered = false;
   final GlobalKey<_OverviewContentState> _overviewKey =
       GlobalKey<_OverviewContentState>();
+  final _historyKey = GlobalKey<ActivityHistoryPageState>();
 
   late final List<Widget> _pages;
   late final List<HoverSync> _navSyncs;
@@ -118,7 +122,11 @@ class _DashboardPageState extends State<DashboardPage> {
       const TrainingPlanPage(embedded: true),
       const AICoachPage(),
       const NutritionPage(embedded: true),
-      const ActivityHistoryPage(),
+      ActivityHistoryPage(
+        key: _historyKey,
+        onActivityChanged: () =>
+            _overviewKey.currentState?.refreshActivityData(),
+      ),
       const CommunityPage(),
       const ProfilePage(),
     ];
@@ -167,6 +175,29 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  Future<void> _openRecordRun() async {
+    final activity = await Navigator.push<Activity>(
+      context,
+      MaterialPageRoute(builder: (_) => const RecordRunPage()),
+    );
+    if (activity == null || !mounted) return;
+    _overviewKey.currentState?.refreshActivityData();
+    unawaited(_historyKey.currentState?.refresh());
+    _selectPage(4);
+    unawaited(context.read<NutritionService>().refresh());
+    TrainingRefreshService.instance.notifyTrainingChanged();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ActivityDetailsPage(activity: activity),
+      ),
+    );
+    if (mounted) {
+      _overviewKey.currentState?.refreshActivityData();
+      unawaited(_historyKey.currentState?.refresh());
+    }
+  }
+
   /// Nhắc nâng cấp mỗi 4 ngày kể từ ngày tạo tài khoản trong lúc còn trial
   /// (mốc ngày 4/8/12). Lưu mốc đã nhắc vào shared_preferences theo user để
   /// không lặp lại mỗi lần vào Dashboard.
@@ -201,7 +232,9 @@ class _DashboardPageState extends State<DashboardPage> {
 
   /// Sau khi người dùng cấp quyền Strava, trình duyệt quay về app kèm ?code=...
   /// (web) hoặc deep link `runnyai://` (native) -> đổi lấy token và nhập hoạt động.
-  Future<void> _handleStravaRedirect(({String code, String state}) redirect) async {
+  Future<void> _handleStravaRedirect(
+    ({String code, String state}) redirect,
+  ) async {
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     final errorText = context.translate('error');
@@ -315,6 +348,12 @@ class _DashboardPageState extends State<DashboardPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final appBackground = context.watch<ThemeProvider>().background;
+    final canRecord = RunRecordingService.supported;
+    final hasRunDraft =
+        canRecord &&
+        context.select<RunRecordingService, bool>(
+          (recorder) => recorder.draft != null,
+        );
 
     final navItems = [
       (
@@ -359,7 +398,7 @@ class _DashboardPageState extends State<DashboardPage> {
       // well makes nested pages (notably AI Coach) subtract the mobile keyboard
       // twice, leaving a large empty band above the keyboard on web.
       resizeToAvoidBottomInset: false,
-      extendBody: true,
+      extendBody: false,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         titleSpacing: useCompactAppBar ? 12 : null,
@@ -477,90 +516,11 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
       bottomNavigationBar: !isDesktop
-          ? SafeArea(
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                height: 64,
-                child: glassCard(
-                  context: context,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Center(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(navItems.length, (index) {
-                          final isSelected = _selectedIndex == index;
-                          final item = navItems[index];
-
-                          return GestureDetector(
-                            onTap: () => _selectPage(index),
-                            behavior: HitTestBehavior.opaque,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                              ),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 300),
-                                curve: Curves.easeInOutCubic,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: isSelected ? 12 : 8,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? theme.primaryColor.withValues(
-                                          alpha: 0.15,
-                                        )
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    (isSelected
-                                        ? item.selectedIconBuilder
-                                        : item.iconBuilder)(
-                                      isSelected
-                                          ? theme.primaryColor
-                                          : colorScheme.onSurfaceVariant,
-                                      22,
-                                    ),
-                                    AnimatedSize(
-                                      duration: const Duration(
-                                        milliseconds: 300,
-                                      ),
-                                      curve: Curves.easeInOutCubic,
-                                      child: isSelected
-                                          ? Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const SizedBox(width: 6),
-                                                Text(
-                                                  item.label,
-                                                  style: TextStyle(
-                                                    color: theme.primaryColor,
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ],
-                                            )
-                                          : const SizedBox.shrink(),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+          ? DashboardBottomBar(
+              selectedIndex: _selectedIndex,
+              onSelected: _selectPage,
+              onRecord: canRecord ? _openRecordRun : null,
+              hasRunDraft: hasRunDraft,
             )
           : null,
     );
